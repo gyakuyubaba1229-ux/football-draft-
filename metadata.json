@@ -1,0 +1,6 @@
+{
+  "name": "FOOTBALL DRAFT",
+  "description": "A dynamic football draft game where players spin Year × Club roulette to discover real players, trigger rare Black Ball events, and assemble their ultimate 11-player Best XI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
