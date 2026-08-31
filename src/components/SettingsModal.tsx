@@ -3,7 +3,8 @@ import { Language } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
 import { DEFAULT_X_CHAR_LIMIT } from '../utils/shareUtils';
-import { Settings, X, Volume2, VolumeX, RotateCcw, Globe, AlertTriangle, Sliders } from 'lucide-react';
+import { CURRENT_VERSION } from '../data/versionConfig';
+import { Settings, X, Volume2, VolumeX, RotateCcw, Globe, AlertTriangle, Sliders, FileText, Sparkles, ChevronRight } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface SettingsModalProps {
   onResetGame: () => void;
   xCharLimit: number;
   onXCharLimitChange: (limit: number) => void;
+  onOpenUpdateNotes?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -27,6 +29,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetGame,
   xCharLimit,
   onXCharLimitChange,
+  onOpenUpdateNotes,
 }) => {
   const t = TRANSLATIONS[language];
   const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -67,6 +70,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Settings Body */}
         <div className="p-4 sm:p-6 space-y-5 overflow-y-auto">
+          {/* Version & Update Notes Section */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-emerald-500/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-mono font-black text-xs text-white">
+                  {CURRENT_VERSION}
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                  LATEST
+                </span>
+              </div>
+              {onOpenUpdateNotes && (
+                <button
+                  id="settings-view-update-notes-btn"
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    onOpenUpdateNotes();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>UPDATE NOTES</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              {language === 'ja'
+                ? 'マイナーなレジェンド選手＆名手の大幅追加、年代所属・能力値最適化'
+                : language === 'es'
+                ? 'Expansión de leyendas clásicas, héroes de culto y precisión por épocas'
+                : 'Expanded minor legends, cult heroes & era-specific ratings accuracy'}
+            </p>
+          </div>
+
           {/* Language Selection */}
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2 mb-2">

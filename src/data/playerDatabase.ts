@@ -2,9 +2,11 @@ import { Player, GameMode, PlayerCategory } from '../types';
 import { EUROPEAN_PLAYERS } from './playersEurope';
 import { EUROPEAN_PLAYERS_MODERN } from './playersEuropeModern';
 import { EUROPEAN_PLAYERS_SQUAD } from './playersEuropeSquad';
+import { EUROPEAN_LEGENDS_EXPANDED } from './playersLegendsEurope';
 import { J1_PLAYERS } from './playersJ1';
 import { J1_PLAYERS_MODERN } from './playersJ1Modern';
 import { J1_PLAYERS_SQUAD } from './playersJ1Squad';
+import { J1_LEGENDS_EXPANDED } from './playersLegendsJ1';
 import { EUROPEAN_CLUBS, J1_CLUBS, ALL_CLUBS } from './clubs';
 
 // Helper to normalize and auto-assign categories if omitted
@@ -45,12 +47,14 @@ export const COMBINED_EUROPEAN_PLAYERS: Player[] = deduplicatePlayers([
   ...EUROPEAN_PLAYERS,
   ...EUROPEAN_PLAYERS_MODERN,
   ...EUROPEAN_PLAYERS_SQUAD,
+  ...EUROPEAN_LEGENDS_EXPANDED,
 ]);
 
 export const COMBINED_J1_PLAYERS: Player[] = deduplicatePlayers([
   ...J1_PLAYERS,
   ...J1_PLAYERS_MODERN,
   ...J1_PLAYERS_SQUAD,
+  ...J1_LEGENDS_EXPANDED,
 ]);
 
 export const ALL_PLAYERS: Player[] = [...COMBINED_EUROPEAN_PLAYERS, ...COMBINED_J1_PLAYERS];

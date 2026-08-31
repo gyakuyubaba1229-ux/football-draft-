@@ -32,6 +32,8 @@ import { HowToPlayModal } from './components/HowToPlayModal';
 import { ModeSelectModal } from './components/ModeSelectModal';
 import { CelebrationModal } from './components/CelebrationModal';
 import { ShareModal } from './components/ShareModal';
+import { UpdateNotesModal } from './components/UpdateNotesModal';
+import { CURRENT_VERSION } from './data/versionConfig';
 import { DEFAULT_X_CHAR_LIMIT, STORAGE_KEY_X_CHAR_LIMIT } from './utils/shareUtils';
 import confetti from 'canvas-confetti';
 import { CheckCircle2, Share2 } from 'lucide-react';
@@ -294,6 +296,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState<boolean>(false);
+  const [isUpdateNotesOpen, setIsUpdateNotesOpen] = useState<boolean>(false);
   const [sharingTeam, setSharingTeam] = useState<UserTeam | null>(null);
 
   // Language & Sound handlers
@@ -440,6 +443,11 @@ export default function App() {
     } catch (e) {
       // ignore
     }
+  };
+
+  // Delete a single entry from history
+  const handleDeleteHistoryEntry = (entryId: string) => {
+    setDraftHistory((prev) => prev.filter((item) => item.id !== entryId));
   };
 
   // CORE ROULETTE SPIN LOGIC
@@ -707,6 +715,7 @@ export default function App() {
             onNavigate={setCurrentView}
             onOpenHowToPlay={() => setIsHowToPlayOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenUpdateNotes={() => setIsUpdateNotesOpen(true)}
             teams={teams}
             activeTeam={activeTeam}
             myTeam={activeTeam.players}
@@ -887,6 +896,7 @@ export default function App() {
               history={draftHistory}
               language={language}
               onClearHistory={handleClearHistory}
+              onDeleteEntry={handleDeleteHistoryEntry}
             />
           </div>
         )}
@@ -915,12 +925,23 @@ export default function App() {
         onResetGame={handleResetGame}
         xCharLimit={xCharLimit}
         onXCharLimitChange={(limit) => setXCharLimit(limit)}
+        onOpenUpdateNotes={() => {
+          setIsSettingsOpen(false);
+          setIsUpdateNotesOpen(true);
+        }}
       />
 
       {/* How To Play Modal */}
       <HowToPlayModal
         isOpen={isHowToPlayOpen}
         onClose={() => setIsHowToPlayOpen(false)}
+        language={language}
+      />
+
+      {/* Update Notes Modal */}
+      <UpdateNotesModal
+        isOpen={isUpdateNotesOpen}
+        onClose={() => setIsUpdateNotesOpen(false)}
         language={language}
       />
 
@@ -961,7 +982,17 @@ export default function App() {
       {/* Footer */}
       <footer className="mt-auto py-4 border-t border-slate-900 bg-slate-950/80 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>⚽ FOOTBALL DRAFT — Authentic Real Players Database (Europe & 2026 J1)</span>
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <span>⚽ FOOTBALL DRAFT — Authentic Real Players Database</span>
+            <button
+              onClick={() => setIsUpdateNotesOpen(true)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold hover:bg-emerald-500/20 transition-colors cursor-pointer"
+            >
+              <span>{CURRENT_VERSION}</span>
+              <span>•</span>
+              <span className="underline">UPDATE NOTES</span>
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setCurrentView('home')}
@@ -995,6 +1026,7 @@ export default function App() {
           history={draftHistory}
           language={language}
           onClearHistory={handleClearHistory}
+          onDeleteEntry={handleDeleteHistoryEntry}
         />
       )}
     </div>

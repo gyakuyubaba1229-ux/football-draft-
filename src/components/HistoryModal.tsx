@@ -13,6 +13,7 @@ interface HistoryModalProps {
   history: DraftHistoryEntry[];
   language: Language;
   onClearHistory?: () => void;
+  onDeleteEntry?: (id: string) => void;
 }
 
 export const HistoryModal: React.FC<HistoryModalProps> = ({
@@ -21,11 +22,13 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
   history,
   language,
   onClearHistory,
+  onDeleteEntry,
 }) => {
   const t = TRANSLATIONS[language];
   const [filterMode, setFilterMode] = useState<'all' | 'europe' | 'j1'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<DraftHistoryEntry | null>(null);
 
   // Filter history with multilingual search
   const filteredHistory = useMemo(() => {
@@ -101,7 +104,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
           </div>
         </div>
 
-        {/* Clear Confirmation Banner */}
+        {/* Clear All Confirmation Banner */}
         {showClearConfirm && (
           <div className="p-4 bg-rose-950/90 border-b border-rose-500/50 space-y-2.5 animate-fadeIn">
             <div className="flex items-center gap-2 text-rose-300 font-bold text-sm">
@@ -114,7 +117,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => setShowClearConfirm(false)}
-                className="flex-1 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold"
+                className="flex-1 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 transition-colors"
               >
                 {t.cancel}
               </button>
@@ -124,9 +127,46 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                   if (onClearHistory) onClearHistory();
                   setShowClearConfirm(false);
                 }}
-                className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md"
+                className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md transition-colors"
               >
                 {t.confirm}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Single Entry Delete Confirmation Banner */}
+        {entryToDelete && (
+          <div className="p-3.5 sm:p-4 bg-rose-950/90 border-b border-rose-500/50 space-y-2 animate-fadeIn">
+            <div className="flex items-center gap-2 text-rose-300 font-bold text-sm">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{t.deleteHistoryItemConfirm}</span>
+            </div>
+            <div className="text-xs text-slate-300 flex items-center gap-2 bg-slate-900/80 p-2 rounded-xl border border-rose-500/30">
+              <span className="font-bold text-white font-heading">{entryToDelete.playerName}</span>
+              <span className="text-slate-500">•</span>
+              <span className="text-emerald-400 font-medium">{entryToDelete.clubName}</span>
+              <span className="text-slate-500">•</span>
+              <span className="font-mono text-slate-300">{entryToDelete.joiningYear}</span>
+              <span className="text-slate-500">•</span>
+              <span className="text-amber-300 font-mono font-bold">OVR {entryToDelete.rating}</span>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setEntryToDelete(null)}
+                className="flex-1 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 transition-colors"
+              >
+                {t.cancel}
+              </button>
+              <button
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  if (onDeleteEntry) onDeleteEntry(entryToDelete.id);
+                  setEntryToDelete(null);
+                }}
+                className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md transition-colors"
+              >
+                {t.deleteHistoryItem}
               </button>
             </div>
           </div>
@@ -312,13 +352,31 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-right pl-2 shrink-0">
-                    <span className="text-[10px] text-slate-500 font-mono block">
-                      {new Date(entry.timestamp).toLocaleDateString()}
-                    </span>
-                    <span className="text-[9px] text-slate-600 font-mono">
-                      {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                  <div className="flex items-center gap-2 pl-2 shrink-0">
+                    <div className="text-right hidden xs:block">
+                      <span className="text-[10px] text-slate-500 font-mono block">
+                        {new Date(entry.timestamp).toLocaleDateString()}
+                      </span>
+                      <span className="text-[9px] text-slate-600 font-mono">
+                        {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+
+                    {onDeleteEntry && (
+                      <button
+                        id={`delete-history-entry-${entry.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          soundManager.playButtonClick();
+                          setEntryToDelete(entry);
+                        }}
+                        title={t.deleteHistoryItem}
+                        aria-label={t.deleteHistoryItem}
+                        className="p-2 rounded-xl bg-slate-900/90 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-all cursor-pointer shadow-sm active:scale-95"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

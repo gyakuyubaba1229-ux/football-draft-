@@ -2,6 +2,7 @@ import React from 'react';
 import { GameMode, Language, Player, UserTeam } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
+import { CURRENT_VERSION } from '../data/versionConfig';
 import {
   Play,
   HelpCircle,
@@ -12,6 +13,7 @@ import {
   ChevronRight,
   ArrowRight,
   Plus,
+  FileText,
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -20,6 +22,7 @@ interface HomeScreenProps {
   onNavigate: (tab: 'home' | 'draft' | 'team' | 'history') => void;
   onOpenHowToPlay: () => void;
   onOpenSettings: () => void;
+  onOpenUpdateNotes?: () => void;
   teams?: UserTeam[];
   activeTeam?: UserTeam;
   myTeam: Player[];
@@ -35,6 +38,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onOpenHowToPlay,
   onOpenSettings,
+  onOpenUpdateNotes,
   teams,
   activeTeam,
   myTeam,
@@ -90,6 +94,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {t.appSubtitle}
           </p>
         </div>
+
+        {/* Version & Update Notes Badge */}
+        {onOpenUpdateNotes && (
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <button
+              id="home-version-badge-btn"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onOpenUpdateNotes();
+              }}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 text-xs text-slate-300 hover:text-white transition-all shadow-md group cursor-pointer"
+            >
+              <span className="font-mono font-black text-[11px] text-emerald-400">
+                {CURRENT_VERSION}
+              </span>
+              <span className="w-1 h-1 rounded-full bg-emerald-400" />
+              <span className="text-[11px] font-bold text-slate-300 group-hover:text-emerald-300 flex items-center gap-1">
+                <FileText className="w-3 h-3 text-emerald-400" />
+                <span>UPDATE NOTES</span>
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
+        )}
 
         {/* Active Universe Pill */}
         <div className="flex items-center justify-center gap-2 pt-0.5">

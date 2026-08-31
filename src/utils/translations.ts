@@ -120,6 +120,9 @@ export interface Translations {
   whoWouldBeInYourTeam: string;
   deleteTeam: string;
   deleteTeamConfirm: string;
+  deleteHistoryItem: string;
+  deleteHistoryItemConfirm: string;
+  historyItemDeleted: string;
   draftInProgress: string;
   viewTeam: string;
   activeSquad: string;
@@ -271,6 +274,9 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     whoWouldBeInYourTeam: 'あなたならどんなチームを作る？🔥',
     deleteTeam: 'チームを削除',
     deleteTeamConfirm: 'このチームを削除しますか？',
+    deleteHistoryItem: 'この獲得履歴を削除',
+    deleteHistoryItemConfirm: 'この獲得履歴を削除しますか？',
+    historyItemDeleted: '獲得履歴を削除しました',
     draftInProgress: 'ドラフト進行中',
     viewTeam: 'チームを表示',
     activeSquad: '現在の進行中チーム',
@@ -420,6 +426,9 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     whoWouldBeInYourTeam: 'Who would be in your Dream Team?🔥',
     deleteTeam: 'Delete Team',
     deleteTeamConfirm: 'Are you sure you want to delete this team?',
+    deleteHistoryItem: 'Delete Entry',
+    deleteHistoryItemConfirm: 'Delete this draft record from history?',
+    historyItemDeleted: 'History entry deleted',
     draftInProgress: 'DRAFT IN PROGRESS',
     viewTeam: 'VIEW TEAM',
     activeSquad: 'Current Active Team',
@@ -569,6 +578,9 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     whoWouldBeInYourTeam: '¿Cuál sería tu equipo soñado?🔥',
     deleteTeam: 'Eliminar Equipo',
     deleteTeamConfirm: '¿Deseas eliminar este equipo?',
+    deleteHistoryItem: 'Eliminar Registro',
+    deleteHistoryItemConfirm: '¿Deseas eliminar este registro del historial?',
+    historyItemDeleted: 'Registro eliminado del historial',
     draftInProgress: 'DRAFT EN CURSO',
     viewTeam: 'VER EQUIPO',
     activeSquad: 'Equipo Activo Actual',
