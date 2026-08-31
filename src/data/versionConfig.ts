@@ -36,6 +36,8 @@ export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
     titleEn: 'Expanded Legends, Cult Heroes & Era-Specific Roster Update',
     titleEs: 'Actualización Masiva de Leyendas y Héroes de Culto',
     notesJa: [
+      'カスタム配置やフォーメーション変更（4-2-3-1、4-4-2等）時に選手がピッチから消えてしまう不具合を修正',
+      'フォーメーション変更時も獲得した全11選手のポジション適性を維持したまま自動再配置するよう最適化',
       'マイナーなレジェンド選手や往年の名手・カルトヒーローを大幅に追加',
       '超有名スターだけでなく、各クラブの歴史を彩った実力派レジェンド選手も幅広く候補に登場',
       '所属年代と所属クラブを厳密に考慮し、実際にそのクラブに在籍していた年代と紐付け',
@@ -44,6 +46,8 @@ export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
       'レジェンドだけに偏らず、若手・中堅・ベテラン・現役選手もバランス良く候補に登場',
     ],
     notesEn: [
+      'Fixed an issue where players disappeared from the pitch when changing formations (e.g., 4-2-3-1) or switching from Custom Placement',
+      'Optimized automatic squad repositioning so all 11 drafted players smoothly transition across all formations',
       'Massive expansion of minor legends, cult heroes, and classic iconic players',
       'Broadened candidate pool to include both world superstars and beloved club icons',
       'Strict historical accuracy matching real club tenures and joining years',
@@ -52,6 +56,8 @@ export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
       'Balanced candidate distribution maintaining active stars, veterans, and young talents',
     ],
     notesEs: [
+      'Corrección del error por el cual los jugadores desaparecían al cambiar de formación (ej. 4-2-3-1) o desde la colocación personalizada',
+      'Optimización de recolocación automática para mantener a los 11 jugadores en cancha en todas las formaciones',
       'Gran expansión de leyendas clásicas, héroes de culto y figuras históricas',
       'Mayor variedad de candidatos incluyendo estrellas mundiales e ídolos de club',
       'Precisión histórica rigurosa según los años reales de permanencia en cada club',

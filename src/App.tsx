@@ -35,6 +35,7 @@ import { ShareModal } from './components/ShareModal';
 import { UpdateNotesModal } from './components/UpdateNotesModal';
 import { CURRENT_VERSION } from './data/versionConfig';
 import { DEFAULT_X_CHAR_LIMIT, STORAGE_KEY_X_CHAR_LIMIT } from './utils/shareUtils';
+import { autoAssignSlot, remapPlayerSlots } from './utils/formationUtils';
 import confetti from 'canvas-confetti';
 import { CheckCircle2, Share2 } from 'lucide-react';
 
@@ -320,34 +321,6 @@ export default function App() {
         return tItem;
       })
     );
-  };
-
-  // Helper to assign player to first open compatible slot in current formation
-  const autoAssignSlot = (player: Player, currentSlots: Record<string, string>, currentFormation: FormationType) => {
-    const basePreset = currentFormation === 'CUSTOM' ? '4-3-3' : currentFormation;
-    const formationSlots = FORMATIONS[basePreset].slots;
-    const assignedIds = new Set(Object.values(currentSlots));
-
-    // 1. Try matching role
-    let emptySlot = formationSlots.find((s) => {
-      if (assignedIds.has(currentSlots[s.id])) return false;
-      if (player.position === 'GK' && s.role === 'GK') return true;
-      if (player.position === 'DF' && ['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(s.role)) return true;
-      if (player.position === 'MF' && ['CM', 'CDM', 'CAM', 'LM', 'RM'].includes(s.role)) return true;
-      if (player.position === 'FW' && ['ST', 'CF', 'LW', 'RW'].includes(s.role)) return true;
-      return false;
-    });
-
-    // 2. If no role-matched slot is empty, take any available empty slot
-    if (!emptySlot) {
-      emptySlot = formationSlots.find((s) => !currentSlots[s.id]);
-    }
-
-    if (emptySlot) {
-      return { ...currentSlots, [emptySlot.id]: player.playerId };
-    }
-
-    return currentSlots;
   };
 
   // CREATE NEW TEAM (Team 2, Team 3, etc.)
@@ -877,7 +850,20 @@ export default function App() {
             }}
             formation={activeTeam.formation}
             onChangeFormation={(newFormation) => {
-              updateActiveTeam((prev) => ({ ...prev, formation: newFormation }));
+              updateActiveTeam((prev) => {
+                const newSlots = remapPlayerSlots(
+                  prev.players,
+                  prev.playerSlots,
+                  newFormation,
+                  prev.formation
+                );
+                return {
+                  ...prev,
+                  formation: newFormation,
+                  playerSlots: newSlots,
+                  customPositions: newFormation === 'CUSTOM' ? prev.customPositions : {},
+                };
+              });
             }}
             customPositions={activeTeam.customPositions}
             onUpdateCustomPositions={(newPos) => {

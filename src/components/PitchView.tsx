@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Player, FormationType, Language, FORMATIONS, CustomPlayerPosition, MainPosition, UserTeam } from '../types';
 import { TRANSLATIONS, getLocalizedPlayerName, getLocalizedPosition } from '../utils/translations';
 import { soundManager } from '../utils/audio';
+import { remapPlayerSlots, detectBasePresetFromSlots, PRESET_FORMATIONS } from '../utils/formationUtils';
 import { Share2, RotateCcw, Check, Award, Shield, Zap, Sparkles, Move, AlertTriangle, X, Plus, Play, Trash2, Users } from 'lucide-react';
 
 interface PitchSlot {
@@ -29,15 +30,6 @@ interface PitchViewProps {
   onUpdateCustomPositions: (positions: Record<string, CustomPlayerPosition>) => void;
   language: Language;
 }
-
-const PRESET_FORMATIONS: Exclude<FormationType, 'CUSTOM'>[] = [
-  '4-3-3',
-  '4-4-2',
-  '4-2-3-1',
-  '3-4-3',
-  '3-5-2',
-  '5-3-2',
-];
 
 export const PitchView: React.FC<PitchViewProps> = ({
   teams,
@@ -80,10 +72,30 @@ export const PitchView: React.FC<PitchViewProps> = ({
   const currentTeam = teams?.find((t) => t.teamId === activeTeamId);
   const currentTeamNumber = currentTeam?.teamNumber || 1;
 
-  // Build the 11 active slots based on preset or custom coordinates
+  // Determine base preset (dynamically detecting matching preset if in CUSTOM mode)
   const currentPresetBase: Exclude<FormationType, 'CUSTOM'> =
-    formation === 'CUSTOM' ? '4-3-3' : formation;
+    formation === 'CUSTOM'
+      ? detectBasePresetFromSlots(Object.keys(playerSlots))
+      : formation;
   const baseSlots = FORMATIONS[currentPresetBase]?.slots || FORMATIONS['4-3-3'].slots;
+
+  // Resolve player slots to guarantee NO player in myTeam is ever unmapped or lost
+  const resolvedPlayerSlots = useMemo(() => {
+    return remapPlayerSlots(myTeam, playerSlots, formation);
+  }, [myTeam, playerSlots, formation]);
+
+  // Keep parent playerSlots in sync if resolution assigned missing slots
+  useEffect(() => {
+    if (myTeam.length > 0) {
+      const keysA = Object.keys(resolvedPlayerSlots);
+      const keysB = Object.keys(playerSlots);
+      const isIdentical =
+        keysA.length === keysB.length && keysA.every((k) => resolvedPlayerSlots[k] === playerSlots[k]);
+      if (!isIdentical) {
+        onUpdateSlotAssignment(resolvedPlayerSlots);
+      }
+    }
+  }, [resolvedPlayerSlots, playerSlots, onUpdateSlotAssignment, myTeam.length]);
 
   const activeSlots: PitchSlot[] = baseSlots.map((baseSlot) => {
     if (formation === 'CUSTOM' && customPositions[baseSlot.id]) {
@@ -166,10 +178,10 @@ export const PitchView: React.FC<PitchViewProps> = ({
       // Finalize Drag or Swap
       if (hoveredTargetSlotId) {
         // Swap players between slots
-        const sourcePlayerId = playerSlots[dragId];
-        const targetPlayerId = playerSlots[hoveredTargetSlotId];
+        const sourcePlayerId = resolvedPlayerSlots[dragId];
+        const targetPlayerId = resolvedPlayerSlots[hoveredTargetSlotId];
 
-        const updatedSlots = { ...playerSlots };
+        const updatedSlots = { ...resolvedPlayerSlots };
         if (targetPlayerId) {
           updatedSlots[dragId] = targetPlayerId;
         } else {
@@ -261,10 +273,10 @@ export const PitchView: React.FC<PitchViewProps> = ({
       setSelectedSlotId(null);
     } else {
       // Swap players between selectedSlotId and slotId
-      const p1 = playerSlots[selectedSlotId];
-      const p2 = playerSlots[slotId];
+      const p1 = resolvedPlayerSlots[selectedSlotId];
+      const p2 = resolvedPlayerSlots[slotId];
 
-      const newSlots = { ...playerSlots };
+      const newSlots = { ...resolvedPlayerSlots };
       if (p2) newSlots[selectedSlotId] = p2;
       else delete newSlots[selectedSlotId];
 
@@ -289,7 +301,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
       `Squad OVR: ${averageRating} | Chemistry: ${chemistry}%`,
       '--------------------------------',
       ...activeSlots.map((s, idx) => {
-        const pId = playerSlots[s.id];
+        const pId = resolvedPlayerSlots[s.id];
         const player = myTeam.find((p) => p.playerId === pId);
         return `${idx + 1}. [${s.role}] ${player ? `${player.playerName} (${player.clubName}, ${player.joiningYear}) OVR:${player.rating}` : 'EMPTY'}`;
       }),
@@ -586,7 +598,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
         {/* Pitch Interactive Slots (11 Players) */}
         <div className="relative w-full h-full">
           {activeSlots.map((slot) => {
-            const playerId = playerSlots[slot.id];
+            const playerId = resolvedPlayerSlots[slot.id];
             const player = myTeam.find((p) => p.playerId === playerId);
             const isSelected = selectedSlotId === slot.id;
             const isDraggingThis = draggingSlotId === slot.id;
