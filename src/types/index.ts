@@ -1,6 +1,6 @@
 export type Language = 'ja' | 'en' | 'es';
 
-export type GameMode = 'europe' | 'j1';
+export type GameMode = 'europe' | 'j1' | 'active';
 
 export type MainPosition = 'GK' | 'DF' | 'MF' | 'FW';
 
@@ -223,6 +223,107 @@ export interface UserTeam {
   completedAt?: number;
 }
 
+export type BlackBallSpinType = 
+  | 'none' 
+  | 'normal-blackball' 
+  | 'lightning-blackball' 
+  | 'golden-ballon-dor'
+  | 'golden-lightning-ballon-dor';
+
+export type DraftStagingRarity = 'normal' | 'blackball' | 'golden';
+
+export interface PositionCounts {
+  GK: number;
+  DF: number;
+  MF: number;
+  FW: number;
+  total: number;
+}
+
+// ── BETA PVP & TACTICS TYPES ──
+
+export type AttackTactics =
+  | 'POSSESSION'       // ポゼッション
+  | 'SHORT_PASS'        // ショートパス
+  | 'DIRECT_PLAY'       // ダイレクトプレー
+  | 'COUNTER'           // カウンター
+  | 'LONG_BALL'         // ロングボール
+  | 'WIDE_ATTACK'       // サイド攻撃
+  | 'CENTRAL_ATTACK';   // 中央突破
+
+export type DefenseTactics =
+  | 'HIGH_PRESS'        // ハイプレス
+  | 'MID_BLOCK'         // ミドルブロック
+  | 'LOW_BLOCK'         // ローブロック
+  | 'HIGH_LINE'         // ハイライン
+  | 'DEFENSIVE_FOCUS';  // 守備重視
+
+export interface TeamTactics {
+  attackTactic: AttackTactics;
+  defenseTactic: DefenseTactics;
+  attackDirection: 'WIDE' | 'CENTRAL' | 'BALANCED';
+  pressIntensity: 'AGGRESSIVE' | 'CONSERVATIVE' | 'BALANCED';
+}
+
+export interface BetaUserProfile {
+  userId: string;
+  username: string;
+  team: UserTeam | null;
+  tactics: TeamTactics;
+  defenseSquadId?: string;
+  updatedAt: number;
+}
+
+export interface BetaMatchEvent {
+  minute: number;
+  textJa: string;
+  textEn: string;
+  textEs: string;
+  type: 'goal' | 'chance' | 'tactic' | 'defense' | 'whistle';
+  isChallengerGoal?: boolean;
+  isOpponentGoal?: boolean;
+}
+
+export interface BetaMatchRecord {
+  id: string;
+  challengerUserId: string;
+  challengerUsername: string;
+  opponentUserId: string;
+  opponentUsername: string;
+  matchType: 'OVR' | 'TACTICAL';
+  challengerScore: number;
+  opponentScore: number;
+  result: 'WIN' | 'DRAW' | 'LOSS';
+  points: 3 | 1 | 0;
+  challengerOvr: number;
+  opponentOvr: number;
+  challengerTeamName: string;
+  opponentTeamName: string;
+  timestamp: number;
+  events: BetaMatchEvent[];
+  halfTimeScore?: [number, number];
+  fullTimeScore: [number, number];
+  challengerTactics?: TeamTactics;
+  opponentTactics?: TeamTactics;
+}
+
+export interface BetaStandingEntry {
+  userId: string;
+  username: string;
+  teamName: string;
+  teamOvr: number;
+  points: number;
+  goalDifference: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  matchesCount: number;
+  recent10Matches: BetaMatchRecord[];
+  rank?: number;
+}
+
 export interface CurrentDraftState {
   activeTeamId: string;
   mode: GameMode;
@@ -232,8 +333,11 @@ export interface CurrentDraftState {
   isSpinning: boolean;
   hasCurrentDraft: boolean;
   skipsRemaining: number;
-  blackBallSpinType: 'none' | 'normal-blackball' | 'lightning-blackball';
-  blackBallStage: 'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'revealed';
+  blackBallSpinType: BlackBallSpinType;
+  blackBallStage: 'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'golden-rain' | 'revealed';
   isBlackBallResult: boolean;
+  isGoldenResult?: boolean;
 }
+
+
 

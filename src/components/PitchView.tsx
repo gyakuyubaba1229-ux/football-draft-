@@ -3,7 +3,13 @@ import { Player, FormationType, Language, FORMATIONS, CustomPlayerPosition, Main
 import { TRANSLATIONS, getLocalizedPlayerName, getLocalizedPosition } from '../utils/translations';
 import { soundManager } from '../utils/audio';
 import { remapPlayerSlots, detectBasePresetFromSlots, PRESET_FORMATIONS } from '../utils/formationUtils';
-import { Share2, RotateCcw, Check, Award, Shield, Zap, Sparkles, Move, AlertTriangle, X, Plus, Play, Trash2, Users } from 'lucide-react';
+import {
+  getEFootballPositionFromCoords,
+  normalizeRoleToEFootball,
+  evaluatePlayerAtPosition,
+} from '../utils/positionEngine';
+import { EFootballPositionGrid } from './PositionBadge';
+import { Share2, RotateCcw, Check, Award, Shield, Zap, Sparkles, Move, AlertTriangle, X, Plus, Play, Trash2, Users, MapPin } from 'lucide-react';
 
 interface PitchSlot {
   id: string;
@@ -16,6 +22,8 @@ interface PitchSlot {
 interface PitchViewProps {
   teams?: UserTeam[];
   activeTeamId?: string;
+  defenseSquadId?: string;
+  onSetDefenseSquad?: (teamId: string) => void;
   onSelectTeam?: (teamId: string) => void;
   onCreateNewTeam?: () => void;
   onDeleteTeam?: (teamId: string) => void;
@@ -34,6 +42,8 @@ interface PitchViewProps {
 export const PitchView: React.FC<PitchViewProps> = ({
   teams,
   activeTeamId,
+  defenseSquadId,
+  onSetDefenseSquad,
   onSelectTeam,
   onCreateNewTeam,
   onDeleteTeam,
@@ -110,11 +120,23 @@ export const PitchView: React.FC<PitchViewProps> = ({
     };
   });
 
-  // Calculate stats
-  const averageRating =
-    myTeam.length > 0
-      ? Math.round(myTeam.reduce((acc, p) => acc + p.rating, 0) / myTeam.length)
-      : 0;
+  // Calculate stats (OVR accounts for position suitability)
+  const averageRating = useMemo(() => {
+    if (myTeam.length === 0) return 0;
+    let totalRating = 0;
+    activeSlots.forEach((slot) => {
+      const pId = resolvedPlayerSlots[slot.id];
+      const player = myTeam.find((p) => p.playerId === pId);
+      if (!player) return;
+      const targetPos =
+        formation === 'CUSTOM' || customPositions[slot.id]
+          ? getEFootballPositionFromCoords(slot.x, slot.y)
+          : normalizeRoleToEFootball(slot.role);
+      const evalResult = evaluatePlayerAtPosition(player, targetPos);
+      totalRating += evalResult.effectiveRating;
+    });
+    return Math.round(totalRating / myTeam.length);
+  }, [myTeam, activeSlots, resolvedPlayerSlots, formation, customPositions]);
 
   // Chemistry calculation based on shared clubs and nationalities
   let chemistryPoints = 0;
@@ -425,6 +447,84 @@ export const PitchView: React.FC<PitchViewProps> = ({
         </div>
       )}
 
+      {/* DEFENSE SQUAD (守備時スカッド) Selector Box */}
+      {teams && teams.length > 0 && (
+        <div className="bg-slate-900/90 border border-indigo-900/40 rounded-2xl p-3.5 sm:p-4 shadow-xl space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+                <Shield className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-heading font-black text-xs sm:text-sm text-white">
+                    DEFENSE SQUAD (守備時スカッド)
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold">
+                    対戦被挑戦用
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  他プレイヤーに対戦を挑まれた際に相手側で使用される自分のチームです（アプリ未起動時も自動適用）。
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs shrink-0 self-start sm:self-center">
+              <span className="text-slate-400 font-bold">現在設定中:</span>
+              <span className="font-heading font-black text-indigo-200 bg-indigo-950/80 px-2.5 py-1 rounded-xl border border-indigo-500/50 flex items-center gap-1.5 shadow-sm">
+                <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                {teams.find((tItem) => tItem.teamId === defenseSquadId)?.name ||
+                  teams.find((tItem) => tItem.teamId === activeTeamId)?.name ||
+                  'SQUAD 1'}
+              </span>
+            </div>
+          </div>
+
+          {/* Squad Options */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {teams.map((tItem) => {
+              const isCurrentDefense = (defenseSquadId || activeTeamId) === tItem.teamId;
+              const avg = tItem.players.length
+                ? Math.round(tItem.players.reduce((s, p) => s + p.rating, 0) / tItem.players.length)
+                : 0;
+              return (
+                <button
+                  key={tItem.teamId}
+                  id={`btn-set-defense-${tItem.teamId}`}
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    if (onSetDefenseSquad) {
+                      onSetDefenseSquad(tItem.teamId);
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+                    isCurrentDefense
+                      ? 'bg-gradient-to-r from-indigo-900/60 to-purple-900/60 text-indigo-100 border-indigo-400 shadow-md shadow-indigo-950/50 ring-1 ring-indigo-400/40'
+                      : 'bg-slate-950/70 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800'
+                  }`}
+                >
+                  <Shield className={`w-3.5 h-3.5 ${isCurrentDefense ? 'text-indigo-400' : 'text-slate-500'}`} />
+                  <span>{tItem.name}</span>
+                  <span className="text-[10px] font-mono text-amber-300 font-black">
+                    {avg > 0 ? `OVR ${avg}` : `${tItem.players.length}/11`}
+                  </span>
+                  {isCurrentDefense ? (
+                    <span className="text-[10px] bg-indigo-500 text-white px-2 py-0.5 rounded-full font-black">
+                      設定中 ✓
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-indigo-400 hover:text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
+                      守備に設定
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 2. Top Status Bar: Chemistry, OVR & Tactics Controls */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -634,49 +734,78 @@ export const PitchView: React.FC<PitchViewProps> = ({
               >
                 {player ? (
                   /* Player Card on Pitch */
-                  <div
-                    className={`w-14 sm:w-20 rounded-xl sm:rounded-2xl p-1 sm:p-1.5 shadow-xl border flex flex-col items-center justify-between text-center transition-all ${
-                      player.rating >= 90
-                        ? 'bg-gradient-to-b from-slate-900 via-amber-950/60 to-slate-950 border-amber-500/70 shadow-amber-500/20'
-                        : 'bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 border-emerald-500/50 shadow-emerald-950/50'
-                    }`}
-                  >
-                    {/* Top flag + Rating */}
-                    <div className="flex items-center justify-between w-full text-[9px] sm:text-xs">
-                      <span className="leading-none">{player.nationalityFlag}</span>
-                      <span
-                        className={`font-heading font-black ${
-                          player.rating >= 90 ? 'text-amber-400' : 'text-emerald-400'
+                  (() => {
+                    const targetPos =
+                      formation === 'CUSTOM' || customPositions[slot.id]
+                        ? getEFootballPositionFromCoords(slot.x, slot.y)
+                        : normalizeRoleToEFootball(slot.role);
+                    const evalResult = evaluatePlayerAtPosition(player, targetPos);
+
+                    return (
+                      <div
+                        className={`w-14 sm:w-20 rounded-xl sm:rounded-2xl p-1 sm:p-1.5 shadow-xl border flex flex-col items-center justify-between text-center transition-all relative ${
+                          !evalResult.isSuitable
+                            ? 'bg-gradient-to-b from-rose-950/90 via-slate-900 to-slate-950 border-rose-500 shadow-rose-900/40 ring-1 ring-rose-500/50'
+                            : player.rating >= 90
+                            ? 'bg-gradient-to-b from-slate-900 via-amber-950/60 to-slate-950 border-amber-500/70 shadow-amber-500/20'
+                            : 'bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 border-emerald-500/50 shadow-emerald-950/50'
                         }`}
                       >
-                        {player.rating}
-                      </span>
-                    </div>
+                        {/* Top flag + Rating + Penalty Tag */}
+                        <div className="flex items-center justify-between w-full text-[9px] sm:text-xs">
+                          <span className="leading-none">{player.nationalityFlag}</span>
+                          <div className="flex items-center gap-0.5">
+                            {!evalResult.isSuitable && (
+                              <span className="text-[8px] font-black text-rose-400 animate-pulse font-mono">
+                                -5
+                              </span>
+                            )}
+                            <span
+                              className={`font-heading font-black ${
+                                !evalResult.isSuitable
+                                  ? 'text-rose-400'
+                                  : player.rating >= 90
+                                  ? 'text-amber-400'
+                                  : 'text-emerald-400'
+                              }`}
+                            >
+                              {evalResult.effectiveRating}
+                            </span>
+                          </div>
+                        </div>
 
-                    {/* Player Name */}
-                    <div className="my-0.5 sm:my-1 w-full px-0.5">
-                      <div className="font-heading font-bold text-[9px] sm:text-xs text-white truncate leading-tight">
-                        {getLocalizedPlayerName(player, language)}
-                      </div>
-                      <div className="text-[7px] sm:text-[9px] text-slate-400 truncate">
-                        {player.clubName}
-                      </div>
-                    </div>
+                        {/* Player Name */}
+                        <div className="my-0.5 sm:my-1 w-full px-0.5">
+                          <div className="font-heading font-bold text-[9px] sm:text-xs text-white truncate leading-tight">
+                            {getLocalizedPlayerName(player, language)}
+                          </div>
+                          <div className="text-[7px] sm:text-[9px] text-slate-400 truncate">
+                            {player.clubName}
+                          </div>
+                        </div>
 
-                    {/* Role & Slot Position Pill */}
-                    <div className="w-full flex items-center justify-between pt-0.5 border-t border-slate-800/80 text-[7px] sm:text-[9px] font-mono">
-                      <span className="font-bold text-emerald-400">{slot.role}</span>
-                      <span className="text-slate-400 font-sans">{player.joiningYear}</span>
-                    </div>
+                        {/* Role & Slot Position Pill */}
+                        <div className="w-full flex items-center justify-between pt-0.5 border-t border-slate-800/80 text-[7px] sm:text-[9px] font-mono">
+                          <span
+                            className={`font-bold ${
+                              !evalResult.isSuitable ? 'text-rose-400' : 'text-emerald-400'
+                            }`}
+                          >
+                            {slot.role}
+                          </span>
+                          <span className="text-slate-400 font-sans">{player.joiningYear}</span>
+                        </div>
 
-                    {/* Hover swap indicator */}
-                    {isHoveredTarget && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full text-[8px] font-black whitespace-nowrap shadow-md flex items-center gap-0.5">
-                        <span>🔄</span>
-                        <span>SWAP</span>
+                        {/* Hover swap indicator */}
+                        {isHoveredTarget && (
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full text-[8px] font-black whitespace-nowrap shadow-md flex items-center gap-0.5">
+                            <span>🔄</span>
+                            <span>SWAP</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()
                 ) : (
                   /* Empty Slot on Pitch */
                   <div

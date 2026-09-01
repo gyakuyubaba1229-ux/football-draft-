@@ -137,6 +137,13 @@ export function findCandidatePlayers(
   const acquiredPersonSet = new Set(acquiredPersonIds);
 
   return players.filter((player) => {
+    // Normal candidate generation strict limits:
+    // 1. Max OVR is strictly 99 (OVR 100+ strictly forbidden from normal presentation)
+    // 2. Special Ballon d'Or edition players strictly excluded from normal roulette pool
+    if (player.rating >= 100 || player.playerId.startsWith('bd_special_')) {
+      return false;
+    }
+
     const matchesYear = Number(player.joiningYear) === normalizedYear;
     const matchesClub = String(player.clubId).trim().toLowerCase() === String(clubId).trim().toLowerCase();
     const notAcquired = !acquiredPlayerSet.has(player.playerId) && !acquiredPersonSet.has(player.personId);

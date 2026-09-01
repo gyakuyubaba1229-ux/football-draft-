@@ -304,6 +304,142 @@ class SoundManager {
     osc.stop(ctx.currentTime + 1.5);
   }
 
+  // Golden Lightning Rain & Massive Thunder (Extremely Rare Luxury Sensation)
+  public playGoldenLightning() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const duration = 1.2;
+
+    // 1. Triple Cascading Electric Arcs (Continuous Golden Lightning Roar)
+    [240, 480, 960].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const mod = ctx.createOscillator();
+      const modGain = ctx.createGain();
+
+      osc.type = idx % 2 === 0 ? 'sawtooth' : 'square';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+      osc.frequency.exponentialRampToValueAtTime(1400, now + idx * 0.08 + 0.3);
+      osc.frequency.exponentialRampToValueAtTime(80, now + duration);
+
+      mod.type = 'square';
+      mod.frequency.setValueAtTime(110 + idx * 30, now);
+      modGain.gain.setValueAtTime(220, now);
+      modGain.gain.exponentialRampToValueAtTime(10, now + duration);
+
+      mod.connect(modGain);
+      modGain.connect(osc.frequency);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.setValueAtTime(0.35, now + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(2800, now);
+      filter.Q.setValueAtTime(4.0, now);
+
+      osc.connect(gain);
+      gain.connect(filter);
+      filter.connect(ctx.destination);
+
+      osc.start(now + idx * 0.08);
+      mod.start(now + idx * 0.08);
+      osc.stop(now + duration);
+      mod.stop(now + duration);
+    });
+
+    // 2. Heavy Golden Sub Rumble & Thunder Claps
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.setValueAtTime(3500, now);
+    noiseFilter.frequency.exponentialRampToValueAtTime(60, now + duration);
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.6, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+
+    noise.start(now);
+    noise.stop(now + duration);
+  }
+
+  // Golden Ballon d'Or Supreme Grand Fanfare (Triumphant Brass & Harp Chimes)
+  public playGoldenFanfare() {
+    if (!this.sfxEnabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    // Majestic Royal Chord Progression (D major / F# / A / D / F# high)
+    const royalNotes = [
+      { freq: 293.66, time: 0.00, dur: 0.8 }, // D4
+      { freq: 369.99, time: 0.08, dur: 0.8 }, // F#4
+      { freq: 440.00, time: 0.16, dur: 0.9 }, // A4
+      { freq: 587.33, time: 0.26, dur: 1.1 }, // D5
+      { freq: 739.99, time: 0.38, dur: 1.3 }, // F#5
+      { freq: 880.00, time: 0.50, dur: 1.5 }, // A5
+      { freq: 1174.66, time: 0.62, dur: 1.8 }, // D6 supreme
+    ];
+
+    royalNotes.forEach((item) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(item.freq, now + item.time);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(item.freq * 3.5, now + item.time);
+      filter.frequency.exponentialRampToValueAtTime(item.freq * 1.5, now + item.time + item.dur);
+
+      gain.gain.setValueAtTime(0, now + item.time);
+      gain.gain.setValueAtTime(0.28, now + item.time + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + item.time + item.dur);
+
+      osc.connect(gain);
+      gain.connect(filter);
+      filter.connect(ctx.destination);
+
+      osc.start(now + item.time);
+      osc.stop(now + item.time + item.dur);
+    });
+
+    // Shimmering Golden Chime Arpeggio
+    const sparkles = [1318.5, 1567.98, 1760.0, 2093.0, 2349.32, 2793.83];
+    sparkles.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + 0.3 + idx * 0.06);
+
+      gain.gain.setValueAtTime(0, now + 0.3 + idx * 0.06);
+      gain.gain.setValueAtTime(0.18, now + 0.3 + idx * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3 + idx * 0.06 + 0.4);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + 0.3 + idx * 0.06);
+      osc.stop(now + 0.3 + idx * 0.06 + 0.4);
+    });
+  }
+
   // Best XI Full Victory Fanfare
   public playVictory() {
     if (!this.sfxEnabled) return;
@@ -326,6 +462,11 @@ class SoundManager {
       osc.start(ctx.currentTime + idx * 0.1);
       osc.stop(ctx.currentTime + idx * 0.1 + 1.2);
     });
+  }
+
+  // Alias for team completion fanfare
+  public playTeamCompleted() {
+    this.playVictory();
   }
 }
 

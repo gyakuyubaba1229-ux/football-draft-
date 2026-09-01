@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Player, Language, PlayerCategory } from '../types';
 import {
   TRANSLATIONS,
@@ -8,7 +8,9 @@ import {
   getLocalizedCategory,
 } from '../utils/translations';
 import { soundManager } from '../utils/audio';
-import { Sparkles, Plus, AlertCircle, Award, Shield, Zap, UserCheck, Sprout } from 'lucide-react';
+import { getBallonDorWinner, getLegendPeakEra } from '../data/legendaryEraDatabase';
+import { EFootballPositionGrid } from './PositionBadge';
+import { Sparkles, Plus, AlertCircle, Award, Shield, Zap, UserCheck, Sprout, Trophy, Crown, MapPin } from 'lucide-react';
 
 interface CandidateCardProps {
   player: Player;
@@ -26,17 +28,20 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   disabled,
 }) => {
   const t = TRANSLATIONS[language];
+  const ballonDor = getBallonDorWinner(player);
+  const legendPeak = getLegendPeakEra(player);
+  const [showPositionMap, setShowPositionMap] = useState(false);
 
   // Helper to determine effective category
   const category: PlayerCategory =
-    player.category ||
-    (player.isLegendary
+    ballonDor || player.isLegendary
       ? 'LEGEND'
-      : player.rating >= 85
-      ? 'STAR'
-      : player.rating >= 78
-      ? 'MID'
-      : 'NORMAL');
+      : player.category ||
+        (player.rating >= 85
+          ? 'STAR'
+          : player.rating >= 78
+          ? 'MID'
+          : 'NORMAL');
 
   const getPositionBadgeColor = (pos: string) => {
     switch (pos) {
@@ -185,6 +190,23 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
           <span className="text-emerald-400 font-semibold">{player.clubName}</span>
         </div>
+
+        {/* Ballon d'Or / Legend Peak Era Highlight */}
+        {ballonDor ? (
+          <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/20 border border-yellow-400/50 flex items-center gap-2 text-[11px] text-yellow-300">
+            <Trophy className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+            <span className="font-extrabold truncate">
+              🏆 {ballonDor.totalWins}x BALLON D'OR ({ballonDor.winningYears.join(', ')})
+            </span>
+          </div>
+        ) : legendPeak ? (
+          <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/40 flex items-center gap-2 text-[11px] text-amber-300">
+            <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="font-bold truncate">
+              ⭐ {legendPeak.seasonLabel}: {language === 'ja' ? legendPeak.eraTitleJa : language === 'es' ? legendPeak.eraTitleEs : legendPeak.eraTitleEn}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {/* 6 Key Stats Grid (PAC, SHO, PAS, DRI, DEF, PHY) */}
@@ -216,6 +238,32 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Position Suitability Grid Toggle */}
+      <div className="mb-3">
+        <button
+          type="button"
+          onClick={() => {
+            soundManager.playButtonClick();
+            setShowPositionMap((prev) => !prev);
+          }}
+          className="w-full py-1.5 px-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-emerald-500/40 text-[11px] font-bold text-slate-300 flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+            <span>📋 ポジション適性マップ確認</span>
+          </div>
+          <span className="text-[10px] text-emerald-400">
+            {showPositionMap ? '▲ 閉じる' : '▼ 表示する'}
+          </span>
+        </button>
+
+        {showPositionMap && (
+          <div className="mt-2 animate-fadeIn">
+            <EFootballPositionGrid player={player} />
+          </div>
+        )}
       </div>
 
       {/* Draft Action Button */}

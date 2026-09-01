@@ -11,6 +11,8 @@ export interface Translations {
   modeEuropeDesc: string;
   modeJ1: string;
   modeJ1Desc: string;
+  modeActive: string;
+  modeActiveDesc: string;
   spinDraft: string;
   spinLocked: string;
   spinDraftLockedNotice: string;
@@ -62,12 +64,17 @@ export interface Translations {
   confirm: string;
   close: string;
   blackBallTriggered: string;
+  goldenBallonDorTriggered: string;
+  goldenBallonDorDesc: string;
   blackBallDesc: string;
   blackBallTest: string;
   blackBallTestDesc: string;
   testBlackBall: string;
   testBlackBallLightning: string;
+  testGoldenBallonDor?: string;
   testFullSequence: string;
+  ballonDorAwardLabel?: string;
+  legendPeakEraLabel?: string;
   backToHome: string;
   backToTest: string;
   testModeBadge: string;
@@ -147,6 +154,8 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     modeEuropeDesc: 'レアル、バルサ、マンC、バイエルン、PSG、アーセナルなど欧州主要メガクラブ',
     modeJ1: 'J1 LEAGUE',
     modeJ1Desc: '2026年J1所属クラブの現役選手＆歴代レジェンド実在選手',
+    modeActive: 'ACTIVE PLAYERS (現役選手)',
+    modeActiveDesc: '世界中の現役選手のみが登場する新モード。引退選手なし、現役最高峰のスーパースター達が競演。',
     spinDraft: '⚽ SPIN DRAFT',
     spinLocked: '🔒 SPIN DRAFT (選択中)',
     spinDraftLockedNotice: 'DRAFTまたはSKIPを選択するまで次のSPINはできません',
@@ -198,12 +207,17 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     confirm: 'リセットする',
     close: '閉じる',
     blackBallTriggered: '⚡ ULTRA RARE EVENT TRIGGERED! ⚡',
-    blackBallDesc: '0.001%の超激レア演出「BLACK BALL」が発生しました！',
-    blackBallTest: 'BLACK BALL 演出テスト',
-    blackBallTestDesc: '0.001%の超激レアBLACK BALL演出をテスト再生できます',
-    testBlackBall: '黒玉演出（ノーマル）を再生',
+    blackBallDesc: '1%の超激レア演出「BLACK BALL」が発生しました！実在レジェンドの象徴的活躍年度演出が発動！',
+    goldenBallonDorTriggered: '🏆 SUPREME GOLDEN EVENT: BALLON D\'OR 🏆',
+    goldenBallonDorDesc: '金色の雷光が降り注ぐ！歴代バロンドール受賞者の黄金期特別演出が発動！',
+    blackBallTest: 'BLACK BALL & GOLDEN 演出テスト',
+    blackBallTestDesc: '1%の超激レア演出（黒玉・稲妻・GOLDENバロンドール）をテスト再生できます',
+    testBlackBall: '黒玉演出（象徴的年度）を再生',
     testBlackBallLightning: '稲妻＆黒玉演出を再生',
+    testGoldenBallonDor: '🏆 GOLDEN演出（バロンドール）を再生',
     testFullSequence: 'フル演出シーケンス',
+    ballonDorAwardLabel: 'BALLON D\'OR WINNER',
+    legendPeakEraLabel: 'ICONIC PEAK ERA',
     backToHome: 'ホームに戻る',
     backToTest: 'テスト選択に戻る',
     testModeBadge: 'TEST MODE',
@@ -253,7 +267,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
         description: '11人集めてTEAM 1を完成させた後も「CREATE NEW TEAM」でTEAM 2、TEAM 3と無制限にベストイレブンを作成できます！',
       },
     ],
-    blackBallNotice: '※ごくまれに通常とは異なる特別な演出（0.001%のBLACK BALL演出）が発生することがあります。',
+    blackBallNotice: '※ごくまれに通常とは異なる特別な演出（1%のBLACK BALL演出）が発生することがあります。',
     teamChemistry: 'チームケミストリー',
     avgRating: '平均レート',
     shareTeam: 'SHARE TEAM (チーム共有)',
@@ -299,6 +313,8 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     modeEuropeDesc: 'Top European giants: Real Madrid, Barcelona, Man City, Bayern, PSG, Arsenal & more',
     modeJ1: 'J1 LEAGUE',
     modeJ1Desc: '2026 J1 League Clubs: Current & legendary real players',
+    modeActive: 'ACTIVE PLAYERS',
+    modeActiveDesc: 'Featuring exclusively active players worldwide. No retired players, drafting the current peak world superstars.',
     spinDraft: '⚽ SPIN DRAFT',
     spinLocked: '🔒 SPIN DRAFT (LOCKED)',
     spinDraftLockedNotice: 'Select DRAFT or SKIP to unlock the next spin',
@@ -350,12 +366,17 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     confirm: 'Reset All',
     close: 'Close',
     blackBallTriggered: '⚡ ULTRA RARE EVENT TRIGGERED! ⚡',
-    blackBallDesc: '0.001% Ultra-rare "BLACK BALL" sequence activated!',
-    blackBallTest: 'BLACK BALL TEST BENCH',
-    blackBallTestDesc: 'Preview the 0.001% ultra-rare cinematic sequences',
-    testBlackBall: 'Play Standard Black Ball',
+    blackBallDesc: '1% Ultra-rare "BLACK BALL" sequence activated! Legendary iconic peak era presentation!',
+    goldenBallonDorTriggered: '🏆 SUPREME GOLDEN EVENT: BALLON D\'OR 🏆',
+    goldenBallonDorDesc: 'Golden lightning cascades down! The Ballon d\'Or Golden Era sequence is unleashed!',
+    blackBallTest: 'BLACK BALL & GOLDEN TEST BENCH',
+    blackBallTestDesc: 'Preview the 1% ultra-rare cinematic sequences (Black Ball, Lightning & Golden Ballon d\'Or)',
+    testBlackBall: 'Play Standard Black Ball (Peak Era)',
     testBlackBallLightning: 'Play Lightning + Black Ball',
+    testGoldenBallonDor: '🏆 Play GOLDEN (Ballon d\'Or Era)',
     testFullSequence: 'Play Full Cinematic',
+    ballonDorAwardLabel: 'BALLON D\'OR WINNER',
+    legendPeakEraLabel: 'ICONIC PEAK ERA',
     backToHome: 'Back to Home',
     backToTest: 'Back to Test Selection',
     testModeBadge: 'TEST MODE',
@@ -405,7 +426,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
         description: 'After completing TEAM 1 (11 players), tap "CREATE NEW TEAM" to draft Team 2, Team 3 and more!',
       },
     ],
-    blackBallNotice: '* In ultra-rare cases (0.001%), a special lightning "BLACK BALL" sequence triggers.',
+    blackBallNotice: '* In rare cases (1%), a special lightning "BLACK BALL" sequence triggers.',
     teamChemistry: 'Team Chemistry',
     avgRating: 'Squad OVR',
     shareTeam: 'SHARE TEAM',
@@ -451,6 +472,8 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     modeEuropeDesc: 'Gigantes europeos: Real Madrid, Barcelona, Man City, Bayern, PSG, Arsenal y más',
     modeJ1: 'LIGA J1',
     modeJ1Desc: 'Clubes J1 2026: Jugadores reales históricos y actuales',
+    modeActive: 'JUGADORES EN ACTIVO',
+    modeActiveDesc: 'Modo exclusivo con jugadores en activo de todo el mundo. Sin leyendas retiradas, los mejores cracks del momento.',
     spinDraft: '⚽ SPIN DRAFT',
     spinLocked: '🔒 SPIN DRAFT (BLOQUEADO)',
     spinDraftLockedNotice: 'Selecciona DRAFT o SKIP para desbloquear el siguiente giro',
@@ -502,12 +525,17 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     confirm: 'Reiniciar Todo',
     close: 'Cerrar',
     blackBallTriggered: '⚡ ¡EVENTO ULTRA RARO ACTIVADO! ⚡',
-    blackBallDesc: '¡Se ha activado la animación especial "BLACK BALL" (0.001%)!',
-    blackBallTest: 'BANCO DE PRUEBAS BLACK BALL',
-    blackBallTestDesc: 'Prueba la cinemática ultra rara del 0.001%',
-    testBlackBall: 'Probar Black Ball Normal',
+    blackBallDesc: '¡Se ha activado la animación especial "BLACK BALL" (1%)! ¡Presentación de la época cumbre legendaria!',
+    goldenBallonDorTriggered: '🏆 ¡EVENTO SUPREMO DORADO: BALÓN DE ORO! 🏆',
+    goldenBallonDorDesc: '¡Rayos dorados descienden! ¡Se activa la cinemática de la Era Dorada del Balón de Oro!',
+    blackBallTest: 'BANCO DE PRUEBAS BLACK BALL Y GOLDEN',
+    blackBallTestDesc: 'Prueba las cinemáticas ultra raras del 1% (Black Ball, Truenos y GOLDEN Balón de Oro)',
+    testBlackBall: 'Probar Black Ball (Época Cumbre)',
     testBlackBallLightning: 'Probar Trueno + Black Ball',
+    testGoldenBallonDor: '🏆 Probar GOLDEN (Balón de Oro)',
     testFullSequence: 'Probar Cinemática Completa',
+    ballonDorAwardLabel: 'GANADOR BALÓN DE ORO',
+    legendPeakEraLabel: 'ÉPOCA DORADA ICONICA',
     backToHome: 'Volver a Inicio',
     backToTest: 'Volver a Pruebas',
     testModeBadge: 'MODO PRUEBA',
@@ -557,7 +585,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
         description: '¡Al completar el EQUIPO 1 (11 jugadores), pulsa "CREAR NUEVO EQUIPO" para formar el Equipo 2, Equipo 3 y más!',
       },
     ],
-    blackBallNotice: '* En raras ocasiones (0.001%) se activa la cinemática especial "BLACK BALL" con truenos.',
+    blackBallNotice: '* En raras ocasiones (1%) se activa la cinemática especial "BLACK BALL" con truenos.',
     teamChemistry: 'Química de Equipo',
     avgRating: 'Media de Equipo',
     shareTeam: 'SHARE TEAM',

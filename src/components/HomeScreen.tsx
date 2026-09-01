@@ -14,12 +14,13 @@ import {
   ArrowRight,
   Plus,
   FileText,
+  Swords,
 } from 'lucide-react';
 
 interface HomeScreenProps {
   mode: GameMode;
   onOpenModeSelect: () => void;
-  onNavigate: (tab: 'home' | 'draft' | 'team' | 'history') => void;
+  onNavigate: (tab: 'home' | 'draft' | 'team' | 'history' | 'pvp') => void;
   onOpenHowToPlay: () => void;
   onOpenSettings: () => void;
   onOpenUpdateNotes?: () => void;
@@ -129,7 +130,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-emerald-400 text-xs font-bold text-emerald-300 transition-all shadow-sm"
           >
-            <span>{mode === 'europe' ? '🇪🇺 EUROPEAN CLUBS' : '🇯🇵 J1 LEAGUE'}</span>
+            <span>
+              {mode === 'europe'
+                ? '🇪🇺 EUROPEAN CLUBS'
+                : mode === 'j1'
+                ? '🇯🇵 J1 LEAGUE'
+                : '🌍 ACTIVE PLAYERS'}
+            </span>
             <span className="text-[10px] text-slate-400 font-mono underline">Change</span>
           </button>
         </div>
@@ -246,7 +253,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </button>
 
-        {/* 5. SETTINGS */}
+        {/* 5. PvP MATCH MODE (BETA) */}
+        <button
+          id="btn-home-pvp"
+          onClick={() => {
+            soundManager.playButtonClick();
+            onNavigate('pvp');
+          }}
+          className="w-full p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-indigo-950/80 via-slate-900 to-slate-900 hover:from-indigo-900/90 hover:to-slate-850 border border-indigo-500/40 hover:border-indigo-400 text-white font-heading font-bold text-base tracking-wide transition-all flex items-center justify-between group shadow-lg shadow-indigo-950/50"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center border border-indigo-500/40 shadow-inner">
+              <Swords className="w-5 h-5 text-indigo-400 group-hover:rotate-12 transition-transform" />
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-2">
+                <span>ONLINE PvP BATTLE</span>
+                <span className="text-[9px] font-mono font-black px-2 py-0.2 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 text-white animate-pulse shadow-sm">
+                  BETA
+                </span>
+              </div>
+              <div className="text-xs text-slate-400 font-normal font-sans">
+                Real User Async Matchmaking & Standings
+              </div>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
+        </button>
+
+        {/* 6. SETTINGS */}
         <button
           id="btn-home-settings"
           onClick={() => {

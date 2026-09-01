@@ -2,15 +2,15 @@ import React from 'react';
 import { GameMode, Language } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
-import { Volume2, VolumeX, Settings, HelpCircle, History, Shield, Users, Home, Zap } from 'lucide-react';
+import { Volume2, VolumeX, Settings, HelpCircle, History, Shield, Users, Home, Zap, Swords } from 'lucide-react';
 
 interface HeaderProps {
   mode: GameMode;
   onSelectMode: (mode: GameMode) => void;
   language: Language;
   onLanguageChange: (lang: Language) => void;
-  activeTab: 'home' | 'draft' | 'team' | 'history';
-  onTabChange: (tab: 'home' | 'draft' | 'team' | 'history') => void;
+  activeTab: 'home' | 'draft' | 'team' | 'history' | 'pvp';
+  onTabChange: (tab: 'home' | 'draft' | 'team' | 'history' | 'pvp') => void;
   teamCount: number;
   onOpenSettings: () => void;
   onOpenHowToPlay: () => void;
@@ -57,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
                   FOOTBALL DRAFT
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  {mode === 'europe' ? 'EUROPE' : 'J1'}
+                  {mode === 'europe' ? 'EUROPE' : mode === 'j1' ? 'J1' : 'ACTIVE'}
                 </span>
               </div>
               <p className="hidden sm:block text-[11px] text-slate-400 font-medium -mt-0.5">
@@ -68,6 +68,20 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Mode Switch Pills */}
           <div id="mode-selector-pills" className="hidden lg:flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-800">
+            <button
+              id="mode-btn-active"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onSelectMode('active');
+              }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                mode === 'active'
+                  ? 'bg-amber-600 text-white shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🌍 ACTIVE
+            </button>
             <button
               id="mode-btn-europe"
               onClick={() => {
@@ -176,6 +190,26 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <History className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{t.history}</span>
+          </button>
+
+          {/* PvP BETA Tab */}
+          <button
+            id="tab-btn-pvp"
+            onClick={() => {
+              soundManager.playButtonClick();
+              onTabChange('pvp');
+            }}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'pvp'
+                ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-900/40'
+                : 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800/50'
+            }`}
+          >
+            <Swords className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">PvP</span>
+            <span className="text-[9px] font-mono font-black px-1.5 py-0.2 rounded-full bg-rose-500 text-white animate-pulse">
+              BETA
+            </span>
           </button>
         </div>
 
