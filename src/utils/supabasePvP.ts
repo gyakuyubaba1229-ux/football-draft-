@@ -2,17 +2,20 @@ import { supabase } from './supabase';
 import {
   BetaUserProfile,
   BetaMatchRecord,
+  BetaStandingEntry,
   UserTeam,
   TeamTactics,
 } from '../types';
-import { DEFAULT_TACTICS } from './pvpEngine';
+import { DEFAULT_TACTICS, computeWeeklyStandings, getCurrentUserProfile } from './pvpEngine';
+import { getSeasonNumberForTimestamp, getSeasonInfo, SEASON_1_START_MS } from './seasonEngine';
 
-const PRESENCE_CHANNEL_NAME = 'pvp_global_presence';
-const DATA_SYNC_CHANNEL_NAME = 'pvp_data_sync';
-const LOCAL_STORAGE_REAL_USERS = 'FOOTBALL_DRAFT_PVP_REAL_USERS_V1';
-const LOCAL_STORAGE_CURRENT_USER_ID = 'FOOTBALL_DRAFT_PVP_USER_ID_V1';
-const LOCAL_STORAGE_CURRENT_HANDLE = 'FOOTBALL_DRAFT_PVP_CURRENT_HANDLE_V1';
-const LOCAL_STORAGE_SAVED_MATCHES = 'FOOTBALL_DRAFT_PVP_SAVED_MATCHES_V1';
+const PRESENCE_CHANNEL_NAME = 'pvp_global_presence_v113';
+const DATA_SYNC_CHANNEL_NAME = 'pvp_data_sync_v113';
+const LOCAL_STORAGE_REAL_USERS = 'FOOTBALL_DRAFT_PVP_REAL_USERS_V113';
+const LOCAL_STORAGE_CURRENT_USER_ID = 'FOOTBALL_DRAFT_PVP_USER_ID_V113';
+const LOCAL_STORAGE_CURRENT_HANDLE = 'FOOTBALL_DRAFT_PVP_CURRENT_HANDLE_V113';
+const LOCAL_STORAGE_SAVED_MATCHES = 'FOOTBALL_DRAFT_PVP_SAVED_MATCHES_V113';
+const LOCAL_STORAGE_V113_CLEARED = 'FOOTBALL_DRAFT_V113_MIGRATION_CLEARED_MATCHES';
 
 // In-memory cache of online presence tracked via Supabase Realtime
 let onlinePresenceUsers: Map<string, BetaUserProfile> = new Map();
@@ -23,13 +26,37 @@ let onOnlineUsersCallback: ((users: BetaUserProfile[]) => void) | null = null;
 let onMatchInviteCallback: ((invite: any) => void) | null = null;
 
 /**
+ * Perform one-time match history cleanup for v1.1.3 release
+ */
+export function checkAndPerformV113Migration(): void {
+  try {
+    const alreadyMigrated = localStorage.getItem(LOCAL_STORAGE_V113_CLEARED);
+    if (!alreadyMigrated) {
+      // Clear legacy match history keys from previous versions
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_SAVED_MATCHES_V1');
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_HISTORY_v110');
+      localStorage.removeItem(LOCAL_STORAGE_SAVED_MATCHES);
+      localStorage.setItem(LOCAL_STORAGE_V113_CLEARED, 'true');
+      console.log('v1.1.3 Match History one-time migration completed: Reset past match history.');
+    }
+  } catch (e) {
+    console.warn('Migration cleanup error:', e);
+  }
+}
+
+// Run migration check immediately on module load
+checkAndPerformV113Migration();
+
+/**
  * Get or create a persistent user ID for this browser
  */
 export function getPersistentUserId(): string {
   try {
     let id = localStorage.getItem(LOCAL_STORAGE_CURRENT_USER_ID);
     if (!id) {
-      id = 'usr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+      // Migrate from old key if exists
+      const oldId = localStorage.getItem('FOOTBALL_DRAFT_PVP_USER_ID_V1');
+      id = oldId || 'usr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
       localStorage.setItem(LOCAL_STORAGE_CURRENT_USER_ID, id);
     }
     return id;
@@ -43,7 +70,11 @@ export function getPersistentUserId(): string {
  */
 export function getSavedUserHandle(): string {
   try {
-    return localStorage.getItem(LOCAL_STORAGE_CURRENT_HANDLE) || '';
+    return (
+      localStorage.getItem(LOCAL_STORAGE_CURRENT_HANDLE) ||
+      localStorage.getItem('FOOTBALL_DRAFT_PVP_CURRENT_HANDLE_V1') ||
+      ''
+    );
   } catch {
     return '';
   }
@@ -55,6 +86,7 @@ export function getSavedUserHandle(): string {
 export function setSavedUserHandle(handle: string): void {
   try {
     localStorage.setItem(LOCAL_STORAGE_CURRENT_HANDLE, handle);
+    localStorage.setItem('FOOTBALL_DRAFT_PVP_CURRENT_HANDLE_V1', handle);
   } catch (e) {
     console.warn('Failed to save handle to storage', e);
   }
@@ -63,7 +95,7 @@ export function setSavedUserHandle(handle: string): void {
 /**
  * Read cached real users from local storage
  */
-function getCachedRealUsers(): BetaUserProfile[] {
+export function getCachedRealUsers(): BetaUserProfile[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_REAL_USERS);
     if (raw) {
@@ -177,39 +209,46 @@ export function initSupabasePvP(
           }
         }
       })
-      .on('presence', { event: 'leave' }, ({ key }: any) => {
-        if (key && onlinePresenceUsers.has(key)) {
-          onlinePresenceUsers.delete(key);
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }: any) => {
+        if (leftPresences && leftPresences.length > 0) {
+          leftPresences.forEach((p: any) => {
+            if (p && p.userId) {
+              onlinePresenceUsers.delete(p.userId);
+            }
+          });
           if (onOnlineUsersCallback) {
             onOnlineUsersCallback(Array.from(onlinePresenceUsers.values()));
           }
         }
+      })
+      .subscribe(async (status: string) => {
+        if (status === 'SUBSCRIBED') {
+          try {
+            await presenceChannel.track({
+              userId: currentUser.userId,
+              username: currentUser.username,
+              team: currentUser.team,
+              tactics: currentUser.tactics,
+              defenseSquadId: currentUser.defenseSquadId,
+              updatedAt: Date.now(),
+              lastSeen: Date.now(),
+            });
+          } catch (err) {
+            console.warn('Presence track error:', err);
+          }
+        }
       });
 
-    presenceChannel.subscribe(async (status: string) => {
-      if (status === 'SUBSCRIBED' && currentUser.username) {
-        await presenceChannel.track({
-          userId: currentUser.userId,
-          username: currentUser.username,
-          team: currentUser.team,
-          tactics: currentUser.tactics,
-          defenseSquadId: currentUser.defenseSquadId,
-          updatedAt: Date.now(),
-          lastSeen: Date.now(),
-        });
-      }
-    });
-
-    // 2. Setup Data Sync Channel (Broadcasts updates between all clients)
+    // 2. Setup Data Sync Channel (Broadcasts registrations, Best XI changes, Match results)
     syncChannel = supabase.channel(DATA_SYNC_CHANNEL_NAME);
     syncChannel
       .on('broadcast', { event: 'USER_REGISTERED' }, ({ payload }: any) => {
-        if (payload && payload.userId && payload.username) {
+        if (payload && payload.userId && payload.username && payload.userId !== currentUser.userId) {
           updateCachedUser(payload);
         }
       })
       .on('broadcast', { event: 'BEST_XI_SAVED' }, ({ payload }: any) => {
-        if (payload && payload.userId && payload.username) {
+        if (payload && payload.userId && payload.username && payload.userId !== currentUser.userId) {
           updateCachedUser(payload);
         }
       })
@@ -219,30 +258,28 @@ export function initSupabasePvP(
             onMatchInviteCallback(payload);
           }
         }
-      });
+      })
+      .subscribe();
 
-    syncChannel.subscribe();
-
-    // 3. Heartbeat timer (every 25 seconds)
+    // 3. Start Heartbeat Timer (every 25 seconds)
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = setInterval(() => {
       sendHeartbeat(currentUser);
     }, 25000);
   } catch (err) {
-    console.warn('Supabase Realtime initialization warning:', err);
+    console.warn('Supabase Realtime PvP init note:', err);
   }
 }
 
 /**
- * Send heartbeat to keep presence and database last_seen active
+ * Send heartbeat to keep presence and last_seen fresh
  */
-export async function sendHeartbeat(currentUser: BetaUserProfile) {
+export async function sendHeartbeat(currentUser: BetaUserProfile): Promise<void> {
   if (!currentUser || !currentUser.username) return;
 
-  // Update presence
   if (presenceChannel) {
     try {
-      presenceChannel.track({
+      await presenceChannel.track({
         userId: currentUser.userId,
         username: currentUser.username,
         team: currentUser.team,
@@ -252,7 +289,7 @@ export async function sendHeartbeat(currentUser: BetaUserProfile) {
         lastSeen: Date.now(),
       });
     } catch (e) {
-      console.warn('Heartbeat track error', e);
+      // Graceful
     }
   }
 
@@ -381,7 +418,7 @@ export async function registerOrUpdateUserInSupabase(
         )
       : 85;
 
-    const { error } = await supabase.from('users').upsert(
+    await supabase.from('users').upsert(
       {
         user_id: updatedProfile.userId,
         username: updatedProfile.username,
@@ -396,10 +433,6 @@ export async function registerOrUpdateUserInSupabase(
       },
       { onConflict: 'user_id' }
     );
-
-    if (error) {
-      console.warn('Supabase DB users upsert note:', error.message);
-    }
   } catch (e) {
     console.warn('Supabase DB insert warning:', e);
   }
@@ -498,14 +531,14 @@ export async function fetchOnlineUsersFromSupabase(
     }
   });
 
-  // 2. Also query Supabase DB for users active within last 2 minutes
+  // 2. Also query Supabase DB for users active within last 5 minutes
   try {
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .neq('user_id', currentUserId)
-      .gt('last_seen', twoMinutesAgo);
+      .gt('last_seen', fiveMinutesAgo);
 
     if (!error && data) {
       data.forEach((row: any) => {
@@ -562,13 +595,13 @@ export async function fetchAllRegisteredUsersFromSupabase(
       .select('*')
       .neq('user_id', currentUserId)
       .order('updated_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (!error && data) {
       data.forEach((row: any) => {
         if (row.username && row.user_id !== currentUserId) {
           const lastSeenMs = row.last_seen ? new Date(row.last_seen).getTime() : 0;
-          const isRecentlyOnline = Date.now() - lastSeenMs < 2 * 60 * 1000;
+          const isRecentlyOnline = Date.now() - lastSeenMs < 5 * 60 * 1000;
           const isOnline = onlinePresenceUsers.has(row.user_id) || isRecentlyOnline;
 
           const profile: BetaUserProfile = {
@@ -627,13 +660,13 @@ export async function searchUsersFromSupabase(
       .select('*')
       .neq('user_id', currentUserId)
       .ilike('username', `%${clean}%`)
-      .limit(20);
+      .limit(30);
 
     if (!error && data) {
       data.forEach((row: any) => {
         if (row.username && row.user_id !== currentUserId) {
           const lastSeenMs = row.last_seen ? new Date(row.last_seen).getTime() : 0;
-          const isRecentlyOnline = Date.now() - lastSeenMs < 2 * 60 * 1000;
+          const isRecentlyOnline = Date.now() - lastSeenMs < 5 * 60 * 1000;
           const isOnline = onlinePresenceUsers.has(row.user_id) || isRecentlyOnline;
 
           const profile: BetaUserProfile = {
@@ -696,11 +729,17 @@ export async function fetchOpponentBestXIFromSupabase(
 export async function saveMatchRecordToSupabase(
   record: BetaMatchRecord
 ): Promise<void> {
-  // 1. Save locally
+  const seasonNum = record.season || getSeasonNumberForTimestamp(record.timestamp);
+  const updatedRecord: BetaMatchRecord = {
+    ...record,
+    season: seasonNum,
+  };
+
+  // 1. Save locally (permanent persistence)
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_MATCHES);
     const list: BetaMatchRecord[] = raw ? JSON.parse(raw) : [];
-    const updated = [record, ...list.filter((m) => m.id !== record.id)].slice(0, 50);
+    const updated = [updatedRecord, ...list.filter((m) => m.id !== updatedRecord.id)];
     localStorage.setItem(LOCAL_STORAGE_SAVED_MATCHES, JSON.stringify(updated));
   } catch (e) {
     console.warn('Local save match error', e);
@@ -713,14 +752,16 @@ export async function saveMatchRecordToSupabase(
         type: 'broadcast',
         event: 'MATCH_COMPLETED',
         payload: {
-          matchId: record.id,
-          challengerUserId: record.challengerUserId,
-          challengerUsername: record.challengerUsername,
-          opponentUserId: record.opponentUserId,
-          opponentUsername: record.opponentUsername,
-          challengerScore: record.challengerScore,
-          opponentScore: record.opponentScore,
-          result: record.result,
+          matchId: updatedRecord.id,
+          challengerUserId: updatedRecord.challengerUserId,
+          challengerUsername: updatedRecord.challengerUsername,
+          opponentUserId: updatedRecord.opponentUserId,
+          opponentUsername: updatedRecord.opponentUsername,
+          challengerScore: updatedRecord.challengerScore,
+          opponentScore: updatedRecord.opponentScore,
+          result: updatedRecord.result,
+          matchType: updatedRecord.matchType,
+          season: seasonNum,
         },
       });
     } catch (e) {
@@ -731,31 +772,32 @@ export async function saveMatchRecordToSupabase(
   // 3. Save to Supabase DB matches table
   try {
     await supabase.from('matches').insert({
-      match_id: record.id,
-      challenger_id: record.challengerUserId,
-      challenger_handle: record.challengerUsername,
-      opponent_id: record.opponentUserId,
-      opponent_handle: record.opponentUsername,
+      match_id: updatedRecord.id,
+      challenger_id: updatedRecord.challengerUserId,
+      challenger_handle: updatedRecord.challengerUsername,
+      opponent_id: updatedRecord.opponentUserId,
+      opponent_handle: updatedRecord.opponentUsername,
       challenger_team: {
-        teamName: record.challengerTeamName,
-        ovr: record.challengerOvr,
-        tactics: record.challengerTactics,
+        teamName: updatedRecord.challengerTeamName,
+        ovr: updatedRecord.challengerOvr,
+        tactics: updatedRecord.challengerTactics,
       },
       opponent_team: {
-        teamName: record.opponentTeamName,
-        ovr: record.opponentOvr,
-        tactics: record.opponentTactics,
+        teamName: updatedRecord.opponentTeamName,
+        ovr: updatedRecord.opponentOvr,
+        tactics: updatedRecord.opponentTactics,
       },
-      challenger_score: record.challengerScore,
-      opponent_score: record.opponentScore,
-      match_type: record.matchCategory || (record.matchType === 'OVR' ? 'OVR' : 'TACTICAL'),
-      result: record.result,
+      challenger_score: updatedRecord.challengerScore,
+      opponent_score: updatedRecord.opponentScore,
+      match_type: updatedRecord.matchType,
+      result: updatedRecord.result,
       status: 'COMPLETED',
-      created_at: new Date(record.timestamp).toISOString(),
+      created_at: new Date(updatedRecord.timestamp).toISOString(),
       details: {
-        events: record.events,
-        fullTimeScore: record.fullTimeScore,
-        halfTimeScore: record.halfTimeScore,
+        season: seasonNum,
+        events: updatedRecord.events,
+        fullTimeScore: updatedRecord.fullTimeScore,
+        halfTimeScore: updatedRecord.halfTimeScore,
       },
     });
   } catch (e) {
@@ -764,21 +806,27 @@ export async function saveMatchRecordToSupabase(
 }
 
 /**
- * Fetch match history from Supabase for current user
+ * Fetch match history for current user (v1.1.3 onward, filtered to current and post-v1.1.3 matches)
  */
 export async function fetchMatchHistoryFromSupabase(
   currentUserId: string
 ): Promise<BetaMatchRecord[]> {
   const matchesMap = new Map<string, BetaMatchRecord>();
 
-  // 1. Load local matches
+  // 1. Load local matches (filter >= SEASON_1_START_MS)
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_MATCHES);
     if (raw) {
       const list: BetaMatchRecord[] = JSON.parse(raw);
       list.forEach((m) => {
-        if (m.challengerUserId === currentUserId || m.opponentUserId === currentUserId) {
-          matchesMap.set(m.id, m);
+        if (
+          m.timestamp >= SEASON_1_START_MS &&
+          (m.challengerUserId === currentUserId || m.opponentUserId === currentUserId)
+        ) {
+          matchesMap.set(m.id, {
+            ...m,
+            season: m.season || getSeasonNumberForTimestamp(m.timestamp),
+          });
         }
       });
     }
@@ -786,14 +834,15 @@ export async function fetchMatchHistoryFromSupabase(
     console.warn('Local load match error', e);
   }
 
-  // 2. Query Supabase DB
+  // 2. Query Supabase DB matches table
   try {
     const { data, error } = await supabase
       .from('matches')
       .select('*')
+      .gte('created_at', new Date(SEASON_1_START_MS).toISOString())
       .or(`challenger_id.eq.${currentUserId},opponent_id.eq.${currentUserId}`)
       .order('created_at', { ascending: false })
-      .limit(30);
+      .limit(100);
 
     if (!error && data) {
       data.forEach((row: any) => {
@@ -805,6 +854,9 @@ export async function fetchMatchHistoryFromSupabase(
         if (myScore > oppScore) result = 'WIN';
         else if (myScore < oppScore) result = 'LOSS';
 
+        const timestamp = row.created_at ? new Date(row.created_at).getTime() : Date.now();
+        const season = row.details?.season || getSeasonNumberForTimestamp(timestamp);
+
         const record: BetaMatchRecord = {
           id: row.match_id || 'm_' + row.id,
           challengerUserId: row.challenger_id,
@@ -812,7 +864,8 @@ export async function fetchMatchHistoryFromSupabase(
           opponentUserId: row.opponent_id,
           opponentUsername: row.opponent_handle || 'Opponent',
           matchType: row.match_type === 'TACTICAL' ? 'TACTICAL' : 'OVR',
-          matchCategory: row.match_type === 'REALTIME' ? 'REALTIME' : 'ASYNC',
+          matchCategory: row.details?.matchCategory || 'ASYNC',
+          season,
           challengerScore: row.challenger_score,
           opponentScore: row.opponent_score,
           result,
@@ -821,7 +874,7 @@ export async function fetchMatchHistoryFromSupabase(
           opponentOvr: row.opponent_team?.ovr || 85,
           challengerTeamName: row.challenger_team?.teamName || 'Best XI',
           opponentTeamName: row.opponent_team?.teamName || 'Opponent Best XI',
-          timestamp: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+          timestamp,
           events: row.details?.events || [],
           fullTimeScore: [row.challenger_score, row.opponent_score],
           halfTimeScore: row.details?.halfTimeScore,
@@ -838,4 +891,97 @@ export async function fetchMatchHistoryFromSupabase(
   const list = Array.from(matchesMap.values());
   list.sort((a, b) => b.timestamp - a.timestamp);
   return list;
+}
+
+/**
+ * Fetch weekly standings for a specific season and match type from Supabase
+ * Displays all real registered users from Supabase!
+ */
+export async function fetchWeeklyStandingsFromSupabase(
+  seasonNumber: number,
+  matchType: 'ALL' | 'OVR' | 'TACTICAL' = 'ALL',
+  currentUser?: BetaUserProfile
+): Promise<BetaStandingEntry[]> {
+  const profile = currentUser || getCurrentUserProfile();
+  const seasonInfo = getSeasonInfo(seasonNumber);
+  const startTimeIso = new Date(seasonInfo.startDateMs).toISOString();
+  const endTimeIso = new Date(seasonInfo.endDateMs).toISOString();
+
+  // 1. Fetch all registered users
+  const registeredUsers = await fetchAllRegisteredUsersFromSupabase(profile.userId);
+  const allUsers = [...registeredUsers];
+  if (!allUsers.some((u) => u.userId === profile.userId)) {
+    allUsers.push(profile);
+  }
+
+  // 2. Collect local matches for this season
+  const seasonMatchesMap = new Map<string, BetaMatchRecord>();
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_MATCHES);
+    if (raw) {
+      const list: BetaMatchRecord[] = JSON.parse(raw);
+      list.forEach((m) => {
+        const sNum = m.season || getSeasonNumberForTimestamp(m.timestamp);
+        const matchTypeCondition = matchType === 'ALL' || m.matchType === matchType;
+        if (sNum === seasonNumber && matchTypeCondition) {
+          seasonMatchesMap.set(m.id, m);
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Local matches standing scan note:', e);
+  }
+
+  // 3. Query all matches in Supabase for this season & match type
+  try {
+    let query = supabase
+      .from('matches')
+      .select('*')
+      .gte('created_at', startTimeIso)
+      .lte('created_at', endTimeIso)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (matchType !== 'ALL') {
+      query = query.eq('match_type', matchType);
+    }
+
+    const { data, error } = await query;
+
+    if (!error && data) {
+      data.forEach((row: any) => {
+        const timestamp = row.created_at ? new Date(row.created_at).getTime() : Date.now();
+        const rec: BetaMatchRecord = {
+          id: row.match_id || 'm_' + row.id,
+          challengerUserId: row.challenger_id,
+          challengerUsername: row.challenger_handle || 'Player',
+          opponentUserId: row.opponent_id,
+          opponentUsername: row.opponent_handle || 'Opponent',
+          matchType: row.match_type === 'TACTICAL' ? 'TACTICAL' : 'OVR',
+          matchCategory: 'ASYNC',
+          season: seasonNumber,
+          challengerScore: row.challenger_score,
+          opponentScore: row.opponent_score,
+          result: row.result || 'DRAW',
+          points: row.result === 'WIN' ? 3 : row.result === 'DRAW' ? 1 : 0,
+          challengerOvr: row.challenger_team?.ovr || 85,
+          opponentOvr: row.opponent_team?.ovr || 85,
+          challengerTeamName: row.challenger_team?.teamName || 'Best XI',
+          opponentTeamName: row.opponent_team?.teamName || 'Opponent XI',
+          timestamp,
+          events: row.details?.events || [],
+          fullTimeScore: [row.challenger_score, row.opponent_score],
+          halfTimeScore: row.details?.halfTimeScore,
+          challengerTactics: row.challenger_team?.tactics,
+          opponentTactics: row.opponent_team?.tactics,
+        };
+        seasonMatchesMap.set(rec.id, rec);
+      });
+    }
+  } catch (e) {
+    console.warn('Supabase standings matches query note:', e);
+  }
+
+  const allSeasonMatches = Array.from(seasonMatchesMap.values());
+  return computeWeeklyStandings(allUsers, profile, allSeasonMatches, seasonNumber, matchType);
 }

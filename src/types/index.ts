@@ -57,6 +57,7 @@ export interface Player {
   ratingByYear?: Record<number, number>; // Specific era-based OVR map
   category?: PlayerCategory; // 'YOUNG' | 'MID' | 'VETERAN' | 'STAR' | 'LEGEND' | 'NORMAL'
   isLegendary?: boolean;  // Star / Legend player
+  height?: number;        // Player height in cm (e.g. 202)
   stats: PlayerStats;
 }
 
@@ -312,6 +313,7 @@ export interface BetaMatchRecord {
   opponentUsername: string;
   matchType: 'OVR' | 'TACTICAL';
   matchCategory?: 'REALTIME' | 'ASYNC';
+  season?: number;
   challengerScore: number;
   opponentScore: number;
   result: 'WIN' | 'DRAW' | 'LOSS';
@@ -343,6 +345,7 @@ export interface BetaStandingEntry {
   matchesCount: number;
   recent10Matches: BetaMatchRecord[];
   rank?: number;
+  season?: number;
 }
 
 export interface CurrentDraftState {

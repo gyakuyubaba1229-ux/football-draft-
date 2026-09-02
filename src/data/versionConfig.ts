@@ -19,19 +19,64 @@ export interface VersionConfig {
  * =========================================================================
  * VERSION & UPDATE NOTES CONFIGURATION
  * 
- * To update the version and update notes in future updates:
- * 1. Change `CURRENT_VERSION` below (e.g. 'VERSION 1.0.2').
- * 2. Add the new entry at the top of the `UPDATE_NOTES_HISTORY` array.
+ * Version 1.1.3:
+ * - Weekly Rankings (JST Mon-Sun) with Supabase real user data integration
+ * - OVR vs. Tactical ranking separation
+ * - OVR-gap based win-probability match simulation
+ * - Tactical evaluation with height (Cross Game, aerial advantage)
+ * - Display player height across draft cards
+ * - First-time migration for v1.1.3 match history reset
  * =========================================================================
  */
 
-export const CURRENT_VERSION = 'VERSION 1.1.2';
+export const CURRENT_VERSION = 'VERSION 1.1.3';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
-    version: 'VERSION 1.1.2',
+    version: 'VERSION 1.1.3',
     releaseDate: '2026.09',
     isLatest: true,
+    titleJa: 'FOOTBALL DRAFT v1.1.3 アップデート',
+    titleEn: 'FOOTBALL DRAFT v1.1.3 Update',
+    titleEs: 'FOOTBALL DRAFT v1.1.3 Actualización',
+    notesJa: [
+      '【週間ランキング】Supabaseの実在登録ユーザーによる週間ランキング（JST：月曜0:00〜日曜23:59）を実装',
+      '【シーズン管理】第1シーズン（2026/09/02〜09/06）以降、毎週自動切り替え＆過去シーズンランキング閲覧に対応',
+      '【ランキング分離】OVR対戦ランキングと戦術対戦ランキングを完全分離して集計・表示',
+      '【OVR勝率調整】OVR対戦において、OVRが高いチームが有利となる勝率シミュレーションを実装（OVR差に応じた厳格な勝率曲線）',
+      '【戦術対戦強化】戦術対戦において、OVRが低いチームでも戦術相性・選手特徴で高OVRチームに勝利可能なシステムを実装',
+      '【身長システム】全選手の身長データを導入し、ドラフトカード上に身長（cm）を表示',
+      '【クロスゲーム強化】新戦術「クロスゲーム」において、大型FW・DFの身長差による空中戦優位性を反映',
+      '【データ移行】v1.1.3開始時に過去の対戦履歴をクリーンアップし新シーズン制へ移行',
+      '【UI最適化】週間ランキング画面のデザインと操作性を向上',
+    ],
+    notesEn: [
+      'Implemented Weekly Rankings (JST Mon 0:00 - Sun 23:59) displaying real Supabase managers',
+      'Added Season Management starting from Season 1 (2026/09/02 - 09/06) with historical season archive browsing',
+      'Completely separated OVR Match and Tactical Match rankings and point tallies',
+      'Enforced OVR-gap based win probabilities where higher OVR squads consistently hold the advantage',
+      'Empowered tactical battles where lower OVR teams can overcome high OVR squads through superior tactics and player synergy',
+      'Integrated real player heights database and displayed height (cm) on candidate cards',
+      'Enhanced "Cross Game" attacking tactic with aerial advantage calculations based on forward and defender heights',
+      'Migrated data structure cleanly for v1.1.3 weekly season rankings',
+      'Optimized Weekly Standings UI with smooth season navigation and live updates',
+    ],
+    notesEs: [
+      'Implementación de Clasificaciones Semanales (JST Lun 0:00 - Dom 23:59) con usuarios reales de Supabase',
+      'Gestión de Temporadas desde la Temporada 1 con consulta de clasificaciones históricas',
+      'Separación completa de clasificaciones para Partidos OVR y Partidos Tácticos',
+      'Simulación de Partidos OVR donde la ventaja de OVR determina estrictamente la probabilidad de victoria',
+      'Sistema táctico que permite a equipos de menor OVR vencer a gigantes gracias a la estrategia',
+      'Integración de alturas reales de futbolistas con visualización en centímetros en las cartas de draft',
+      'Táctica de "Juego de Centros" potenciada por la ventaja aérea según la altura de delanteros y defensas',
+      'Migración limpia de datos de combate para el nuevo formato de temporadas v1.1.3',
+      'Optimización de la interfaz de clasificaciones y navegación entre temporadas',
+    ],
+  },
+  {
+    version: 'VERSION 1.1.2',
+    releaseDate: '2026.09',
+    isLatest: false,
     titleJa: 'FOOTBALL DRAFT v1.1.2 アップデート',
     titleEn: 'FOOTBALL DRAFT v1.1.2 Update',
     titleEs: 'FOOTBALL DRAFT v1.1.2 Actualización',

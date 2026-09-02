@@ -9,8 +9,9 @@ import {
 } from '../utils/translations';
 import { soundManager } from '../utils/audio';
 import { getBallonDorWinner, getLegendPeakEra } from '../data/legendaryEraDatabase';
+import { getPlayerHeight } from '../data/playerHeights';
 import { EFootballPositionGrid } from './PositionBadge';
-import { Sparkles, Plus, AlertCircle, Award, Shield, Zap, UserCheck, Sprout, Trophy, Crown, MapPin } from 'lucide-react';
+import { Sparkles, Plus, AlertCircle, Award, Shield, Zap, Sprout, Trophy, Crown, MapPin, Ruler } from 'lucide-react';
 
 interface CandidateCardProps {
   player: Player;
@@ -30,6 +31,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const t = TRANSLATIONS[language];
   const ballonDor = getBallonDorWinner(player);
   const legendPeak = getLegendPeakEra(player);
+  const playerHeight = getPlayerHeight(player);
   const [showPositionMap, setShowPositionMap] = useState(false);
 
   // Helper to determine effective category
@@ -131,7 +133,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
       {/* Category Badge */}
       {renderCategoryBadge()}
 
-      {/* Top Header: Rating, Position, Nationality */}
+      {/* Top Header: Rating, Position, Nationality & Height */}
       <div className="flex items-start justify-between gap-2 mb-3 mt-1">
         <div className="flex items-center gap-2.5">
           {/* OVR Rating Shield */}
@@ -151,8 +153,8 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           </div>
 
           <div>
-            {/* Position + SubPosition */}
-            <div className="flex items-center gap-1.5 mb-1">
+            {/* Position + SubPosition + Height Badge */}
+            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
               <span
                 className={`text-xs font-black px-2 py-0.5 rounded-md border ${getPositionBadgeColor(
                   player.position
@@ -160,6 +162,12 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
               >
                 {player.position}
                 {player.subPosition && ` (${player.subPosition})`}
+              </span>
+
+              {/* Height Tag */}
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-slate-800 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+                <Ruler className="w-3 h-3 text-amber-400" />
+                <span>{playerHeight}cm</span>
               </span>
 
               <span className="text-xs text-slate-400 font-medium">
