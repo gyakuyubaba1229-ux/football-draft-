@@ -133,9 +133,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <span>
               {mode === 'europe'
                 ? '🇪🇺 EUROPEAN CLUBS'
-                : mode === 'j1'
-                ? '🇯🇵 J1 LEAGUE'
-                : '🌍 ACTIVE PLAYERS'}
+                : '🇯🇵 J1 LEAGUE'}
             </span>
             <span className="text-[10px] text-slate-400 font-mono underline">Change</span>
           </button>

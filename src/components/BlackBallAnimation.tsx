@@ -5,7 +5,7 @@ import { soundManager } from '../utils/audio';
 import { BallonDorInfo, LegendPeakEraInfo, getBallonDorWinner, getLegendPeakEra } from '../data/legendaryEraDatabase';
 import { Zap, Sparkles, Trophy, Star, Award, Crown, CheckCircle } from 'lucide-react';
 
-export type SpecialAnimationType = 'blackball' | 'lightning-blackball' | 'golden';
+export type SpecialAnimationType = 'black' | 'gold' | 'ballon_dor' | 'blackball' | 'lightning-blackball' | 'golden';
 
 interface BlackBallAnimationProps {
   language: Language;
@@ -18,14 +18,16 @@ interface BlackBallAnimationProps {
 
 export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
   language,
-  type = 'lightning-blackball',
+  type = 'black',
   player = null,
   ballonDorInfo: initialBallonDor = null,
   legendPeakInfo: initialLegendPeak = null,
   onAnimationEnd,
 }) => {
   const t = TRANSLATIONS[language];
-  const isGolden = type === 'golden' || Boolean(initialBallonDor);
+  const isBallonDor = type === 'ballon_dor' || Boolean(initialBallonDor);
+  const isGold = type === 'gold' || type === 'golden';
+  const isBlack = type === 'black' || type === 'blackball' || type === 'lightning-blackball' || (!isBallonDor && !isGold);
 
   // Auto-resolve Ballon d'Or info or Legend Peak info if not passed directly
   const ballonDorData = initialBallonDor || (player ? getBallonDorWinner(player) : null);
@@ -34,28 +36,22 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
   const [phase, setPhase] = useState<'initial' | 'lightning-burst' | 'sphere-spin' | 'legend-reveal'>('initial');
 
   useEffect(() => {
-    if (isGolden) {
-      // 1. Initial golden aura
+    if (isBallonDor) {
       soundManager.playBlackBallAura();
-
-      // 2. Heavy Golden Lightning Strike & Cascading Thunder
       const lightningTimer = setTimeout(() => {
         setPhase('lightning-burst');
         soundManager.playGoldenLightning();
       }, 350);
 
-      // 3. Golden Sphere Spin & Particle Shower
       const spinTimer = setTimeout(() => {
         setPhase('sphere-spin');
       }, 950);
 
-      // 4. Ballon d'Or Supreme Reveal with Golden Fanfare
       const revealTimer = setTimeout(() => {
         setPhase('legend-reveal');
         soundManager.playGoldenFanfare();
       }, 1800);
 
-      // 5. Completion
       const endTimer = setTimeout(() => {
         onAnimationEnd();
       }, 4200);
@@ -66,58 +62,61 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
         clearTimeout(revealTimer);
         clearTimeout(endTimer);
       };
+    } else if (isGold) {
+      soundManager.playBlackBallAura();
+      const lightningTimer = setTimeout(() => {
+        setPhase('lightning-burst');
+        soundManager.playGoldenLightning();
+      }, 350);
+
+      const spinTimer = setTimeout(() => {
+        setPhase('sphere-spin');
+      }, 900);
+
+      const revealTimer = setTimeout(() => {
+        setPhase('legend-reveal');
+        soundManager.playGoldenFanfare();
+      }, 1700);
+
+      const endTimer = setTimeout(() => {
+        onAnimationEnd();
+      }, 3800);
+
+      return () => {
+        clearTimeout(lightningTimer);
+        clearTimeout(spinTimer);
+        clearTimeout(revealTimer);
+        clearTimeout(endTimer);
+      };
     } else {
       // Black Ball Presentation
       soundManager.playBlackBallAura();
+      const lightningTimer = setTimeout(() => {
+        setPhase('lightning-burst');
+        soundManager.playLightningElectricBuzz();
+      }, 400);
 
-      if (type === 'lightning-blackball') {
-        const lightningTimer = setTimeout(() => {
-          setPhase('lightning-burst');
-          soundManager.playLightningElectricBuzz();
-        }, 400);
+      const spinTimer = setTimeout(() => {
+        setPhase('sphere-spin');
+      }, 1000);
 
-        const spinTimer = setTimeout(() => {
-          setPhase('sphere-spin');
-        }, 1000);
+      const revealTimer = setTimeout(() => {
+        setPhase('legend-reveal');
+        soundManager.playVictory();
+      }, 1800);
 
-        const revealTimer = setTimeout(() => {
-          setPhase('legend-reveal');
-          soundManager.playVictory();
-        }, 1800);
+      const endTimer = setTimeout(() => {
+        onAnimationEnd();
+      }, 3800);
 
-        const endTimer = setTimeout(() => {
-          onAnimationEnd();
-        }, 3800);
-
-        return () => {
-          clearTimeout(lightningTimer);
-          clearTimeout(spinTimer);
-          clearTimeout(revealTimer);
-          clearTimeout(endTimer);
-        };
-      } else {
-        // Standard Black Ball
-        const spinTimer = setTimeout(() => {
-          setPhase('sphere-spin');
-        }, 400);
-
-        const revealTimer = setTimeout(() => {
-          setPhase('legend-reveal');
-          soundManager.playVictory();
-        }, 1300);
-
-        const endTimer = setTimeout(() => {
-          onAnimationEnd();
-        }, 3200);
-
-        return () => {
-          clearTimeout(spinTimer);
-          clearTimeout(revealTimer);
-          clearTimeout(endTimer);
-        };
-      }
+      return () => {
+        clearTimeout(lightningTimer);
+        clearTimeout(spinTimer);
+        clearTimeout(revealTimer);
+        clearTimeout(endTimer);
+      };
     }
-  }, [isGolden, type, onAnimationEnd]);
+  }, [isBallonDor, isGold, isBlack, onAnimationEnd]);
 
   // Multilingual display helpers
   const getLocalizedText = (ja?: string, en?: string, es?: string) => {
@@ -135,88 +134,91 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
       {phase === 'lightning-burst' && (
         <div
           className={`absolute inset-0 pointer-events-none transition-opacity ${
-            isGolden
-              ? 'bg-amber-300/40 animate-ping'
+            isBallonDor
+              ? 'bg-amber-300/45 animate-ping'
+              : isGold
+              ? 'bg-yellow-300/35 animate-ping'
               : 'bg-white/60 animate-ping'
           }`}
         />
       )}
 
-      {/* 2. Golden / Black Ball Background Ray Emitter */}
+      {/* 2. Ambient Ray Emitters */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-        {isGolden ? (
+        {isBallonDor ? (
           <>
-            {/* Golden Solar Flare Radiance */}
-            <div className="w-[500px] h-[500px] sm:w-[750px] sm:h-[750px] rounded-full bg-gradient-to-tr from-amber-500/20 via-yellow-400/30 to-amber-600/20 blur-3xl animate-spin" />
-            <div className="absolute w-[300px] h-[300px] sm:w-[450px] sm:h-[450px] rounded-full bg-yellow-300/25 blur-2xl animate-pulse" />
+            <div className="w-[500px] h-[500px] sm:w-[750px] sm:h-[750px] rounded-full bg-gradient-to-tr from-amber-500/30 via-yellow-400/40 to-amber-600/30 blur-3xl animate-spin" />
+            <div className="absolute w-[300px] h-[300px] sm:w-[450px] sm:h-[450px] rounded-full bg-yellow-300/30 blur-2xl animate-pulse" />
+          </>
+        ) : isGold ? (
+          <>
+            <div className="w-[450px] h-[450px] sm:w-[700px] sm:h-[700px] rounded-full bg-gradient-to-tr from-yellow-500/25 via-amber-300/35 to-yellow-600/25 blur-3xl animate-spin" />
+            <div className="absolute w-[280px] h-[280px] sm:w-[420px] sm:h-[420px] rounded-full bg-amber-400/25 blur-2xl animate-pulse" />
           </>
         ) : (
           <>
-            {/* Black Ball Dark Matter Aura */}
-            <div className="w-[450px] h-[450px] sm:w-[650px] sm:h-[650px] rounded-full bg-gradient-to-tr from-purple-900/30 via-slate-900/50 to-amber-900/20 blur-3xl animate-spin" />
-            <div className="absolute w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] rounded-full bg-amber-500/15 blur-2xl animate-pulse" />
+            <div className="w-[450px] h-[450px] sm:w-[650px] sm:h-[650px] rounded-full bg-gradient-to-tr from-purple-900/40 via-slate-900/60 to-amber-900/30 blur-3xl animate-spin" />
+            <div className="absolute w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] rounded-full bg-amber-500/20 blur-2xl animate-pulse" />
           </>
         )}
       </div>
 
-      {/* 3. Golden Lightning Rain Bolts (When Golden is Active) */}
-      {isGolden && phase !== 'initial' && (
+      {/* 3. Floating Lightning & Sparks */}
+      {(isBallonDor || isGold) && phase !== 'initial' && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {/* Cascading Golden Lightning Streaks */}
           <div className="absolute top-0 left-1/6 w-1 h-full bg-gradient-to-b from-yellow-300 via-amber-400 to-transparent opacity-75 animate-pulse" />
           <div className="absolute top-0 left-2/6 w-1.5 h-full bg-gradient-to-b from-yellow-200 via-amber-300 to-transparent opacity-90 animate-ping" />
           <div className="absolute top-0 right-2/6 w-1.5 h-full bg-gradient-to-b from-yellow-100 via-yellow-400 to-transparent opacity-85 animate-pulse" />
           <div className="absolute top-0 right-1/6 w-1 h-full bg-gradient-to-b from-amber-300 via-yellow-300 to-transparent opacity-70 animate-ping" />
           
-          {/* Floating Gold Stars & Sparkles */}
           <div className="absolute top-12 left-10 text-yellow-300 text-3xl animate-bounce">⚡</div>
           <div className="absolute top-20 right-12 text-amber-300 text-4xl animate-pulse">✨</div>
           <div className="absolute bottom-24 left-16 text-yellow-200 text-3xl animate-spin">★</div>
           <div className="absolute bottom-28 right-16 text-amber-400 text-4xl animate-bounce">⚡</div>
-          <div className="absolute top-1/3 left-6 text-yellow-300 text-2xl animate-ping">⚡</div>
-          <div className="absolute top-1/3 right-8 text-amber-300 text-3xl animate-ping">⚡</div>
         </div>
       )}
 
-      {/* 4. Black Ball Lightning Bolts */}
-      {!isGolden && type === 'lightning-blackball' && phase !== 'initial' && (
+      {isBlack && phase !== 'initial' && (
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-16 left-12 text-amber-400 text-3xl animate-ping">⚡</div>
-          <div className="absolute top-24 right-14 text-yellow-300 text-4xl animate-pulse">⚡</div>
-          <div className="absolute bottom-28 left-20 text-amber-300 text-2xl animate-bounce">⚡</div>
+          <div className="absolute top-16 left-12 text-purple-400 text-3xl animate-ping">⚡</div>
+          <div className="absolute top-24 right-14 text-amber-300 text-4xl animate-pulse">⚡</div>
+          <div className="absolute bottom-28 left-20 text-indigo-400 text-2xl animate-bounce">⚡</div>
           <div className="absolute bottom-20 right-20 text-yellow-400 text-3xl animate-ping">⚡</div>
         </div>
       )}
 
-      {/* 5. Central Staging Stage */}
+      {/* 4. Central Staging Stage */}
       <div className="relative z-10 flex flex-col items-center justify-center p-4 sm:p-6 text-center max-w-xl w-full">
         
         {/* Rarity & Event Header Badge */}
         <div className="mb-4 animate-bounce">
-          {isGolden ? (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500/30 via-yellow-400/40 to-amber-500/30 border-2 border-yellow-300 text-yellow-200 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_25px_rgba(253,224,71,0.8)]">
+          {isBallonDor ? (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500/40 via-yellow-400/50 to-amber-500/40 border-2 border-yellow-300 text-yellow-200 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_25px_rgba(253,224,71,0.8)]">
               <Trophy className="w-4 h-4 text-yellow-300 fill-yellow-300 animate-pulse" />
-              <span>SUPREME GOLDEN BALLON D'OR</span>
+              <span>1.8% SUPREME LEGEND • BALLON D'OR</span>
               <Trophy className="w-4 h-4 text-yellow-300 fill-yellow-300 animate-pulse" />
             </div>
+          ) : isGold ? (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-yellow-500/30 via-amber-400/40 to-yellow-500/30 border-2 border-amber-300 text-amber-200 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_20px_rgba(251,191,36,0.7)]">
+              <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
+              <span>1.8% ULTRA RARE • GOLD</span>
+              <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
+            </div>
           ) : (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/20 border border-amber-400/60 text-amber-300 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_20px_rgba(251,191,36,0.6)]">
-              <Zap className="w-4 h-4 fill-amber-300 animate-pulse" />
-              <span>1% ULTRA RARE • BLACK BALL</span>
-              <Zap className="w-4 h-4 fill-amber-300 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/90 border-2 border-purple-500/60 text-purple-300 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_20px_rgba(168,85,247,0.6)]">
+              <Zap className="w-4 h-4 fill-purple-300 animate-pulse" />
+              <span>1.8% ULTRA RARE • BLACK</span>
+              <Zap className="w-4 h-4 fill-purple-300 animate-pulse" />
             </div>
           )}
         </div>
 
         {/* Floating Sphere Graphic */}
         <div className="relative w-40 h-40 sm:w-56 sm:h-56 mb-4 flex items-center justify-center">
-          {isGolden ? (
-            /* GOLDEN BALL SPHERE */
+          {isBallonDor ? (
+            /* BALLON D'OR TROPHY SPHERE */
             <div className="relative flex items-center justify-center">
-              {/* Outer Golden Corona */}
               <div className="absolute inset-0 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-300 to-amber-400 animate-spin blur-2xl opacity-90 shadow-[0_0_80px_rgba(253,224,71,1)]" />
-              
-              {/* Golden Trophy Sphere */}
               <div className="relative w-32 h-32 sm:w-44 sm:h-44 rounded-full bg-gradient-to-b from-yellow-200 via-amber-400 to-yellow-600 border-4 border-yellow-100 shadow-[inset_0_0_30px_rgba(255,255,255,0.9),0_0_50px_rgba(250,204,21,0.9)] flex flex-col items-center justify-center transform transition-transform animate-pulse">
                 <span className="text-5xl sm:text-7xl drop-shadow-[0_0_20px_rgba(255,255,255,1)] animate-bounce">
                   🏆
@@ -226,16 +228,29 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
                 </span>
               </div>
             </div>
+          ) : isGold ? (
+            /* GOLD BALL SPHERE */
+            <div className="relative flex items-center justify-center">
+              <div className="absolute inset-0 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-200 to-amber-600 animate-spin blur-2xl opacity-90 shadow-[0_0_60px_rgba(234,179,8,0.9)]" />
+              <div className="relative w-32 h-32 sm:w-44 sm:h-44 rounded-full bg-gradient-to-b from-yellow-100 via-amber-300 to-amber-500 border-4 border-yellow-200 shadow-[inset_0_0_25px_rgba(255,255,255,0.8),0_0_40px_rgba(234,179,8,0.8)] flex flex-col items-center justify-center transform transition-transform animate-pulse">
+                <span className="text-5xl sm:text-7xl drop-shadow-[0_0_20px_rgba(255,255,255,1)] animate-spin">
+                  ✨
+                </span>
+                <span className="text-[10px] sm:text-xs font-heading font-black text-slate-950 uppercase tracking-widest bg-yellow-100 px-2 py-0.5 rounded-full mt-1 border border-yellow-300">
+                  GOLD BALL
+                </span>
+              </div>
+            </div>
           ) : (
             /* BLACK BALL SPHERE */
             <div className="relative flex items-center justify-center">
-              {/* Outer Dark Aura */}
-              <div className="absolute inset-0 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-purple-900/80 via-amber-600/50 to-slate-900 animate-spin blur-2xl opacity-90" />
-
-              {/* Central Black Sphere */}
-              <div className="relative w-32 h-32 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-slate-900 via-black to-slate-950 border-4 border-amber-400 shadow-[0_0_50px_rgba(251,191,36,0.8)] flex items-center justify-center transform transition-transform animate-pulse">
+              <div className="absolute inset-0 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-purple-950 via-slate-950 to-purple-900 animate-spin blur-2xl opacity-90 shadow-[0_0_50px_rgba(168,85,247,0.7)]" />
+              <div className="relative w-32 h-32 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-slate-950 via-black to-purple-950 border-4 border-purple-400 shadow-[0_0_50px_rgba(168,85,247,0.8)] flex flex-col items-center justify-center transform transition-transform animate-pulse">
                 <span className="text-5xl sm:text-7xl drop-shadow-[0_0_25px_rgba(255,255,255,0.9)] animate-spin">
                   ⚽
+                </span>
+                <span className="text-[10px] sm:text-xs font-heading font-black text-white uppercase tracking-widest bg-purple-950/90 px-2 py-0.5 rounded-full mt-1 border border-purple-400">
+                  BLACK BALL
                 </span>
               </div>
             </div>
@@ -245,12 +260,18 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
         {/* Event Main Title */}
         <h2
           className={`font-heading font-black text-xl sm:text-3xl tracking-wide mb-2 ${
-            isGolden
+            isBallonDor
               ? 'text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-yellow-300 to-amber-400 drop-shadow-[0_0_20px_rgba(253,224,71,0.8)]'
-              : 'text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-500 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]'
+              : isGold
+              ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-100 via-yellow-200 to-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]'
+              : 'text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-purple-300 to-amber-200 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]'
           }`}
         >
-          {isGolden ? t.goldenBallonDorTriggered : t.blackBallTriggered}
+          {isBallonDor
+            ? t.goldenBallonDorTriggered
+            : isGold
+            ? '✨ GOLD BALL STAGING ACTIVATED ✨'
+            : t.blackBallTriggered}
         </h2>
 
         {/* Context Description or Player Historical Peak Card */}
@@ -258,12 +279,14 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
           /* REVEALED HISTORICAL DATA CARD */
           <div
             className={`w-full mt-2 p-3.5 sm:p-4 rounded-2xl border text-left transition-all animate-fade-in ${
-              isGolden
+              isBallonDor
                 ? 'bg-slate-900/90 border-yellow-400/80 shadow-2xl shadow-yellow-500/30'
-                : 'bg-slate-900/90 border-amber-500/60 shadow-xl shadow-amber-500/20'
+                : isGold
+                ? 'bg-slate-900/90 border-amber-400/80 shadow-xl shadow-amber-500/25'
+                : 'bg-slate-900/90 border-purple-500/60 shadow-xl shadow-purple-500/20'
             }`}
           >
-            {isGolden && ballonDorData ? (
+            {isBallonDor && ballonDorData ? (
               /* BALLON D'OR WINNER SHOWCASE */
               <div className="space-y-2">
                 <div className="flex items-center justify-between border-b border-yellow-500/30 pb-2">
@@ -292,7 +315,6 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
                   </div>
                 </div>
 
-                {/* Subtitle & Club */}
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
                   <span className="px-2 py-0.5 rounded bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 text-[10px] font-mono">
                     {getLocalizedText(ballonDorData.clubAtWinJa, ballonDorData.clubAtWinEn, ballonDorData.clubAtWinEs)}
@@ -302,7 +324,6 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
                   </span>
                 </div>
 
-                {/* Iconic Real Historical Feat */}
                 <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded-xl border border-yellow-500/20">
                   <span className="font-bold text-yellow-400 mr-1">✦ </span>
                   {getLocalizedText(ballonDorData.iconicFeatJa, ballonDorData.iconicFeatEn, ballonDorData.iconicFeatEs)}
@@ -346,7 +367,11 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
           </div>
         ) : (
           <p className="text-xs sm:text-sm text-slate-200 font-medium max-w-md">
-            {isGolden ? t.goldenBallonDorDesc : t.blackBallDesc}
+            {isBallonDor
+              ? t.goldenBallonDorDesc
+              : isGold
+              ? 'GOLD BALL STAGING: A world-class superstar has descended into the draft pool!'
+              : t.blackBallDesc}
           </p>
         )}
 

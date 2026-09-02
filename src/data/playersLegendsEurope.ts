@@ -1293,10 +1293,10 @@ export const EUROPEAN_LEGENDS_EXPANDED: Player[] = [
     nationalityEn: 'Czech Republic',
     nationalityEs: 'República Checa',
     nationalityFlag: '🇨🇿',
-    rating: 87,
+    rating: 91,
     category: 'STAR',
-    isLegendary: false,
-    stats: { pace: 70, shooting: 88, passing: 76, dribbling: 72, defending: 45, physical: 96 },
+    isLegendary: true,
+    stats: { pace: 74, shooting: 91, passing: 80, dribbling: 78, defending: 52, physical: 99 },
   },
   {
     playerId: 'amoroso_dortmund_2001',

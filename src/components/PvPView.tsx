@@ -12,6 +12,7 @@ import {
 import {
   getCurrentUserProfile,
   computePast10Standings,
+  computePast10StandingsByType,
   simulateOVRMatch,
   simulateTacticalMatchHalf,
   DEFAULT_TACTICS,
@@ -537,7 +538,10 @@ export const PvPView: React.FC<PvPViewProps> = ({
     };
   }, []);
 
-  const standings = computePast10Standings(userProfile, matchHistory);
+  // Standings filter state (All, OVR Match, Tactical Match)
+  const [standingsFilter, setStandingsFilter] = useState<'ALL' | 'OVR' | 'TACTICAL'>('ALL');
+
+  const standings = computePast10StandingsByType(userProfile, matchHistory, standingsFilter);
 
   // Determine current active team OVR
   const myTeamOvr = activePlayingSquad.players.length
@@ -1025,6 +1029,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                       <option value="COUNTER">🏃 カウンター (Counter Attack)</option>
                       <option value="LONG_BALL">🚀 ロングボール (Long Ball)</option>
                       <option value="WIDE_ATTACK">↔️ サイド攻撃 (Wide Attack)</option>
+                      <option value="CROSS_GAME">🏹 クロスゲーム (Cross Game)</option>
                       <option value="CENTRAL_ATTACK">🎯 中央突破 (Central Attack)</option>
                     </select>
                   </div>
@@ -1361,6 +1366,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                   { id: 'COUNTER', name: 'カウンター', desc: 'ハイラインの裏を突く' },
                   { id: 'LONG_BALL', name: 'ロングボール', desc: '前線ターゲットへ一気に供給' },
                   { id: 'WIDE_ATTACK', name: 'サイド攻撃', desc: 'ウイングを活用したクロス' },
+                  { id: 'CROSS_GAME', name: 'クロスゲーム', desc: '大型ターゲットの制空権とウイングのクロス精度' },
                   { id: 'CENTRAL_ATTACK', name: '中央突破', desc: '中央密集をコンビネーションで攻略' },
                 ].map((item) => (
                   <button
@@ -1529,14 +1535,50 @@ export const PvPView: React.FC<PvPViewProps> = ({
       {/* TAB 4: STANDINGS (Past 10 Matches) */}
       {activeTab === 'standings' && !matchMode && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
-          <div className="space-y-1">
-            <h3 className="font-heading font-black text-xl text-white flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-amber-400" />
-              <span>過去10試合 ランキング (Past 10 Matches Points)</span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              直近10試合の対戦成績に基づくポイント制順位表（勝利 3pt / 引分 1pt / 敗北 0pt）。
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="font-heading font-black text-xl text-white flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-400" />
+                <span>過去10試合 ランキング (Past 10 Matches Points)</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                直近10試合の対戦成績に基づくポイント制順位表（勝利 3pt / 引分 1pt / 敗北 0pt）。
+              </p>
+            </div>
+
+            {/* Filter Toggle: All, OVR Match, Tactical Match */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800 self-start sm:self-auto">
+              <button
+                onClick={() => setStandingsFilter('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  standingsFilter === 'ALL'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                総合 (ALL)
+              </button>
+              <button
+                onClick={() => setStandingsFilter('OVR')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  standingsFilter === 'OVR'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                ⚡ 総合値マッチ
+              </button>
+              <button
+                onClick={() => setStandingsFilter('TACTICAL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  standingsFilter === 'TACTICAL'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                🧠 戦術マッチ
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">

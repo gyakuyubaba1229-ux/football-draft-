@@ -220,11 +220,27 @@ export function computePast10Standings(
   currentUser: BetaUserProfile,
   matchHistory: BetaMatchRecord[]
 ): BetaStandingEntry[] {
+  return computePast10StandingsByType(currentUser, matchHistory, 'ALL');
+}
+
+/**
+ * Calculate Past 10 Matches Standings separated by Match Type (ALL, OVR, TACTICAL)
+ */
+export function computePast10StandingsByType(
+  currentUser: BetaUserProfile,
+  matchHistory: BetaMatchRecord[],
+  filter: 'ALL' | 'OVR' | 'TACTICAL' = 'ALL'
+): BetaStandingEntry[] {
   const users = getRegisteredUsers();
   const allUsersMap = new Map<string, BetaStandingEntry>();
 
+  const filteredHistory =
+    filter === 'ALL'
+      ? matchHistory
+      : matchHistory.filter((m) => m.matchType === filter);
+
   // Initialize current user entry
-  const userRecent10 = matchHistory.slice(0, 10);
+  const userRecent10 = filteredHistory.slice(0, 10);
   let userPts = 0;
   let userGf = 0;
   let userGa = 0;
@@ -272,7 +288,7 @@ export function computePast10Standings(
       : 85;
 
     // Check actual matches played against or by this user in recorded history
-    const directMatches = matchHistory.filter(
+    const directMatches = filteredHistory.filter(
       (m) => m.opponentUserId === u.userId || m.challengerUserId === u.userId
     );
 
@@ -330,40 +346,131 @@ export function computePast10Standings(
 
 /**
  * TACTICAL COUNTER EVALUATION ENGINE
- * Evaluates tactical synergy / counter advantages
+ * Evaluates tactical synergy / counter advantages and Cross Game calculations
  */
 export function evaluateTacticalAdvantage(
   userTac: TeamTactics,
-  oppTac: TeamTactics
-): { userAdvantage: number; explanationJa: string; explanationEn: string } {
+  oppTac: TeamTactics,
+  userSquad?: UserTeam | null,
+  oppSquad?: UserTeam | null
+): { userAdvantage: number; explanationJa: string; explanationEn: string; isCrossGame?: boolean } {
   let adv = 0;
-  let reasonJa = '戦術バランスは互角です。';
-  let reasonEn = 'Tactical balance is neutral.';
+  let reasonJa = '戦術バランスは互角です。互いに陣形を保ちながら隙を窺っています。';
+  let reasonEn = 'Tactical balance is neutral. Both managers are feeling each other out.';
+  let isCross = false;
 
-  // Possession vs Low Block
-  if (userTac.attackTactic === 'POSSESSION' && oppTac.defenseTactic === 'LOW_BLOCK') {
-    adv -= 0.15;
-    reasonJa = '相手のローブロック守備がこちらのポゼッションを巧みに封じています。';
-    reasonEn = 'Opponent low block effectively stifles your possession rhythm.';
-  } else if (userTac.attackTactic === 'COUNTER' && oppTac.defenseTactic === 'HIGH_LINE') {
+  const uAtk = userTac.attackTactic;
+  const oDef = oppTac.defenseTactic;
+  const uDef = userTac.defenseTactic;
+  const oAtk = oppTac.attackTactic;
+
+  // ── 1. CROSS GAME (クロスゲー) SPECIAL EVALUATION ──
+  if (uAtk === 'CROSS_GAME') {
+    isCross = true;
+    const players = userSquad?.players || [];
+    // Target man evaluation (CF/ST physical, shooting, rating)
+    const targetStrikers = players.filter((p) =>
+      ['FW', 'ST', 'CF'].includes(p.subPosition || p.position)
+    );
+    const bestTarget = targetStrikers.sort((a, b) => (b.stats?.physical || b.rating) - (a.stats?.physical || a.rating))[0];
+    const targetPhysical = bestTarget?.stats?.physical || bestTarget?.rating || 85;
+    const isGiantOrAerialBeast =
+      bestTarget?.personId === 'j_koller' ||
+      targetPhysical >= 90 ||
+      (bestTarget && bestTarget.nameEn?.toLowerCase().includes('koller'));
+
+    // Wingers / Crossers evaluation (passing stat)
+    const crossers = players.filter((p) =>
+      ['LWG', 'RWG', 'LMF', 'RMF', 'LB', 'RB', 'LWB', 'RWB', 'LM', 'RM', 'LW', 'RW'].includes(
+        p.subPosition || p.position
+      )
+    );
+    const bestCrosser = crossers.sort((a, b) => (b.stats?.passing || b.rating) - (a.stats?.passing || a.rating))[0];
+    const crossQuality = bestCrosser?.stats?.passing || bestCrosser?.rating || 82;
+
+    const crossSynergyBonus = (targetPhysical >= 88 ? 0.12 : 0.05) + (crossQuality >= 85 ? 0.08 : 0.03);
+
+    if (oDef === 'CENTRAL_CONTAIN') {
+      adv += 0.35 + crossSynergyBonus;
+      reasonJa = isGiantOrAerialBeast
+        ? `相手の中央封鎖の隙を突き、サイドからの高精度クロスと${bestTarget?.nameJa || '巨漢ストライカー'}の圧倒的高打点ヘッドが炸裂！`
+        : '相手の中央密集を回避し、サイドからの連続クロス攻撃でゴール前を完全制圧！';
+      reasonEn = 'Cross Game completely bypasses opponent central contain with pinpoint aerial deliveries!';
+    } else if (oDef === 'WIDE_CONTAIN') {
+      adv -= 0.22;
+      reasonJa = '相手のサイド封鎖守備がクロスの供給源を徹底マークし、クロス攻撃を厳しく遮断。';
+      reasonEn = 'Opponent wide contain effectively suffocates the flank crosses.';
+    } else if (oDef === 'HIGH_PRESS' || oDef === 'GEGENPRESSING' || oDef === 'FRONT_PRESS') {
+      adv += 0.2 + crossSynergyBonus;
+      reasonJa = '相手の猛烈な前線プレスをサイドへのロングフィードで回避し、ピンポイントクロスへ持ち込む！';
+      reasonEn = 'Direct flank releases bypass opponent aggressive pressing to whip in dangerous crosses!';
+    } else if (oDef === 'LOW_BLOCK' || oDef === 'ZONE_DEFENSE') {
+      adv += (targetPhysical >= 88 ? 0.22 : 0.05);
+      reasonJa = isGiantOrAerialBeast
+        ? `相手の密集ローブロック守備の上から、${bestTarget?.nameJa || 'ターゲットマン'}が圧倒的フィジカルで空中戦に競り勝つ！`
+        : '相手のゴール前ブロックに対してクロスからの空中戦を仕掛けています。';
+      reasonEn = 'Target man aerial supremacy contests opponent low defensive block in the box.';
+    } else {
+      adv += 0.15 + crossSynergyBonus;
+      reasonJa = `サイドからの高速クロスが中央のターゲット（${bestTarget?.nameJa || 'FW'}）を捉え、決定機を連発！`;
+      reasonEn = 'Fast driven crosses find the central target striker consistently.';
+    }
+  }
+  // ── 2. OTHER ATTACK TACTICAL MATCHUPS ──
+  else if ((uAtk === 'COUNTER' || uAtk === 'LONG_COUNTER' || uAtk === 'QUICK_ATTACK') && (oDef === 'HIGH_PRESS' || oDef === 'GEGENPRESSING' || oDef === 'FRONT_PRESS')) {
+    adv += 0.28;
+    reasonJa = '相手の前線プレスの背後広大なスペースへ、電光石火のカウンターが完全に突き刺さる！';
+    reasonEn = 'Lightning fast counter attack exploits the vacant space behind opponent aggressive press!';
+  } else if (uAtk === 'THROUGH_PASS' && (oDef === 'HIGH_PRESS' || oDef === 'FRONT_PRESS')) {
     adv += 0.25;
-    reasonJa = '相手のハイライン背後をカウンター戦術で完璧に突いています！';
-    reasonEn = 'Counter attack exploits opponent high defensive line brilliantly!';
-  } else if (userTac.attackTactic === 'DIRECT_PLAY' && oppTac.defenseTactic === 'HIGH_PRESS') {
+    reasonJa = '相手の守備ライン裏へ鋭いスルーパスが通り、決定的一対一を演出！';
+    reasonEn = 'Incisive through balls split the opponent defense cleanly.';
+  } else if ((uAtk === 'POSSESSION' || uAtk === 'BUILD_UP' || uAtk === 'SHORT_PASS') && oDef === 'LOW_BLOCK') {
+    adv -= 0.15;
+    reasonJa = '相手の強固なローブロックにパス回しを外へ追いやられ、決定打を欠く展開。';
+    reasonEn = 'Opponent compact low block frustrates possession rhythm.';
+  } else if ((uAtk === 'POSSESSION' || uAtk === 'BUILD_UP') && oDef === 'MID_BLOCK') {
+    adv += 0.12;
+    reasonJa = '落ち着いたポゼッションとパスワークで中盤の主導権を確実に支配。';
+    reasonEn = 'Controlled possession maintains dominance through the midfield.';
+  } else if ((uAtk === 'WIDE_ATTACK' || uAtk === 'WIDE_SPREAD') && oDef === 'CENTRAL_CONTAIN') {
+    adv += 0.22;
+    reasonJa = '中央を固める相手に対してワイドにピッチを広く使い、サイドアタックを展開！';
+    reasonEn = 'Wide attack takes full advantage of opponent central narrowness.';
+  } else if (uAtk === 'CENTRAL_ATTACK' && oDef === 'WIDE_CONTAIN') {
     adv += 0.2;
-    reasonJa = '相手のハイプレスをダイレクトプレーで回避し好機を創出！';
-    reasonEn = 'Direct play bypasses opponent high press effectively!';
-  } else if (userTac.defenseTactic === 'HIGH_PRESS' && oppTac.attackTactic === 'SHORT_PASS') {
-    adv += 0.2;
-    reasonJa = 'ハイプレスが相手のショートパス組み立てを分断しています！';
-    reasonEn = 'High press disrupts opponent short passing build-up!';
-  } else if (userTac.attackTactic === 'WIDE_ATTACK' && oppTac.attackDirection === 'CENTRAL') {
-    adv += 0.15;
-    reasonJa = 'ワイド攻撃でサイドの数的優位を活用できています。';
-    reasonEn = 'Wide attack takes advantage of superior wing width.';
+    reasonJa = 'サイド警戒の相手の隙を突き、中央コンビネーションで中央突破に成功！';
+    reasonEn = 'Central penetration breaks through opponent wide defensive shape.';
+  } else if (uAtk === 'LONG_BALL' && (oDef === 'HIGH_PRESS' || oDef === 'GEGENPRESSING')) {
+    adv += 0.18;
+    reasonJa = 'ロングボールで相手のハイプレスを一気に無力化し、前線へ素早く展開！';
+    reasonEn = 'Long ball bypasses opponent high pressing lines completely.';
+  } else if (uAtk === 'HIGH_SPEED_ATTACK' && oDef === 'RETREAT') {
+    adv -= 0.1;
+    reasonJa = '相手のリトリート守備陣形に速攻の勢いを吸収される。';
+    reasonEn = 'Opponent disciplined retreat absorbs early speed.';
   }
 
-  return { userAdvantage: adv, explanationJa: reasonJa, explanationEn: reasonEn };
+  // ── 3. DEFENSE TACTICAL COUNTER EVALUATION ──
+  if ((uDef === 'HIGH_PRESS' || uDef === 'GEGENPRESSING') && (oAtk === 'BUILD_UP' || oAtk === 'SHORT_PASS' || oAtk === 'POSSESSION')) {
+    adv += 0.2;
+    reasonJa += ' また、こちらの激しいゲーゲンプレスが相手の組み立てをことごとく寸断！';
+    reasonEn += ' Furthermore, high pressing suffocates opponent short build-up.';
+  } else if (uDef === 'COUNTER_PREVENT' && (oAtk === 'COUNTER' || oAtk === 'LONG_COUNTER' || oAtk === 'QUICK_ATTACK')) {
+    adv += 0.22;
+    reasonJa += ' さらにカウンター対策の守備配置が相手の速攻を未然に遮断！';
+    reasonEn += ' Furthermore, counter-prevention structure completely stifles opponent breaks.';
+  } else if (uDef === 'MAN_MARK' && (oAtk === 'CENTRAL_ATTACK' || oAtk === 'SHORT_PASS')) {
+    adv += 0.16;
+    reasonJa += ' 密着マンマークが相手キーマンの自由を完全に奪っています！';
+    reasonEn += ' Strict man-marking eliminates opponent playmaker time on the ball.';
+  } else if (uDef === 'WIDE_CONTAIN' && (oAtk === 'CROSS_GAME' || oAtk === 'WIDE_ATTACK')) {
+    adv += 0.2;
+    reasonJa += ' サイド封鎖の守備陣形が相手のクロスとサイドアタックを的確にブロック！';
+    reasonEn += ' Wide containment walls off opponent flanking crosses.';
+  }
+
+  return { userAdvantage: adv, explanationJa: reasonJa, explanationEn: reasonEn, isCrossGame: isCross };
 }
 
 /**
@@ -514,11 +621,16 @@ export function simulateTacticalMatchHalf(
 ): {
   halfScore: [number, number];
   events: BetaMatchEvent[];
-  tacticalAdvantage: { userAdvantage: number; explanationJa: string; explanationEn: string };
+  tacticalAdvantage: { userAdvantage: number; explanationJa: string; explanationEn: string; isCrossGame?: boolean };
 } {
-  const tacticalEval = evaluateTacticalAdvantage(activeTactics, opponent.tactics);
   const activeChallengerTeam = challengerPlayingSquad || challenger.team;
   const activeOpponentTeam = opponent.team;
+  const tacticalEval = evaluateTacticalAdvantage(
+    activeTactics,
+    opponent.tactics,
+    activeChallengerTeam,
+    activeOpponentTeam
+  );
 
   const cPlayers = activeChallengerTeam?.players || [];
   const oPlayers = activeOpponentTeam?.players || [];
@@ -559,12 +671,20 @@ export function simulateTacticalMatchHalf(
   const goalRoll = Math.random() + effectiveAdv * 0.5;
   if (goalRoll > 0.65) {
     newCScore += 1;
+    const isCross = tacticalEval.isCrossGame;
+    const targetPlayer = cPlayers.find((p) => ['FW', 'ST', 'CF'].includes(p.subPosition || p.position)) || cPlayers[0];
+    const scorerName = targetPlayer?.nameJa || challenger.username;
+
     events.push({
       minute: half === 1 ? 38 : 78,
       type: 'goal',
       isChallengerGoal: true,
-      textJa: `⚽ GOAL!! 戦術通りの美しい連係から先制ゴール！ (${challenger.username})`,
-      textEn: `⚽ GOAL!! Perfect tactical execution results in a clinical finish!`,
+      textJa: isCross
+        ? `⚽ GOOOAL!! サイドからの高精度クロスに${scorerName}が豪快なヘディングで合わせネットを突き破る！ (${challenger.username})`
+        : `⚽ GOAL!! 戦術通りの美しい連係から${scorerName}が先制ゴール！ (${challenger.username})`,
+      textEn: isCross
+        ? `⚽ GOAL!! ${scorerName} smashes home a thumping header from a pinpoint cross!`
+        : `⚽ GOAL!! Perfect tactical execution results in a clinical finish!`,
       textEs: `⚽ ¡¡GOLAZO!! ¡Ejecución táctica impecable para abrir el marcador!`,
     });
   } else if (goalRoll < 0.25) {

@@ -1,6 +1,6 @@
 export type Language = 'ja' | 'en' | 'es';
 
-export type GameMode = 'europe' | 'j1' | 'active';
+export type GameMode = 'europe' | 'j1';
 
 export type MainPosition = 'GK' | 'DF' | 'MF' | 'FW';
 
@@ -17,7 +17,7 @@ export interface Club {
   nameEn: string;
   nameEs: string;
   shortName: string;
-  league: GameMode;
+  league: GameMode | string;
   primaryColor: string;
   secondaryColor: string;
   country: string;
@@ -227,10 +227,15 @@ export type BlackBallSpinType =
   | 'none' 
   | 'normal-blackball' 
   | 'lightning-blackball' 
+  | 'black-thunder'
+  | 'gold-shine'
+  | 'gold-spark'
   | 'golden-ballon-dor'
   | 'golden-lightning-ballon-dor';
 
-export type DraftStagingRarity = 'normal' | 'blackball' | 'golden';
+export type SpecialStagingType = 'none' | 'black' | 'gold' | 'ballon_dor';
+
+export type DraftStagingRarity = 'normal' | 'black' | 'gold' | 'ballon_dor';
 
 export interface PositionCounts {
   GK: number;
@@ -243,20 +248,33 @@ export interface PositionCounts {
 // ── BETA PVP & TACTICS TYPES ──
 
 export type AttackTactics =
-  | 'POSSESSION'       // ポゼッション
-  | 'SHORT_PASS'        // ショートパス
-  | 'DIRECT_PLAY'       // ダイレクトプレー
-  | 'COUNTER'           // カウンター
-  | 'LONG_BALL'         // ロングボール
-  | 'WIDE_ATTACK'       // サイド攻撃
-  | 'CENTRAL_ATTACK';   // 中央突破
+  | 'POSSESSION'         // ポゼッション
+  | 'SHORT_PASS'          // ショートパス
+  | 'QUICK_ATTACK'        // 速攻
+  | 'COUNTER'             // カウンター
+  | 'LONG_COUNTER'        // ロングカウンター
+  | 'WIDE_ATTACK'         // サイド攻撃
+  | 'CENTRAL_ATTACK'      // 中央突破
+  | 'CROSS_GAME'          // クロスゲー (最重要)
+  | 'LONG_BALL'           // ロングボール
+  | 'BUILD_UP'            // ビルドアップ重視
+  | 'HIGH_SPEED_ATTACK'   // 前線からの速い攻撃
+  | 'THROUGH_PASS'        // 裏への抜け出し
+  | 'WIDE_SPREAD';        // ワイド攻撃
 
 export type DefenseTactics =
-  | 'HIGH_PRESS'        // ハイプレス
-  | 'MID_BLOCK'         // ミドルブロック
-  | 'LOW_BLOCK'         // ローブロック
-  | 'HIGH_LINE'         // ハイライン
-  | 'DEFENSIVE_FOCUS';  // 守備重視
+  | 'HIGH_PRESS'          // ハイプレス
+  | 'MID_BLOCK'           // ミドルブロック
+  | 'LOW_BLOCK'           // ローブロック
+  | 'GEGENPRESSING'       // ゲーゲンプレス
+  | 'MAN_MARK'            // マンマーク
+  | 'ZONE_DEFENSE'        // ゾーンディフェンス
+  | 'CENTRAL_CONTAIN'     // 中央封鎖
+  | 'WIDE_CONTAIN'        // サイド封鎖
+  | 'COUNTER_PREVENT'     // カウンター対策
+  | 'RETREAT'             // リトリート
+  | 'FRONT_PRESS'         // 前線プレス
+  | 'DEFENSIVE_FOCUS';    // 守備重視
 
 export interface TeamTactics {
   attackTactic: AttackTactics;
@@ -337,9 +355,11 @@ export interface CurrentDraftState {
   hasCurrentDraft: boolean;
   skipsRemaining: number;
   blackBallSpinType: BlackBallSpinType;
+  specialStagingType?: SpecialStagingType;
   blackBallStage: 'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'golden-rain' | 'revealed';
   isBlackBallResult: boolean;
   isGoldenResult?: boolean;
+  isGoldResult?: boolean;
 }
 
 

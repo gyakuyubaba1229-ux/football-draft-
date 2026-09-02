@@ -57,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
                   FOOTBALL DRAFT
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  {mode === 'europe' ? 'EUROPE' : mode === 'j1' ? 'J1' : 'ACTIVE'}
+                  {mode === 'europe' ? 'EUROPE' : 'J1'}
                 </span>
               </div>
               <p className="hidden sm:block text-[11px] text-slate-400 font-medium -mt-0.5">
@@ -69,20 +69,6 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Mode Switch Pills */}
           <div id="mode-selector-pills" className="hidden lg:flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-800">
             <button
-              id="mode-btn-active"
-              onClick={() => {
-                soundManager.playButtonClick();
-                onSelectMode('active');
-              }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                mode === 'active'
-                  ? 'bg-amber-600 text-white shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              🌍 ACTIVE
-            </button>
-            <button
               id="mode-btn-europe"
               onClick={() => {
                 soundManager.playButtonClick();
@@ -90,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
                 mode === 'europe'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-emerald-600 text-white shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -104,7 +90,7 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
                 mode === 'j1'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-teal-600 text-white shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >

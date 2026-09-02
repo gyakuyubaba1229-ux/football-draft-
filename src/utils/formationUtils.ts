@@ -93,14 +93,23 @@ export function remapPlayerSlots(
   const assignedPlayerIds = new Set<string>();
   const availableSlots = [...targetSlots];
 
+  // 1. Mandatory GK Guarantee: If a GK exists in players, assign immediately to the GK slot
+  const gkPlayer = players.find((p) => p.position === 'GK');
+  const gkSlotIdx = availableSlots.findIndex((s) => s.pos === 'GK' || s.role === 'GK');
+  if (gkPlayer && gkSlotIdx !== -1) {
+    const gkSlot = availableSlots.splice(gkSlotIdx, 1)[0];
+    newSlots[gkSlot.id] = gkPlayer.playerId;
+    assignedPlayerIds.add(gkPlayer.playerId);
+  }
+
   // Pass 1: Retain existing slot assignments if slot exists in target formation and player matches
   for (let i = availableSlots.length - 1; i >= 0; i--) {
     const slot = availableSlots[i];
     const prevPlayerId = currentSlots[slot.id];
     if (prevPlayerId && playerMap.has(prevPlayerId) && !assignedPlayerIds.has(prevPlayerId)) {
       const player = playerMap.get(prevPlayerId)!;
-      // Keep if position category matches
-      if (player.position === slot.pos || (player.position !== 'GK' && slot.pos !== 'GK')) {
+      // Keep if position category matches and neither is GK (already handled)
+      if (player.position !== 'GK' && slot.pos !== 'GK' && (player.position === slot.pos || true)) {
         newSlots[slot.id] = prevPlayerId;
         assignedPlayerIds.add(prevPlayerId);
         availableSlots.splice(i, 1);
@@ -108,10 +117,10 @@ export function remapPlayerSlots(
     }
   }
 
-  // List of remaining unassigned players
+  // List of remaining unassigned players (excluding GK)
   const unassignedPlayers = players.filter((p) => !assignedPlayerIds.has(p.playerId));
 
-  // Pass 2: Best-fit matching for remaining players into remaining slots
+  // Pass 2: Best-fit matching for remaining outfield players into remaining slots
   while (unassignedPlayers.length > 0 && availableSlots.length > 0) {
     let bestPlayerIdx = -1;
     let bestSlotIdx = -1;
@@ -121,7 +130,6 @@ export function remapPlayerSlots(
       const p = unassignedPlayers[pIdx];
       for (let sIdx = 0; sIdx < availableSlots.length; sIdx++) {
         const slot = availableSlots[sIdx];
-        // Never put outfield player in GK if GK player exists, and vice-versa
         if (p.position === 'GK' && slot.pos !== 'GK') continue;
         if (p.position !== 'GK' && slot.pos === 'GK') continue;
 
@@ -134,7 +142,6 @@ export function remapPlayerSlots(
       }
     }
 
-    // If no specific match found, fallback to first available slot
     if (bestPlayerIdx === -1 || bestSlotIdx === -1) {
       bestPlayerIdx = 0;
       bestSlotIdx = 0;

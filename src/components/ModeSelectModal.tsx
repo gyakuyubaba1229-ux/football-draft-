@@ -64,48 +64,8 @@ export const ModeSelectModal: React.FC<ModeSelectModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Body: The 3 Selection Cards */}
+        {/* Modal Body: The 2 Selection Cards */}
         <div className="p-5 sm:p-6 space-y-4">
-          {/* Active Players Option (New Worldwide Active Mode) */}
-          <button
-            id="select-mode-active-card"
-            onClick={() => handleModePick('active')}
-            className={`w-full text-left p-5 rounded-2xl border-2 transition-all group flex items-center justify-between relative overflow-hidden ${
-              currentMode === 'active'
-                ? 'bg-gradient-to-r from-amber-950/60 to-slate-900 border-amber-400 shadow-xl shadow-amber-950/50'
-                : 'bg-slate-950/80 border-slate-800 hover:border-amber-500/50 hover:bg-slate-900'
-            }`}
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-amber-600/20 text-3xl flex items-center justify-center border border-amber-500/30 group-hover:scale-105 transition-transform shrink-0">
-                🌍
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-heading font-black text-lg sm:text-xl text-white tracking-wide group-hover:text-amber-300 transition-colors">
-                    {t.modeActive}
-                  </span>
-                  <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-mono">
-                    NEW 1.1.0
-                  </span>
-                  {currentMode === 'active' && (
-                    <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono">
-                      ACTIVE
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-                  {t.modeActiveDesc}
-                </p>
-                <div className="text-[11px] text-amber-400 font-semibold pt-1 flex items-center gap-1.5">
-                  <span>⚡ Mbappé, Haaland, Vinícius, Bellingham, Rodri, Messi, CR7 & Worldwide</span>
-                </div>
-              </div>
-            </div>
-
-            <ChevronRight className="w-6 h-6 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" />
-          </button>
-
           {/* European Clubs Option */}
           <button
             id="select-mode-europe-card"
@@ -135,7 +95,7 @@ export const ModeSelectModal: React.FC<ModeSelectModalProps> = ({
                   {t.modeEuropeDesc}
                 </p>
                 <div className="text-[11px] text-emerald-400 font-semibold pt-1 flex items-center gap-1.5">
-                  <span>⚽ Real Madrid, Barça, Man City, Bayern, PSG, Liverpool & more</span>
+                  <span>⚽ Real Madrid, Barça, Man City, Bayern, PSG, Liverpool & 歴代レジェンド+現役スター</span>
                 </div>
               </div>
             </div>
@@ -172,7 +132,7 @@ export const ModeSelectModal: React.FC<ModeSelectModalProps> = ({
                   {t.modeJ1Desc}
                 </p>
                 <div className="text-[11px] text-teal-400 font-semibold pt-1 flex items-center gap-1.5">
-                  <span>🌸 Vissel Kobe, Kashima Antlers, Urawa Reds, Kawasaki Frontale, Marinos</span>
+                  <span>🌸 Vissel Kobe, Kashima Antlers, Urawa Reds, Kawasaki Frontale, Marinos & 歴代+現役</span>
                 </div>
               </div>
             </div>

@@ -346,7 +346,7 @@ export const VERIFIED_PLAYER_POSITIONS: Record<string, EFootballPosition[]> = {
   m_schmelzer: ['LB', 'LWB'],
   s_kehl: ['DMF', 'CMF', 'CB'],
   t_rosicky: ['AMF', 'CMF', 'LMF', 'RMF'],
-  j_koller: ['CF'],
+  j_koller: ['CF', 'SS'],
   e_smolarek: ['CF', 'LWG', 'RWG', 'SS'],
   j_brandt: ['AMF', 'CMF', 'LWG', 'RWG', 'LMF'],
   n_schlotterbeck: ['CB', 'LB'],
