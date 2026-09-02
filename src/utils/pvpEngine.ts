@@ -8,6 +8,7 @@ import {
   AttackTactics,
   DefenseTactics,
 } from '../types';
+import { getPersistentUserId, getSavedUserHandle } from './supabasePvP';
 
 export const STORAGE_KEY_PVP_USER = 'FOOTBALL_DRAFT_PVP_USER_v110';
 export const STORAGE_KEY_PVP_MATCH_HISTORY = 'FOOTBALL_DRAFT_PVP_HISTORY_v110';
@@ -139,6 +140,9 @@ export function getCurrentUserProfile(
   activeTeam: UserTeam | null,
   teams?: UserTeam[]
 ): BetaUserProfile {
+  const persistentId = getPersistentUserId();
+  const savedHandle = getSavedUserHandle();
+
   try {
     const saved = localStorage.getItem(STORAGE_KEY_PVP_USER);
     const defSquadId = getDefenseSquadId(teams);
@@ -151,6 +155,8 @@ export function getCurrentUserProfile(
       const parsed: BetaUserProfile = JSON.parse(saved);
       return {
         ...parsed,
+        userId: parsed.userId || persistentId,
+        username: parsed.username || savedHandle,
         team: defenseTeam || parsed.team,
         defenseSquadId: defSquadId || parsed.defenseSquadId,
         tactics: parsed.tactics || DEFAULT_TACTICS,
@@ -160,10 +166,9 @@ export function getCurrentUserProfile(
     console.error('Failed to load current user profile', e);
   }
 
-  const randomId = 'usr_' + Math.random().toString(36).substring(2, 9);
   return {
-    userId: randomId,
-    username: '',
+    userId: persistentId,
+    username: savedHandle,
     team: activeTeam,
     defenseSquadId: activeTeam?.teamId,
     tactics: DEFAULT_TACTICS,
@@ -367,7 +372,8 @@ export function evaluateTacticalAdvantage(
 export function simulateOVRMatch(
   challenger: BetaUserProfile,
   opponent: BetaUserProfile,
-  challengerPlayingSquad?: UserTeam
+  challengerPlayingSquad?: UserTeam,
+  matchCategory?: 'REALTIME' | 'ASYNC'
 ): {
   record: BetaMatchRecord;
   events: BetaMatchEvent[];
@@ -411,9 +417,9 @@ export function simulateOVRMatch(
     {
       minute: 1,
       type: 'whistle',
-      textJa: `主審のホイッスルで総合値マッチがキックオフ！ (${challenger.username} [${activeChallengerTeam?.name || 'My Squad'}] vs ${opponent.username} [${activeOpponentTeam?.name || 'Defense Squad'}])`,
-      textEn: `Kickoff! OVR Match begins (${challenger.username} vs ${opponent.username})`,
-      textEs: `¡Comienza el Partido de OVR! (${challenger.username} vs ${opponent.username})`,
+      textJa: `主審のホイッスルで${matchCategory === 'ASYNC' ? '非同期(ASYNC)' : '総合値'}マッチがキックオフ！ (${challenger.username} [${activeChallengerTeam?.name || 'My Squad'}] vs ${opponent.username} [${activeOpponentTeam?.name || 'Defense Squad'}])`,
+      textEn: `Kickoff! ${matchCategory === 'ASYNC' ? 'ASYNC' : 'OVR'} Match begins (${challenger.username} vs ${opponent.username})`,
+      textEs: `¡Comienza el Partido ${matchCategory === 'ASYNC' ? 'ASYNC' : 'de OVR'}! (${challenger.username} vs ${opponent.username})`,
     },
     {
       minute: 18,
@@ -476,6 +482,7 @@ export function simulateOVRMatch(
     opponentUserId: opponent.userId,
     opponentUsername: opponent.username,
     matchType: 'OVR',
+    matchCategory: matchCategory || (opponent.isOnline ? 'REALTIME' : 'ASYNC'),
     challengerScore: cScore,
     opponentScore: oScore,
     result,

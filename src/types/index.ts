@@ -272,6 +272,8 @@ export interface BetaUserProfile {
   tactics: TeamTactics;
   defenseSquadId?: string;
   updatedAt: number;
+  isOnline?: boolean;
+  lastSeen?: number;
 }
 
 export interface BetaMatchEvent {
@@ -291,6 +293,7 @@ export interface BetaMatchRecord {
   opponentUserId: string;
   opponentUsername: string;
   matchType: 'OVR' | 'TACTICAL';
+  matchCategory?: 'REALTIME' | 'ASYNC';
   challengerScore: number;
   opponentScore: number;
   result: 'WIN' | 'DRAW' | 'LOSS';

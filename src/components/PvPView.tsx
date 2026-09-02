@@ -11,16 +11,23 @@ import {
 } from '../types';
 import {
   getCurrentUserProfile,
-  saveRegisteredUser,
-  getRegisteredUsers,
-  searchUsersByUsername,
-  getMyMatchHistory,
-  saveMyMatchRecord,
   computePast10Standings,
   simulateOVRMatch,
   simulateTacticalMatchHalf,
   DEFAULT_TACTICS,
 } from '../utils/pvpEngine';
+import {
+  initSupabasePvP,
+  registerOrUpdateUserInSupabase,
+  saveBestXIToSupabase,
+  fetchOnlineUsersFromSupabase,
+  fetchAllRegisteredUsersFromSupabase,
+  searchUsersFromSupabase,
+  fetchOpponentBestXIFromSupabase,
+  saveMatchRecordToSupabase,
+  fetchMatchHistoryFromSupabase,
+  sendHeartbeat,
+} from '../utils/supabasePvP';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import {
@@ -41,6 +48,11 @@ import {
   ArrowRight,
   Sparkles,
   Lock,
+  Wifi,
+  WifiOff,
+  Cloud,
+  CloudCheck,
+  RefreshCw,
 } from 'lucide-react';
 
 interface PvPViewProps {
@@ -52,6 +64,26 @@ interface PvPViewProps {
 }
 
 type PvPTab = 'lobby' | 'tactics' | 'friends' | 'standings' | 'history';
+
+function formatRelativeTime(timestamp: number, lang: Language): string {
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (lang === 'ja') {
+    if (seconds < 60) return 'たった今';
+    if (minutes < 60) return `${minutes}分前`;
+    if (hours < 24) return `${hours}時間前`;
+    return `${days}日前`;
+  } else {
+    if (seconds < 60) return 'just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    if (hours < 24) return `${hours} hr ago`;
+    return `${days} d ago`;
+  }
+}
 
 export const PvPView: React.FC<PvPViewProps> = ({
   activeTeam,
@@ -69,20 +101,30 @@ export const PvPView: React.FC<PvPViewProps> = ({
   const [usernameInput, setUsernameInput] = useState(userProfile.username || '');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [usernameSuccess, setUsernameSuccess] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [isSavingBestXI, setIsSavingBestXI] = useState(false);
+  const [bestXISuccess, setBestXISuccess] = useState(false);
 
   // Tactics State
   const [tactics, setTactics] = useState<TeamTactics>(userProfile.tactics || DEFAULT_TACTICS);
 
-  // Community Users & Friends
-  const [communityUsers, setCommunityUsers] = useState<BetaUserProfile[]>([]);
+  // Community Users & Online Presence from Supabase
+  const [onlineUsers, setOnlineUsers] = useState<BetaUserProfile[]>([]);
+  const [allRegisteredUsers, setAllRegisteredUsers] = useState<BetaUserProfile[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+
+  // User Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BetaUserProfile[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Pre-Match Confirmation & Squad Selection State
   const [isPreMatchOpen, setIsPreMatchOpen] = useState<boolean>(false);
   const [preMatchOpponent, setPreMatchOpponent] = useState<BetaUserProfile | null>(null);
   const [preMatchMode, setPreMatchMode] = useState<'OVR' | 'TACTICAL'>('OVR');
+  const [preMatchCategory, setPreMatchCategory] = useState<'REALTIME' | 'ASYNC'>('ASYNC');
   const [selectedPlayingSquadId, setSelectedPlayingSquadId] = useState<string>(activeTeam.teamId);
+  const [isLoadingOpponentTeam, setIsLoadingOpponentTeam] = useState(false);
 
   // Derive the actively selected playing squad
   const activePlayingSquad =
@@ -92,6 +134,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
   const [activeOpponent, setActiveOpponent] = useState<BetaUserProfile | null>(null);
   const [currentPlayingSquad, setCurrentPlayingSquad] = useState<UserTeam>(activeTeam);
   const [matchMode, setMatchMode] = useState<'OVR' | 'TACTICAL' | null>(null);
+  const [matchCategory, setMatchCategory] = useState<'REALTIME' | 'ASYNC'>('ASYNC');
   const [isMatchRunning, setIsMatchRunning] = useState(false);
   const [matchPhase, setMatchPhase] = useState<'1st_half' | 'halftime' | '2nd_half' | 'finished'>('1st_half');
   const [matchTimerSeconds, setMatchTimerSeconds] = useState<number>(0);
@@ -106,39 +149,101 @@ export const PvPView: React.FC<PvPViewProps> = ({
   const [halftimeTactics, setHalftimeTactics] = useState<TeamTactics>(tactics);
 
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize Supabase PvP connection & Presence
   useEffect(() => {
-    // Refresh user list and match history
-    const allUsers = getRegisteredUsers();
-    setCommunityUsers(allUsers.filter((u) => u.userId !== userProfile.userId));
-    const hist = getMyMatchHistory();
-    setMatchHistory(hist);
-  }, [userProfile.userId]);
+    initSupabasePvP(
+      userProfile,
+      (liveOnline) => {
+        setOnlineUsers(liveOnline);
+      },
+      (invite) => {
+        // Handle realtime match invite
+        console.log('Received match invite:', invite);
+      }
+    );
 
-  const handleSaveUsername = (e?: React.FormEvent) => {
+    refreshCommunityData();
+  }, [userProfile.userId, userProfile.username]);
+
+  // Refresh Online and Registered Users and Match History from Supabase
+  const refreshCommunityData = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const [online, all, hist] = await Promise.all([
+        fetchOnlineUsersFromSupabase(userProfile.userId),
+        fetchAllRegisteredUsersFromSupabase(userProfile.userId),
+        fetchMatchHistoryFromSupabase(userProfile.userId),
+      ]);
+      setOnlineUsers(online);
+      setAllRegisteredUsers(all);
+      setMatchHistory(hist);
+    } catch (e) {
+      console.warn('Failed to refresh Supabase PvP data', e);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  // Register / Save Username to Supabase
+  const handleSaveUsername = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setUsernameError(null);
     setUsernameSuccess(false);
 
+    const trimmed = usernameInput.trim();
+    if (!trimmed || trimmed.length < 3) {
+      setUsernameError('ユーザーネームは3文字以上で入力してください。');
+      return;
+    }
+
+    setIsSavingUser(true);
     const updatedProfile: BetaUserProfile = {
       ...userProfile,
-      username: usernameInput.trim(),
+      username: trimmed,
       team: activePlayingSquad,
       tactics,
+      updatedAt: Date.now(),
+      isOnline: true,
     };
 
-    const res = saveRegisteredUser(updatedProfile);
+    const res = await registerOrUpdateUserInSupabase(updatedProfile);
+    setIsSavingUser(false);
+
     if (!res.success) {
-      setUsernameError(res.error || 'Failed to save username.');
+      setUsernameError(res.error || '保存に失敗しました。');
+      soundManager.playButtonClick();
     } else {
       setUserProfile(updatedProfile);
       setUsernameSuccess(true);
       soundManager.playDraftAcquired();
-      setTimeout(() => setUsernameSuccess(false), 3000);
+      setTimeout(() => setUsernameSuccess(false), 4000);
+      refreshCommunityData();
     }
   };
 
-  const handleSaveTactics = (newTactics: TeamTactics) => {
+  // Save Best XI Team to Supabase
+  const handleSaveBestXICloud = async () => {
+    if (!userProfile.username) {
+      setUsernameError('Best XIを保存する前に、まずPvPユーザーネームを登録してください。');
+      return;
+    }
+
+    setIsSavingBestXI(true);
+    const res = await saveBestXIToSupabase(userProfile, activePlayingSquad, tactics);
+    setIsSavingBestXI(false);
+
+    if (res.success) {
+      setBestXISuccess(true);
+      soundManager.playTeamCompleted();
+      setTimeout(() => setBestXISuccess(false), 4000);
+      refreshCommunityData();
+    }
+  };
+
+  // Save tactics
+  const handleSaveTactics = async (newTactics: TeamTactics) => {
     setTactics(newTactics);
     setHalftimeTactics(newTactics);
     const updatedProfile: BetaUserProfile = {
@@ -146,45 +251,82 @@ export const PvPView: React.FC<PvPViewProps> = ({
       tactics: newTactics,
       team: activePlayingSquad,
     };
-    saveRegisteredUser(updatedProfile);
     setUserProfile(updatedProfile);
     soundManager.playButtonClick();
+
+    if (userProfile.username) {
+      await saveBestXIToSupabase(updatedProfile, activePlayingSquad, newTactics);
+    }
   };
 
+  // Search real users in Supabase
   const handleSearch = (q: string) => {
     setSearchQuery(q);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
     if (!q.trim()) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
-    const results = searchUsersByUsername(q, userProfile.userId);
-    setSearchResults(results);
+
+    setIsSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      const results = await searchUsersFromSupabase(q, userProfile.userId);
+      setSearchResults(results);
+      setIsSearching(false);
+    }, 250);
   };
 
-  /**
-   * Open Pre-Match Confirmation Screen (Feature 28, 30, 31, 32)
-   */
-  const handleOpenPreMatch = (opponent: BetaUserProfile, mode: 'OVR' | 'TACTICAL') => {
+  // Open Pre-Match Confirmation Screen
+  const handleOpenPreMatch = async (
+    opponent: BetaUserProfile,
+    mode: 'OVR' | 'TACTICAL',
+    category?: 'REALTIME' | 'ASYNC'
+  ) => {
     if (!userProfile.username) {
       setActiveTab('lobby');
-      setUsernameError('対戦を開始する前にユーザーネームを設定してください。');
+      setUsernameError('対戦を開始する前にユーザーネームを設定・登録してください。');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
     soundManager.playButtonClick();
-    setPreMatchOpponent(opponent);
+    setIsLoadingOpponentTeam(true);
+
+    const isOppOnline = onlineUsers.some((u) => u.userId === opponent.userId);
+    const chosenCategory = category || (isOppOnline ? 'REALTIME' : 'ASYNC');
+
+    // Fetch opponent's saved Best XI from Supabase if not loaded
+    let fullOpponent = opponent;
+    if (!opponent.team || !opponent.team.players || opponent.team.players.length === 0) {
+      const fetchedTeam = await fetchOpponentBestXIFromSupabase(opponent.userId);
+      if (fetchedTeam) {
+        fullOpponent = { ...opponent, team: fetchedTeam };
+      }
+    }
+
+    setIsLoadingOpponentTeam(false);
+    setPreMatchOpponent(fullOpponent);
     setPreMatchMode(mode);
+    setPreMatchCategory(chosenCategory);
     setIsPreMatchOpen(true);
   };
 
   // ─────────────────────────────────────────────────────────────
   // OVR MATCH (30s simulation with Selected Playing Squad)
   // ─────────────────────────────────────────────────────────────
-  const startOVRMatch = (opponent: BetaUserProfile, playingSquad: UserTeam) => {
+  const startOVRMatch = (
+    opponent: BetaUserProfile,
+    playingSquad: UserTeam,
+    category: 'REALTIME' | 'ASYNC'
+  ) => {
     soundManager.playButtonClick();
     setIsPreMatchOpen(false);
     setActiveOpponent(opponent);
     setCurrentPlayingSquad(playingSquad);
     setMatchMode('OVR');
+    setMatchCategory(category);
     setIsMatchRunning(true);
     setMatchPhase('1st_half');
     setMatchTimerSeconds(0);
@@ -192,7 +334,12 @@ export const PvPView: React.FC<PvPViewProps> = ({
     setLiveEvents([]);
     setFinalMatchRecord(null);
 
-    const { record, events } = simulateOVRMatch(userProfile, opponent, playingSquad);
+    const { record, events } = simulateOVRMatch(
+      userProfile,
+      opponent,
+      playingSquad,
+      category
+    );
     setFinalMatchRecord(record);
 
     let sec = 0;
@@ -220,7 +367,9 @@ export const PvPView: React.FC<PvPViewProps> = ({
         setMatchPhase('finished');
         setIsMatchRunning(false);
         setLiveEvents((prev) => [...prev, events[events.length - 1]]);
-        saveMyMatchRecord(record);
+
+        // Save to Supabase and update state
+        saveMatchRecordToSupabase(record);
         setMatchHistory((prev) => [record, ...prev]);
 
         if (record.result === 'WIN') {
@@ -234,12 +383,17 @@ export const PvPView: React.FC<PvPViewProps> = ({
   // ─────────────────────────────────────────────────────────────
   // TACTICAL MATCH (40s 1st Half -> Halftime -> 40s 2nd Half)
   // ─────────────────────────────────────────────────────────────
-  const startTacticalMatch = (opponent: BetaUserProfile, playingSquad: UserTeam) => {
+  const startTacticalMatch = (
+    opponent: BetaUserProfile,
+    playingSquad: UserTeam,
+    category: 'REALTIME' | 'ASYNC'
+  ) => {
     soundManager.playButtonClick();
     setIsPreMatchOpen(false);
     setActiveOpponent(opponent);
     setCurrentPlayingSquad(playingSquad);
     setMatchMode('TACTICAL');
+    setMatchCategory(category);
     setIsMatchRunning(true);
     setMatchPhase('1st_half');
     setMatchTimerSeconds(0);
@@ -349,6 +503,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
           opponentUserId: activeOpponent.userId,
           opponentUsername: activeOpponent.username,
           matchType: 'TACTICAL',
+          matchCategory,
           challengerScore: fullScore[0],
           opponentScore: fullScore[1],
           result: res,
@@ -365,7 +520,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
         };
 
         setFinalMatchRecord(record);
-        saveMyMatchRecord(record);
+        saveMatchRecordToSupabase(record);
         setMatchHistory((prev) => [record, ...prev]);
 
         if (res === 'WIN') {
@@ -384,82 +539,133 @@ export const PvPView: React.FC<PvPViewProps> = ({
 
   const standings = computePast10Standings(userProfile, matchHistory);
 
+  // Determine current active team OVR
+  const myTeamOvr = activePlayingSquad.players.length
+    ? Math.round(
+        activePlayingSquad.players.reduce((s, p) => s + p.rating, 0) /
+          activePlayingSquad.players.length
+      )
+    : 85;
+
   return (
     <div id="pvp-view-container" className="space-y-6 max-w-5xl mx-auto pb-12 animate-fadeIn">
-      {/* Top Banner with BETA Badge */}
+      {/* Top Banner with Supabase Cloud Status */}
       <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 border-2 border-indigo-500/40 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-rose-500 text-white font-black text-xs tracking-wider shadow-md animate-pulse">
-                EXPERIMENTAL BETA
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-black border border-emerald-500/40 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>SUPABASE ONLINE</span>
               </span>
-              <span className="text-xs font-mono text-indigo-300 font-bold">PvP ASYNC ENGINE</span>
+              <span className="text-xs font-mono text-indigo-300 font-bold">REALTIME & ASYNC ENGINE</span>
             </div>
             <h2 className="font-heading font-black text-2xl sm:text-3xl text-white tracking-wide flex items-center gap-2">
               <Swords className="w-7 h-7 text-indigo-400" />
-              <span>PvP 対戦モード (BETA)</span>
+              <span>PvP 対戦モード (Supabase Cloud)</span>
             </h2>
             <p className="text-xs text-slate-300 max-w-xl">
-              実在プレイヤーが作成したチームと対戦！ 総合値で勝負する「総合値マッチ (30秒)」と、
-              ハーフタイムで戦術修正が勝敗を分ける「戦術マッチ (前後半40秒)」を体験できます。
+              Supabaseに登録された実在プレイヤーと対戦！ オンライン対戦はもちろん、相手がアプリを閉じていても
+              保存済みBest XIと非同期（ASYNC MATCH）でいつでも対戦可能です。
             </p>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
+              onClick={refreshCommunityData}
+              disabled={isLoadingUsers}
+              title="データを更新"
+              className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingUsers ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">更新</span>
+            </button>
+            <button
               onClick={onBackToDraft}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+              className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
             >
               ← Back to Draft
             </button>
           </div>
         </div>
 
-        {/* User Registration Form */}
-        <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-indigo-300 font-bold text-xs">
+        {/* User Registration Form & Current Handle Badge */}
+        <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-indigo-300 font-bold text-sm shadow-inner">
               👤
             </div>
             <div>
-              <div className="text-[10px] font-mono text-slate-400 uppercase">Your PvP Handle</div>
-              <div className="text-sm font-black text-white">
-                {userProfile.username || '(未登録・設定してください)'}
+              <div className="text-[10px] font-mono text-slate-400 uppercase flex items-center gap-1.5">
+                <span>YOUR PVP HANDLE</span>
+                {userProfile.username && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                    <Cloud className="w-3 h-3" />
+                    <span>Cloud Synced</span>
+                  </span>
+                )}
+              </div>
+              <div className="text-base font-black text-white flex items-center gap-2">
+                <span>{userProfile.username ? `@${userProfile.username}` : '(未登録・設定してください)'}</span>
+                {userProfile.username && (
+                  <span className="text-xs font-mono font-bold text-amber-400 px-2 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/30">
+                    OVR {myTeamOvr}
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          <form onSubmit={handleSaveUsername} className="flex items-center gap-2 w-full sm:w-auto">
-            <input
-              type="text"
-              value={usernameInput}
-              onChange={(e) => setUsernameInput(e.target.value)}
-              placeholder="ユーザーネーム (例: LeoChampion)"
-              maxLength={18}
-              className="bg-slate-950 border border-slate-700 focus:border-indigo-400 px-3 py-1.5 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none w-full sm:w-56"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+            <form onSubmit={handleSaveUsername} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="ユーザー名 (例: LeoChampion)"
+                maxLength={18}
+                disabled={isSavingUser}
+                className="bg-slate-950 border border-slate-700 focus:border-indigo-400 px-3 py-2 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none w-full sm:w-52 font-medium"
+              />
+              <button
+                type="submit"
+                disabled={isSavingUser}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-heading font-black text-xs tracking-wider shadow-md shrink-0 transition-transform active:scale-95 disabled:opacity-50"
+              >
+                {isSavingUser ? '保存中...' : '登録・保存'}
+              </button>
+            </form>
+
             <button
-              type="submit"
-              className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-heading font-black text-xs tracking-wider shadow-md shrink-0 transition-transform active:scale-95"
+              onClick={handleSaveBestXICloud}
+              disabled={isSavingBestXI || !userProfile.username}
+              title="現在のBest XIチームをSupabaseに保存して対戦相手に公開します"
+              className="px-3.5 py-2 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-40"
             >
-              登録・保存
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{isSavingBestXI ? '保存中...' : 'Best XI 保存'}</span>
             </button>
-          </form>
+          </div>
         </div>
 
         {usernameError && (
-          <div className="mt-2 text-xs text-rose-400 bg-rose-950/40 p-2 rounded-xl border border-rose-500/30 flex items-center gap-2">
+          <div className="mt-3 text-xs text-rose-400 bg-rose-950/40 p-2.5 rounded-xl border border-rose-500/30 flex items-center gap-2 animate-fadeIn">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{usernameError}</span>
           </div>
         )}
         {usernameSuccess && (
-          <div className="mt-2 text-xs text-emerald-400 bg-emerald-950/40 p-2 rounded-xl border border-emerald-500/30 flex items-center gap-2">
+          <div className="mt-3 text-xs text-emerald-400 bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2 animate-fadeIn">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>ユーザーネームとチームデータを正常に登録しました！</span>
+            <span>PvPハンドル「@{userProfile.username}」とチームデータをSupabaseに正常保存しました！</span>
+          </div>
+        )}
+        {bestXISuccess && (
+          <div className="mt-3 text-xs text-emerald-400 bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2 animate-fadeIn">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Best XI（{activePlayingSquad.name} / OVR {myTeamOvr}）をSupabaseクラウドに保存しました！</span>
           </div>
         )}
       </div>
@@ -469,9 +675,9 @@ export const PvPView: React.FC<PvPViewProps> = ({
         {[
           { id: 'lobby', label: '⚔️ 対戦ロビー', icon: Swords },
           { id: 'tactics', label: '🧠 戦術設定', icon: Sliders },
-          { id: 'friends', label: '🔍 フレンド・ユーザー検索', icon: Search },
+          { id: 'friends', label: '🔍 ユーザー検索', icon: Search },
           { id: 'standings', label: '🏆 ランキング (過去10試合)', icon: Trophy },
-          { id: 'history', label: '📜 対戦履歴', icon: History },
+          { id: 'history', label: '📜 MATCH HISTORY', icon: History },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -495,9 +701,9 @@ export const PvPView: React.FC<PvPViewProps> = ({
         })}
       </div>
 
-      {/* PRE-MATCH CONFIRMATION & SQUAD SELECTION MODAL (Feature 28, 30, 31, 32) */}
+      {/* PRE-MATCH CONFIRMATION & SQUAD SELECTION MODAL */}
       {isPreMatchOpen && preMatchOpponent && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
           <div className="bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border-2 border-indigo-500/60 rounded-3xl p-5 sm:p-7 max-w-4xl w-full shadow-2xl space-y-6 animate-scaleUp my-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -506,7 +712,13 @@ export const PvPView: React.FC<PvPViewProps> = ({
                   <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono text-xs font-black border border-indigo-500/40">
                     {preMatchMode === 'OVR' ? '⚡ 総合値マッチ (30s)' : '🧠 戦術マッチ (前後半40s)'}
                   </span>
-                  <span className="text-xs font-bold text-amber-400">対戦前確認 & スカッド選択</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${
+                    preMatchCategory === 'REALTIME'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                    {preMatchCategory === 'REALTIME' ? '🟢 REALTIME MATCH' : '⚡ ASYNC MATCH (非同期)'}
+                  </span>
                 </div>
                 <h3 className="font-heading font-black text-xl sm:text-2xl text-white">
                   MATCH PREVIEW (対戦前マッチアップ)
@@ -533,7 +745,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                         YOUR SQUAD (使用スカッド)
                       </div>
                       <div className="font-heading font-black text-sm text-white">
-                        {userProfile.username || 'YOU'}
+                        @{userProfile.username || 'YOU'}
                       </div>
                     </div>
                   </div>
@@ -542,13 +754,13 @@ export const PvPView: React.FC<PvPViewProps> = ({
                   </span>
                 </div>
 
-                {/* Squad Selector for user's squads */}
+                {/* Squad Selector */}
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
                     <span>使用するスカッドを選択:</span>
                     <span className="text-[10px] font-mono text-slate-400">{teams.length} スカッド</span>
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {teams.map((t) => {
                       const isSelected = t.teamId === activePlayingSquad.teamId;
                       const sOvr = t.players.length
@@ -596,62 +808,49 @@ export const PvPView: React.FC<PvPViewProps> = ({
                     <span>フォーメーション:</span>
                     <span className="font-bold text-white">{activePlayingSquad.formation || '4-3-3'}</span>
                   </div>
-
-                  {/* Key Players */}
-                  <div className="space-y-1 pt-1 border-t border-slate-800/60">
-                    <div className="text-[10px] font-mono text-slate-400">KEY PLAYERS</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {activePlayingSquad.players.slice(0, 4).map((p) => (
-                        <span
-                          key={p.id}
-                          className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] text-slate-300 flex items-center gap-1"
-                        >
-                          <span className="font-bold text-white truncate max-w-[80px]">{p.name}</span>
-                          <span className="font-mono font-bold text-amber-400">{p.rating}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              {/* Center: VS Badge */}
-              <div className="lg:col-span-2 flex flex-col items-center justify-center py-2 text-center">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-rose-600 flex items-center justify-center font-heading font-black text-xl text-white shadow-xl ring-4 ring-slate-900 animate-pulse">
+              {/* Center VS Indicator */}
+              <div className="lg:col-span-2 text-center py-2 lg:py-0 flex flex-col items-center justify-center gap-1">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-600 to-rose-600 flex items-center justify-center font-heading font-black text-base text-white shadow-lg">
                   VS
                 </div>
-                <div className="text-[10px] font-mono text-slate-400 mt-2">
-                  {preMatchMode === 'OVR' ? 'OVR MATCH' : 'TACTICAL MATCH'}
-                </div>
+                <span className="text-[10px] font-mono font-bold text-slate-400">
+                  {preMatchCategory === 'REALTIME' ? 'LIVE SYNC' : 'CPU ASYNC'}
+                </span>
               </div>
 
-              {/* Right Column: Opponent Defense Squad (Feature 29, 30, 31) */}
+              {/* Right Column: Opponent Squad */}
               <div className="lg:col-span-5 bg-slate-900/90 border-2 border-rose-500/50 rounded-2xl p-4 space-y-3.5 shadow-lg">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🛡️</span>
                     <div>
                       <div className="text-[10px] font-mono text-rose-400 font-bold uppercase">
-                        OPPONENT DEFENSE SQUAD
+                        OPPONENT SQUAD (相手チーム)
                       </div>
                       <div className="font-heading font-black text-sm text-white">
-                        {preMatchOpponent.username}
+                        @{preMatchOpponent.username}
                       </div>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-mono font-bold">
-                    DEFENDER
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                    preMatchOpponent.isOnline
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {preMatchOpponent.isOnline ? 'ONLINE' : 'OFFLINE'}
                   </span>
                 </div>
 
-                {/* Opponent Squad Card */}
-                <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 space-y-2.5">
+                <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white">
-                      {preMatchOpponent.team?.name || 'Defense Squad'}
+                      {preMatchOpponent.team?.name || 'Best XI Squad'}
                     </span>
                     <span className="text-[10px] font-mono text-amber-400 font-bold">
-                      TEAM OVR{' '}
+                      OVR{' '}
                       {preMatchOpponent.team?.players?.length
                         ? Math.round(
                             preMatchOpponent.team.players.reduce((s, p) => s + p.rating, 0) /
@@ -668,39 +867,29 @@ export const PvPView: React.FC<PvPViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-300">
-                    <span>守備戦術スタイル:</span>
-                    <span className="font-bold text-rose-300">
-                      {preMatchOpponent.tactics?.defenseTactic || 'MID_BLOCK'}
-                    </span>
-                  </div>
-
-                  {/* Defense Squad Offline Notice */}
-                  <div className="p-2 rounded-lg bg-rose-950/30 border border-rose-500/30 text-[10px] text-rose-300/90 leading-relaxed flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span>相手が設定した守備時スカッドと自動対戦します（CPU置き換えなし）。</span>
+                  <div className="text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-lg">
+                    {preMatchOpponent.isOnline
+                      ? '相手は現在オンラインです。リアルタイムで試合がシミュレートされます。'
+                      : '相手はオフラインですが、Supabaseに保存されたBest XIをもとにCPUが操作して対戦します。'}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            {/* Kickoff Action */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
               <button
-                type="button"
                 onClick={() => setIsPreMatchOpen(false)}
-                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
               >
                 キャンセル
               </button>
-
               <button
-                type="button"
                 onClick={() => {
                   if (preMatchMode === 'OVR') {
-                    startOVRMatch(preMatchOpponent, activePlayingSquad);
+                    startOVRMatch(preMatchOpponent, activePlayingSquad, preMatchCategory);
                   } else {
-                    startTacticalMatch(preMatchOpponent, activePlayingSquad);
+                    startTacticalMatch(preMatchOpponent, activePlayingSquad, preMatchCategory);
                   }
                 }}
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-600 to-rose-500 hover:from-indigo-400 hover:to-rose-400 text-white font-heading font-black text-xs tracking-wider shadow-lg flex items-center gap-2 transition-transform active:scale-95"
@@ -723,6 +912,9 @@ export const PvPView: React.FC<PvPViewProps> = ({
                 <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono text-xs font-black border border-indigo-500/40">
                   {matchMode === 'OVR' ? '⚡ 総合値マッチ (30s)' : '🧠 戦術マッチ (前後半40s)'}
                 </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono text-xs font-bold">
+                  {matchCategory === 'REALTIME' ? 'REALTIME' : 'ASYNC'}
+                </span>
                 <span className="text-xs text-slate-400">
                   {matchPhase === '1st_half'
                     ? '前半進行中'
@@ -730,7 +922,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                     ? '⏸️ ハーフタイム'
                     : matchPhase === '2nd_half'
                     ? '後半進行中'
-                    : '🏁 試合終了'}
+                    : '🏁 試合終了 (FULL TIME)'}
                 </span>
               </div>
 
@@ -744,7 +936,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
               {/* Home / Challenger */}
               <div className="space-y-1">
                 <div className="text-xs sm:text-sm font-heading font-black text-indigo-300 truncate">
-                  {userProfile.username || 'YOU'}
+                  @{userProfile.username || 'YOU'}
                 </div>
                 <div className="text-[10px] text-slate-400 truncate">{currentPlayingSquad.name}</div>
                 <div className="text-xs font-mono font-bold text-slate-300">
@@ -762,7 +954,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
               {/* Away / Opponent */}
               <div className="space-y-1">
                 <div className="text-xs sm:text-sm font-heading font-black text-rose-300 truncate">
-                  {activeOpponent.username}
+                  @{activeOpponent.username}
                 </div>
                 <div className="text-[10px] text-slate-400 truncate">
                   {activeOpponent.team?.name || 'Defense Squad'}
@@ -772,6 +964,29 @@ export const PvPView: React.FC<PvPViewProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Full Time Banner */}
+            {matchPhase === 'finished' && finalMatchRecord && (
+              <div className={`p-4 rounded-2xl border text-center space-y-1.5 animate-fadeIn ${
+                finalMatchRecord.result === 'WIN'
+                  ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                  : finalMatchRecord.result === 'DRAW'
+                  ? 'bg-amber-950/60 border-amber-500/50 text-amber-200'
+                  : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+              }`}>
+                <div className="text-xs font-mono font-bold uppercase tracking-widest">FULL TIME RESULT</div>
+                <div className="font-heading font-black text-2xl sm:text-3xl">
+                  {finalMatchRecord.result === 'WIN'
+                    ? '🏆 YOU WIN (+3 PTS)'
+                    : finalMatchRecord.result === 'DRAW'
+                    ? '🤝 DRAW (+1 PT)'
+                    : '❌ YOU LOSE (0 PTS)'}
+                </div>
+                <p className="text-xs opacity-80">
+                  対戦結果をSupabaseクラウド（matchesテーブル）に記録しました。
+                </p>
+              </div>
+            )}
 
             {/* HALFTIME TACTICAL INTERVENTION SCREEN */}
             {matchPhase === 'halftime' && (
@@ -873,6 +1088,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                     soundManager.playButtonClick();
                     setMatchMode(null);
                     setActiveOpponent(null);
+                    refreshCommunityData();
                   }}
                   className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-heading font-black text-xs tracking-wider shadow-lg"
                 >
@@ -886,8 +1102,8 @@ export const PvPView: React.FC<PvPViewProps> = ({
       {/* TAB 1: MATCH LOBBY */}
       {activeTab === 'lobby' && !matchMode && (
         <div className="space-y-6">
+          {/* Mode Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Mode 1: OVR Match Card */}
             <div className="bg-gradient-to-br from-slate-900 to-indigo-950/60 border border-indigo-500/30 rounded-3xl p-5 space-y-4 shadow-xl">
               <div className="flex items-center justify-between">
                 <span className="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-black text-xs border border-indigo-500/40 flex items-center gap-1">
@@ -905,7 +1121,6 @@ export const PvPView: React.FC<PvPViewProps> = ({
               </p>
             </div>
 
-            {/* Mode 2: Tactical Match Card */}
             <div className="bg-gradient-to-br from-slate-900 to-blue-950/60 border border-blue-500/30 rounded-3xl p-5 space-y-4 shadow-xl">
               <div className="flex items-center justify-between">
                 <span className="px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 font-black text-xs border border-blue-500/40 flex items-center gap-1">
@@ -924,41 +1139,138 @@ export const PvPView: React.FC<PvPViewProps> = ({
             </div>
           </div>
 
-          {/* Real Community Opponents Roster */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
+          {/* 🟢 ONLINE PLAYERS SECTION (Requirement 2) */}
+          <div className="bg-gradient-to-b from-slate-900/95 to-slate-950 border-2 border-emerald-500/40 rounded-3xl p-5 space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-indigo-400" />
+                <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400" />
                 <h4 className="font-heading font-black text-base text-white">
-                  対戦相手一覧（実在ユーザー・コミュニティ）
+                  ONLINE PLAYERS (現在オンライン中のプレイヤー)
                 </h4>
               </div>
-              <span className="text-xs text-slate-400">
-                {communityUsers.length} Users Ready to Challenge
+              <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                {onlineUsers.length} ONLINE
               </span>
             </div>
 
-            {communityUsers.length === 0 ? (
-              <div className="text-center py-10 px-4 space-y-3 bg-slate-950/60 rounded-2xl border border-dashed border-slate-800">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto text-xl">
-                  👥
+            {onlineUsers.length === 0 ? (
+              <div className="text-center py-8 px-4 space-y-2 bg-slate-950/70 rounded-2xl border border-dashed border-slate-800">
+                <div className="text-2xl">🟢</div>
+                <div className="font-heading font-bold text-sm text-slate-200">
+                  現在、他のオンラインプレイヤーは待機中またはオフラインです
                 </div>
-                <div className="font-heading font-bold text-sm text-white">
-                  まだ他のプレイヤーが登録されていません
-                </div>
-                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                  上のフォームからご自身のユーザーネームとチームを登録してください。<br />
-                  お友達や他プレイヤーにユーザーネームを共有すると、直接検索・対戦が可能になります！
+                <p className="text-xs text-slate-400 max-w-lg mx-auto">
+                  {userProfile.username ? (
+                    <>
+                      あなた（<span className="text-emerald-300 font-bold">@{userProfile.username}</span>）はオンライン状態です。<br />
+                      下記の一覧または検索タブから、登録済みユーザーのBest XIと<span className="text-amber-300 font-bold">非同期対戦（ASYNC MATCH）</span>が可能です！
+                    </>
+                  ) : (
+                    <>
+                      上のフォームでユーザーネームを登録すると、オンライン一覧に表示され対戦を受け付けられます！
+                    </>
+                  )}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {communityUsers.map((opp) => {
+                {onlineUsers.map((opp) => {
                   const oppOvr = opp.team?.players?.length
                     ? Math.round(
                         opp.team.players.reduce((s, p) => s + p.rating, 0) / opp.team.players.length
                       )
                     : 85;
+
+                  return (
+                    <div
+                      key={opp.userId}
+                      className="p-4 rounded-2xl bg-slate-950 border-2 border-emerald-500/40 hover:border-emerald-400 transition-all flex flex-col justify-between gap-3 shadow-lg group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-900/50 border border-emerald-400/40 flex items-center justify-center font-heading font-black text-base text-emerald-300">
+                              {opp.username.substring(0, 2).toUpperCase()}
+                            </div>
+                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-950" />
+                          </div>
+                          <div>
+                            <div className="font-heading font-black text-sm text-white flex items-center gap-1.5">
+                              <span>@{opp.username}</span>
+                              <span className="text-[10px] font-mono text-emerald-400 font-bold">ONLINE</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              {opp.team?.name || 'Best XI'} · {opp.team?.players?.length || 11} Players
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-[10px] font-mono text-slate-400">OVR</div>
+                          <div className="font-mono font-black text-base text-amber-400">{oppOvr}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                        <button
+                          onClick={() => handleOpenPreMatch(opp, 'OVR', 'REALTIME')}
+                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-heading font-black text-xs tracking-wider shadow-md transition-all flex items-center justify-center gap-1"
+                        >
+                          <Zap className="w-3.5 h-3.5 fill-white" />
+                          <span>CHALLENGE</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenPreMatch(opp, 'TACTICAL', 'REALTIME')}
+                          className="py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>戦術</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 👥 ALL REGISTERED OPPONENTS (Real Supabase Users - Offline & Async Match) */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-400" />
+                <h4 className="font-heading font-black text-base text-white">
+                  ALL REGISTERED MANAGERS (登録ユーザー一覧 · 非同期対戦対応)
+                </h4>
+              </div>
+              <span className="text-xs text-slate-400">
+                {allRegisteredUsers.length} Registered
+              </span>
+            </div>
+
+            {allRegisteredUsers.length === 0 ? (
+              <div className="text-center py-10 px-4 space-y-3 bg-slate-950/60 rounded-2xl border border-dashed border-slate-800">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                  👥
+                </div>
+                <div className="font-heading font-bold text-sm text-white">
+                  まだ他のマネージャーが登録されていません
+                </div>
+                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                  上のフォームからご自身のユーザーネームとBest XIチームを登録してください。<br />
+                  検索バーにお友達のハンドルを入力して検索・対戦も可能です！
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {allRegisteredUsers.map((opp) => {
+                  const oppOvr = opp.team?.players?.length
+                    ? Math.round(
+                        opp.team.players.reduce((s, p) => s + p.rating, 0) / opp.team.players.length
+                      )
+                    : 85;
+
+                  const isOnline = onlineUsers.some((u) => u.userId === opp.userId);
 
                   return (
                     <div
@@ -971,11 +1283,18 @@ export const PvPView: React.FC<PvPViewProps> = ({
                             {opp.username.substring(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-heading font-black text-sm text-white">
-                              {opp.username}
+                            <div className="font-heading font-black text-sm text-white flex items-center gap-1.5">
+                              <span>@{opp.username}</span>
+                              <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
+                                isOnline
+                                  ? 'text-emerald-400 bg-emerald-950/60 border border-emerald-500/30'
+                                  : 'text-slate-400 bg-slate-800'
+                              }`}>
+                                {isOnline ? '🟢 ONLINE' : '⚫ OFFLINE'}
+                              </span>
                             </div>
                             <div className="text-[11px] text-slate-400">
-                              {opp.team?.name || 'Best XI Squad'}
+                              {opp.team?.name || 'Best XI'} · {opp.team?.formation || '4-3-3'}
                             </div>
                           </div>
                         </div>
@@ -988,18 +1307,22 @@ export const PvPView: React.FC<PvPViewProps> = ({
 
                       <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
                         <button
-                          onClick={() => handleOpenPreMatch(opp, 'OVR')}
-                          className="flex-1 py-2 px-3 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                          onClick={() => handleOpenPreMatch(opp, 'OVR', isOnline ? 'REALTIME' : 'ASYNC')}
+                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                            isOnline
+                              ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40'
+                              : 'bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40'
+                          }`}
                         >
                           <Zap className="w-3.5 h-3.5" />
-                          <span>総合値マッチ</span>
+                          <span>{isOnline ? 'CHALLENGE' : 'ASYNC MATCH'}</span>
                         </button>
                         <button
-                          onClick={() => handleOpenPreMatch(opp, 'TACTICAL')}
-                          className="flex-1 py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                          onClick={() => handleOpenPreMatch(opp, 'TACTICAL', isOnline ? 'REALTIME' : 'ASYNC')}
+                          className="py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1"
                         >
                           <Sliders className="w-3.5 h-3.5" />
-                          <span>戦術マッチ</span>
+                          <span>戦術対戦</span>
                         </button>
                       </div>
                     </div>
@@ -1020,7 +1343,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
               <span>チーム戦術ボード (Tactical Settings)</span>
             </h3>
             <p className="text-xs text-slate-400">
-              多彩な攻撃・守備スタイルを設定して試合を有利に進めましょう。
+              多彩な攻撃・守備スタイルを設定して試合を有利に進めましょう。設定した戦術はSupabaseに保存されます。
             </p>
           </div>
 
@@ -1102,16 +1425,16 @@ export const PvPView: React.FC<PvPViewProps> = ({
         </div>
       )}
 
-      {/* TAB 3: FRIENDS & USER SEARCH */}
+      {/* TAB 3: USER SEARCH (Requirement 4) */}
       {activeTab === 'friends' && !matchMode && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
           <div className="space-y-1">
             <h3 className="font-heading font-black text-xl text-white flex items-center gap-2">
               <Search className="w-5 h-5 text-indigo-400" />
-              <span>フレンド・ユーザー検索 (Friend Search)</span>
+              <span>🔍 ユーザー検索 (Search Players)</span>
             </h3>
             <p className="text-xs text-slate-400">
-              特定のユーザーネームを検索して、そのユーザーのチームと非同期対戦が行えます。
+              Supabaseに登録されているプレイヤーを検索し、オンライン対戦または非同期対戦（ASYNC MATCH）を開始できます。
             </p>
           </div>
 
@@ -1121,54 +1444,83 @@ export const PvPView: React.FC<PvPViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="ユーザーネームを検索 (例: Striker99, LeoAce)"
-              className="w-full bg-slate-950 border border-slate-700 pl-10 pr-4 py-3 rounded-2xl text-xs text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
+              placeholder="🔍 Search players... (例: Leo, Champion, King)"
+              className="w-full bg-slate-950 border border-slate-700 pl-10 pr-4 py-3 rounded-2xl text-xs text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none font-medium"
             />
           </div>
 
           <div className="space-y-3">
-            {searchQuery && searchResults.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                「{searchQuery}」に一致するユーザーは見つかりませんでした。
+            {isSearching ? (
+              <div className="text-center py-8 text-slate-400 text-xs flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
+                <span>Supabaseを検索中...</span>
               </div>
-            ) : !searchQuery && communityUsers.length === 0 ? (
+            ) : searchQuery && searchResults.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs bg-slate-950/40 rounded-2xl border border-slate-800 p-6">
+                「{searchQuery}」に一致する登録ユーザーは見つかりませんでした。
+              </div>
+            ) : !searchQuery && allRegisteredUsers.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-xs bg-slate-950/40 rounded-2xl border border-dashed border-slate-800 p-6">
-                登録済みのフレンドがまだいません。検索バーにお友達のユーザーネームを入力して検索・対戦してください。
+                登録ユーザーがまだいません。検索バーにユーザーネームを入力して検索してください。
               </div>
             ) : (
-              (searchQuery ? searchResults : communityUsers).map((user) => (
-                <div
-                  key={user.userId}
-                  className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center font-heading font-black text-indigo-300">
-                      {user.username.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="font-heading font-black text-sm text-white">
-                        {user.username}
-                      </div>
-                      <div className="text-[11px] text-slate-400">{user.team?.name}</div>
-                    </div>
-                  </div>
+              (searchQuery ? searchResults : allRegisteredUsers).map((user) => {
+                const isOnline = onlineUsers.some((u) => u.userId === user.userId) || user.isOnline;
+                const userOvr = user.team?.players?.length
+                  ? Math.round(
+                      user.team.players.reduce((s, p) => s + p.rating, 0) / user.team.players.length
+                    )
+                  : 85;
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleOpenPreMatch(user, 'OVR')}
-                      className="py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors"
-                    >
-                      総合値マッチ
-                    </button>
-                    <button
-                      onClick={() => handleOpenPreMatch(user, 'TACTICAL')}
-                      className="py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors"
-                    >
-                      戦術マッチ
-                    </button>
+                return (
+                  <div
+                    key={user.userId}
+                    className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4 hover:border-indigo-500/40 transition-all shadow-md"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="w-11 h-11 rounded-2xl bg-indigo-600/20 border border-indigo-400/40 flex items-center justify-center font-heading font-black text-indigo-300 text-sm">
+                          {user.username.substring(0, 2).toUpperCase()}
+                        </div>
+                        <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-slate-950 ${
+                          isOnline ? 'bg-emerald-500' : 'bg-slate-600'
+                        }`} />
+                      </div>
+                      <div>
+                        <div className="font-heading font-black text-sm text-white flex items-center gap-2">
+                          <span>@{user.username}</span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                            isOnline
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {isOnline ? '🟢 ONLINE' : '⚫ OFFLINE'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                          <span>{user.team?.name || 'Best XI'}</span>
+                          <span>•</span>
+                          <span className="font-mono text-amber-400 font-bold">OVR {userOvr}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenPreMatch(user, 'OVR', isOnline ? 'REALTIME' : 'ASYNC')}
+                        className={`py-2 px-3.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-md ${
+                          isOnline
+                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-heading font-black'
+                            : 'bg-indigo-600 hover:bg-indigo-500 text-white font-heading font-black'
+                        }`}
+                      >
+                        <Zap className="w-3.5 h-3.5 fill-white" />
+                        <span>{isOnline ? 'CHALLENGE' : 'ASYNC MATCH'}</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -1192,7 +1544,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
               <thead className="bg-slate-950/80 text-slate-400 font-mono uppercase border-b border-slate-800">
                 <tr>
                   <th className="p-3">Rank</th>
-                  <th className="p-3">User / Team</th>
+                  <th className="p-3">Manager / Team</th>
                   <th className="p-3 text-center">Matches</th>
                   <th className="p-3 text-center">W - D - L</th>
                   <th className="p-3 text-center">GD</th>
@@ -1213,8 +1565,8 @@ export const PvPView: React.FC<PvPViewProps> = ({
                     >
                       <td className="p-3 font-mono font-black text-amber-400">#{st.rank}</td>
                       <td className="p-3">
-                        <div className="font-black text-white">{st.username} {isMe && '(YOU)'}</div>
-                        <div className="text-[10px] text-slate-400">{st.teamName}</div>
+                        <div className="font-black text-white">@{st.username} {isMe && '(YOU)'}</div>
+                        <div className="text-[10px] text-slate-400">{st.teamName} · OVR {st.teamOvr}</div>
                       </td>
                       <td className="p-3 text-center font-mono">{st.matchesCount}/10</td>
                       <td className="p-3 text-center font-mono">
@@ -1235,62 +1587,87 @@ export const PvPView: React.FC<PvPViewProps> = ({
         </div>
       )}
 
-      {/* TAB 5: MY MATCH HISTORY */}
+      {/* TAB 5: MATCH HISTORY (Requirement 9) */}
       {activeTab === 'history' && !matchMode && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
-          <div className="space-y-1">
-            <h3 className="font-heading font-black text-xl text-white flex items-center gap-2">
-              <History className="w-5 h-5 text-indigo-400" />
-              <span>対戦履歴（自分が仕掛けた試合のみ）</span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              あなたが対戦を申し込んで実行した試合の履歴です。
-            </p>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h3 className="font-heading font-black text-xl text-white flex items-center gap-2">
+                <History className="w-5 h-5 text-indigo-400" />
+                <span>MATCH HISTORY (対戦履歴)</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Supabaseクラウドに保存された過去の対戦履歴です。
+              </p>
+            </div>
+            <button
+              onClick={refreshCommunityData}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingUsers ? 'animate-spin' : ''}`} />
+              <span>再読み込み</span>
+            </button>
           </div>
 
           {matchHistory.length === 0 ? (
-            <div className="text-center py-10 text-slate-400 text-xs">
+            <div className="text-center py-12 text-slate-400 text-xs bg-slate-950/40 rounded-2xl border border-dashed border-slate-800 p-6">
               対戦履歴はまだありません。対戦ロビーから試合を行ってください。
             </div>
           ) : (
             <div className="space-y-3">
-              {matchHistory.map((rec) => (
-                <div
-                  key={rec.id}
-                  className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase font-mono ${
-                          rec.result === 'WIN'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                            : rec.result === 'DRAW'
-                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                        }`}
-                      >
-                        {rec.result} (+{rec.points}pt)
-                      </span>
-                      <span className="text-xs text-slate-400 font-mono">
-                        {rec.matchType === 'OVR' ? '総合値マッチ' : '戦術マッチ'}
-                      </span>
-                    </div>
-                    <div className="text-sm font-bold text-white">
-                      vs {rec.opponentUsername} ({rec.opponentTeamName})
-                    </div>
-                    <div className="text-[10px] text-slate-500 font-mono">
-                      {new Date(rec.timestamp).toLocaleString()}
-                    </div>
-                  </div>
+              {matchHistory.map((rec) => {
+                const isWin = rec.result === 'WIN';
+                const isDraw = rec.result === 'DRAW';
 
-                  <div className="text-right">
-                    <div className="font-heading font-black text-2xl text-white font-mono">
-                      {rec.challengerScore} - {rec.opponentScore}
+                return (
+                  <div
+                    key={rec.id}
+                    className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4 hover:border-slate-700 transition-all shadow-md"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-lg text-xs font-black uppercase font-mono tracking-wider flex items-center gap-1 ${
+                            isWin
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                              : isDraw
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                          }`}
+                        >
+                          {isWin ? '🏆 WIN' : isDraw ? '🤝 DRAW' : '❌ LOSS'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                          {rec.matchCategory || 'ASYNC'}
+                        </span>
+                        <span className="text-xs text-slate-400 font-mono">
+                          {rec.matchType === 'OVR' ? '総合値マッチ' : '戦術マッチ'}
+                        </span>
+                      </div>
+                      <div className="text-sm font-bold text-white">
+                        vs @{rec.opponentUsername}
+                        <span className="text-xs font-normal text-slate-400 ml-1.5">
+                          ({rec.opponentTeamName || 'Opponent Squad'})
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        {formatRelativeTime(rec.timestamp, language)} · {new Date(rec.timestamp).toLocaleTimeString()}
+                      </div>
+                    </div>
+
+                    <div className="text-right flex flex-col items-end">
+                      <div className={`font-heading font-black text-2xl sm:text-3xl font-mono tracking-wider ${
+                        isWin ? 'text-emerald-400' : isDraw ? 'text-amber-400' : 'text-rose-400'
+                      }`}>
+                        {rec.challengerScore} - {rec.opponentScore}
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {rec.points > 0 ? `+${rec.points} pt` : '0 pt'}
+                      </span>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
