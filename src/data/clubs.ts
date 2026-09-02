@@ -743,6 +743,20 @@ export const J1_CLUBS: Club[] = [
     countryFlag: '🇯🇵',
     badgeSymbol: '🪶',
   },
+  {
+    id: 'sagan_tosu',
+    name: 'Sagan Tosu',
+    nameJa: 'サガン鳥栖',
+    nameEn: 'Sagan Tosu',
+    nameEs: 'Sagan Tosu',
+    shortName: 'TOS',
+    league: 'j1',
+    primaryColor: '#00A0E9',
+    secondaryColor: '#FF69B4',
+    country: 'Japan',
+    countryFlag: '🇯🇵',
+    badgeSymbol: '🐦',
+  },
 ];
 
 export const WORLD_ACTIVE_CLUBS: Club[] = [
