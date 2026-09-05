@@ -2,7 +2,7 @@ import React from 'react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
-import { HelpCircle, X, CheckCircle, Zap } from 'lucide-react';
+import { HelpCircle, X, Zap } from 'lucide-react';
 
 interface HowToPlayModalProps {
   isOpen: boolean;
@@ -44,7 +44,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
               soundManager.playButtonClick();
               onClose();
             }}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -80,7 +80,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
               soundManager.playButtonClick();
               onClose();
             }}
-            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black tracking-wider transition-all"
+            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black tracking-wider transition-all cursor-pointer"
           >
             {t.close}
           </button>

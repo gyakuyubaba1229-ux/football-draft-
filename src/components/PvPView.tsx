@@ -16,7 +16,10 @@ import {
   simulateTacticalMatchHalf,
   computeWeeklyStandings,
   DEFAULT_TACTICS,
+  calculateOVRMatchOdds,
 } from '../utils/pvpEngine';
+import { getTeamEffectiveOvr } from '../utils/positionEngine';
+import { getTeamFormationDisplayName } from '../utils/formationUtils';
 import {
   getCurrentSeasonInfo,
   getSeasonInfo,
@@ -35,6 +38,7 @@ import {
   fetchMatchHistoryFromSupabase,
   fetchWeeklyStandingsFromSupabase,
   checkAndPerformV113Migration,
+  migrateLocalStorageToSupabase,
 } from '../utils/supabasePvP';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
@@ -63,6 +67,7 @@ import {
   Calendar,
   Medal,
   Award,
+  FastForward,
 } from 'lucide-react';
 
 interface PvPViewProps {
@@ -161,6 +166,15 @@ export const PvPView: React.FC<PvPViewProps> = ({
   const [standingsFilter, setStandingsFilter] = useState<'ALL' | 'OVR' | 'TACTICAL'>('ALL');
   const [weeklyStandings, setWeeklyStandings] = useState<BetaStandingEntry[]>([]);
   const [isLoadingStandings, setIsLoadingStandings] = useState<boolean>(false);
+
+  // Helper: check if opponent already played against in the current phase/season
+  const isOpponentMatchedInPhase = (oppUserId: string) => {
+    return matchHistory.some(
+      (m) =>
+        m.opponentUserId === oppUserId &&
+        (m.season === currentSeasonInfo.seasonNumber || !m.season)
+    );
+  };
 
   // Halftime modified tactics
   const [halftimeTactics, setHalftimeTactics] = useState<TeamTactics>(tactics);
@@ -310,6 +324,29 @@ export const PvPView: React.FC<PvPViewProps> = ({
     }
   };
 
+  // Migrate Local Data to Supabase Cloud
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+
+  const handleMigrateToCloud = async () => {
+    setIsMigrating(true);
+    setMigrationStatus(null);
+    soundManager.playButtonClick();
+    try {
+      const res = await migrateLocalStorageToSupabase(userProfile, teams);
+      setMigrationStatus(res.message);
+      if (res.success) {
+        soundManager.playTeamCompleted();
+        refreshCommunityData(selectedSeason);
+      }
+    } catch (e: any) {
+      setMigrationStatus('移行エラー: ' + (e?.message || '通信失敗'));
+    } finally {
+      setIsMigrating(false);
+      setTimeout(() => setMigrationStatus(null), 8000);
+    }
+  };
+
   // Search real users in Supabase
   const handleSearch = (q: string) => {
     setSearchQuery(q);
@@ -335,11 +372,16 @@ export const PvPView: React.FC<PvPViewProps> = ({
     mode: 'OVR' | 'TACTICAL',
     category?: 'REALTIME' | 'ASYNC'
   ) => {
+    let activeProfile = userProfile;
     if (!userProfile.username) {
-      setActiveTab('lobby');
-      setUsernameError('対戦を開始する前にユーザーネームを設定・登録してください。');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
+      const fallbackName = `Manager_${userProfile.userId.slice(-4)}`;
+      activeProfile = { ...userProfile, username: fallbackName };
+      setUserProfile(activeProfile);
+      setUsernameInput(fallbackName);
+      try {
+        localStorage.setItem('FOOTBALL_DRAFT_PVP_CURRENT_HANDLE_V113', fallbackName);
+        registerOrUpdateUserInSupabase(activeProfile);
+      } catch (err) {}
     }
 
     soundManager.playButtonClick();
@@ -362,6 +404,39 @@ export const PvPView: React.FC<PvPViewProps> = ({
     setPreMatchMode(mode);
     setPreMatchCategory(chosenCategory);
     setIsPreMatchOpen(true);
+  };
+
+  // Instant Skip to OVR Match Results
+  const skipToOVRMatchResult = (recordOverride?: BetaMatchRecord) => {
+    if (simulationIntervalRef.current) {
+      clearInterval(simulationIntervalRef.current);
+      simulationIntervalRef.current = null;
+    }
+    const rec = recordOverride || finalMatchRecord;
+    if (!rec) return;
+
+    setMatchPhase('finished');
+    setIsMatchRunning(false);
+    setMatchTimerSeconds(30);
+    setCurrentScore([rec.challengerScore, rec.opponentScore]);
+    setLiveEvents(rec.events);
+
+    // Save to Supabase and update state
+    saveMatchRecordToSupabase(rec);
+    setMatchHistory((prev) => {
+      if (prev.some((m) => m.id === rec.id)) return prev;
+      return [rec, ...prev];
+    });
+    loadStandingsData(selectedSeason, standingsFilter);
+
+    if (rec.result === 'WIN') {
+      soundManager.playTeamCompleted();
+      try {
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      } catch (err) {}
+    } else {
+      soundManager.playSlotStop();
+    }
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -393,41 +468,39 @@ export const PvPView: React.FC<PvPViewProps> = ({
     );
     setFinalMatchRecord(record);
 
+    // Schedule all generated events dynamically across the 28-second timeline
+    const totalSimSeconds = 28;
+    const scheduledEvents = events.map((evt, idx) => {
+      let triggerSec = Math.round((evt.minute / 90) * (totalSimSeconds - 4)) + 2;
+      if (idx === 0) triggerSec = 1;
+      if (idx === events.length - 1) triggerSec = totalSimSeconds;
+      return { triggerSec, event: evt, triggered: false };
+    });
+
     let sec = 0;
     simulationIntervalRef.current = setInterval(() => {
       sec++;
       setMatchTimerSeconds(sec);
 
-      // Event triggers at 3s, 8s, 15s, 23s
-      if (sec === 3) {
-        setLiveEvents((prev) => [...prev, events[0]]);
-      } else if (sec === 8 && events[1]) {
-        setLiveEvents((prev) => [...prev, events[1]]);
-      } else if (sec === 15 && events[2]) {
-        setLiveEvents((prev) => [...prev, events[2]]);
-        if (events[2].isChallengerGoal) setCurrentScore((s) => [s[0] + 1, s[1]]);
-        if (events[2].isOpponentGoal) setCurrentScore((s) => [s[0], s[1] + 1]);
-        soundManager.playGoldenFanfare();
-      } else if (sec === 23 && events[3]) {
-        setLiveEvents((prev) => [...prev, events[3]]);
-        if (events[3].isChallengerGoal) setCurrentScore((s) => [s[0] + 1, s[1]]);
-        if (events[3].isOpponentGoal) setCurrentScore((s) => [s[0], s[1] + 1]);
-        soundManager.playGoldenFanfare();
-      } else if (sec >= 30) {
-        if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-        setMatchPhase('finished');
-        setIsMatchRunning(false);
-        setLiveEvents((prev) => [...prev, events[events.length - 1]]);
+      // Process any events due at or before this second
+      scheduledEvents.forEach((item) => {
+        if (!item.triggered && sec >= item.triggerSec) {
+          item.triggered = true;
+          setLiveEvents((prev) => [...prev, item.event]);
 
-        // Save to Supabase and update state
-        saveMatchRecordToSupabase(record);
-        setMatchHistory((prev) => [record, ...prev]);
-        loadStandingsData(selectedSeason, standingsFilter);
-
-        if (record.result === 'WIN') {
-          soundManager.playTeamCompleted();
-          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+          if (item.event.isChallengerGoal) {
+            setCurrentScore((s) => [s[0] + 1, s[1]]);
+            soundManager.playGoldenFanfare();
+          }
+          if (item.event.isOpponentGoal) {
+            setCurrentScore((s) => [s[0], s[1] + 1]);
+            soundManager.playGoldenFanfare();
+          }
         }
+      });
+
+      if (sec >= 30) {
+        skipToOVRMatchResult(record);
       }
     }, 1000);
   };
@@ -535,18 +608,8 @@ export const PvPView: React.FC<PvPViewProps> = ({
           fullScore[0] > fullScore[1] ? 'WIN' : fullScore[0] === fullScore[1] ? 'DRAW' : 'LOSS';
         const pts = res === 'WIN' ? 3 : res === 'DRAW' ? 1 : 0;
 
-        const cOvr = currentPlayingSquad.players.length
-          ? Math.round(
-              currentPlayingSquad.players.reduce((s, p) => s + p.rating, 0) /
-                currentPlayingSquad.players.length
-            )
-          : 85;
-        const oOvr = activeOpponent.team?.players.length
-          ? Math.round(
-              activeOpponent.team.players.reduce((s, p) => s + p.rating, 0) /
-                activeOpponent.team.players.length
-            )
-          : 85;
+        const cOvr = getTeamEffectiveOvr(currentPlayingSquad);
+        const oOvr = getTeamEffectiveOvr(activeOpponent.team);
 
         const record: BetaMatchRecord = {
           id: 'tac_match_' + Date.now(),
@@ -619,7 +682,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
             </div>
             <h2 className="font-heading font-black text-2xl sm:text-3xl text-white tracking-wide flex items-center gap-2">
               <Swords className="w-7 h-7 text-indigo-400" />
-              <span>PvP 対戦＆週間ランキング (v1.1.3)</span>
+              <span>PvP 対戦＆週間ランキング (v1.2.0)</span>
             </h2>
             <p className="text-xs text-slate-300 max-w-xl">
               Supabaseに登録された実在プレイヤーと対戦！ 毎週月曜0:00〜日曜23:59(JST)の週間ランキングを開催中。
@@ -627,7 +690,16 @@ export const PvPView: React.FC<PvPViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+            <button
+              onClick={handleMigrateToCloud}
+              disabled={isMigrating}
+              title="端末内（localStorage）のチーム・対戦履歴をSupabaseクラウドへ一括移行"
+              className="px-3 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 font-bold text-xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Cloud className={`w-3.5 h-3.5 text-indigo-400 ${isMigrating ? 'animate-bounce' : ''}`} />
+              <span>{isMigrating ? '移行中...' : 'クラウド移行'}</span>
+            </button>
             <button
               onClick={() => refreshCommunityData(selectedSeason)}
               disabled={isLoadingUsers}
@@ -721,6 +793,12 @@ export const PvPView: React.FC<PvPViewProps> = ({
           <div className="mt-3 text-xs text-emerald-400 bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2 animate-fadeIn">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>Best XI（{activePlayingSquad.name} / OVR {myTeamOvr}）をSupabaseクラウドに保存しました！</span>
+          </div>
+        )}
+        {migrationStatus && (
+          <div className="mt-3 text-xs text-indigo-300 bg-indigo-950/50 p-2.5 rounded-xl border border-indigo-500/40 flex items-center gap-2 animate-fadeIn">
+            <Cloud className="w-4 h-4 shrink-0 text-indigo-400" />
+            <span>{migrationStatus}</span>
           </div>
         )}
       </div>
@@ -818,9 +896,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     {teams.map((t) => {
                       const isSelected = t.teamId === activePlayingSquad.teamId;
-                      const sOvr = t.players.length
-                        ? Math.round(t.players.reduce((s, p) => s + p.rating, 0) / t.players.length)
-                        : 80;
+                      const sOvr = getTeamEffectiveOvr(t);
 
                       return (
                         <button
@@ -841,7 +917,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                             {isSelected && <CheckCircle2 className="w-3 h-3 text-indigo-400 shrink-0" />}
                           </div>
                           <div className="flex items-center justify-between text-[10px] font-mono mt-1 text-slate-400">
-                            <span>{t.formation || '4-3-3'}</span>
+                            <span>{getTeamFormationDisplayName(t)}</span>
                             <span className="text-amber-400 font-bold">OVR {sOvr}</span>
                           </div>
                         </button>
@@ -854,17 +930,12 @@ export const PvPView: React.FC<PvPViewProps> = ({
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-400 font-mono">FORMATION</div>
-                    <div className="font-bold text-xs text-white">{activePlayingSquad.formation || '4-3-3'}</div>
+                    <div className="font-bold text-xs text-white">{getTeamFormationDisplayName(activePlayingSquad)}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] text-slate-400 font-mono">TEAM OVR</div>
                     <div className="font-heading font-black text-base text-amber-400">
-                      {activePlayingSquad.players.length
-                        ? Math.round(
-                            activePlayingSquad.players.reduce((s, p) => s + p.rating, 0) /
-                              activePlayingSquad.players.length
-                          )
-                        : 80}
+                      {getTeamEffectiveOvr(activePlayingSquad)}
                     </div>
                   </div>
                 </div>
@@ -916,18 +987,13 @@ export const PvPView: React.FC<PvPViewProps> = ({
                       {preMatchOpponent.team?.name || 'Defense Squad'}
                     </div>
                     <div className="text-[10px] text-slate-500 font-mono">
-                      {preMatchOpponent.team?.formation || '4-3-3'}
+                      {getTeamFormationDisplayName(preMatchOpponent.team)}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] text-slate-400 font-mono">OPPONENT OVR</div>
                     <div className="font-heading font-black text-base text-amber-400">
-                      {preMatchOpponent.team?.players?.length
-                        ? Math.round(
-                            preMatchOpponent.team.players.reduce((s, p) => s + p.rating, 0) /
-                              preMatchOpponent.team.players.length
-                          )
-                        : 85}
+                      {getTeamEffectiveOvr(preMatchOpponent.team)}
                     </div>
                   </div>
                 </div>
@@ -955,23 +1021,107 @@ export const PvPView: React.FC<PvPViewProps> = ({
               </div>
             </div>
 
-            {/* Kick Off Button */}
-            <div className="pt-2">
-              <button
-                id="btn-confirm-kickoff"
-                onClick={() => {
-                  if (preMatchMode === 'OVR') {
-                    startOVRMatch(preMatchOpponent, activePlayingSquad, preMatchCategory);
-                  } else {
-                    startTacticalMatch(preMatchOpponent, activePlayingSquad, preMatchCategory);
-                  }
-                }}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-heading font-black text-base tracking-wider shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-95"
-              >
-                <Play className="w-5 h-5 fill-slate-950" />
-                <span>KICK OFF (試合開始)</span>
-              </button>
-            </div>
+            {/* OVR Odds Card (when OVR mode) */}
+            {(() => {
+              const myOvr = getTeamEffectiveOvr(activePlayingSquad);
+              const oppOvr = getTeamEffectiveOvr(preMatchOpponent.team);
+              const ovrOdds = calculateOVRMatchOdds(myOvr, oppOvr);
+              const isAlreadyMatched = isOpponentMatchedInPhase(preMatchOpponent.userId);
+
+              return (
+                <div className="space-y-3 pt-1">
+                  {preMatchMode === 'OVR' && (
+                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-indigo-500/40 space-y-2 shadow-inner">
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-slate-200 font-bold flex items-center gap-1.5">
+                          📊 <span>勝率予想 (OVR MATCH ODDS)</span>
+                        </span>
+                        <span className="text-slate-400 text-[10px]">
+                          OVR差: {myOvr - oppOvr > 0 ? `+${myOvr - oppOvr}` : `${myOvr - oppOvr}`}
+                        </span>
+                      </div>
+
+                      {/* Segmented Odds Bar */}
+                      <div className="h-4 rounded-full overflow-hidden flex bg-slate-900 border border-slate-800 shadow-sm">
+                        <div
+                          style={{ width: `${ovrOdds.winPct}%` }}
+                          className="bg-emerald-500 flex items-center justify-center text-[9px] font-black text-slate-950 font-mono transition-all"
+                          title={`勝利予想: ${ovrOdds.winPct}%`}
+                        >
+                          {ovrOdds.winPct >= 15 ? `${ovrOdds.winPct}%` : ''}
+                        </div>
+                        <div
+                          style={{ width: `${ovrOdds.drawPct}%` }}
+                          className="bg-slate-500 flex items-center justify-center text-[9px] font-black text-white font-mono transition-all"
+                          title={`引分予想: ${ovrOdds.drawPct}%`}
+                        >
+                          {ovrOdds.drawPct >= 12 ? `${ovrOdds.drawPct}%` : ''}
+                        </div>
+                        <div
+                          style={{ width: `${ovrOdds.lossPct}%` }}
+                          className="bg-rose-500 flex items-center justify-center text-[9px] font-black text-slate-950 font-mono transition-all"
+                          title={`敗北予想: ${ovrOdds.lossPct}%`}
+                        >
+                          {ovrOdds.lossPct >= 15 ? `${ovrOdds.lossPct}%` : ''}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-mono font-bold">
+                        <span className="text-emerald-400">勝利 {ovrOdds.winPct}%</span>
+                        <span className="text-slate-400">引分 {ovrOdds.drawPct}%</span>
+                        <span className="text-rose-400">敗北 {ovrOdds.lossPct}%</span>
+                      </div>
+                      <div className="text-[9px] text-slate-400 text-center">
+                        ※ 総合値差に応じた確率制マッチ。総合値が劣っていてもアップセット(番狂わせ)の可能性が存在します。
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Duplicate Match Warning in Same Phase */}
+                  {isAlreadyMatched && (
+                    <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2 animate-fadeIn">
+                      <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>
+                        <strong>対戦済み (PLAYED):</strong> @{preMatchOpponent.username} とは今週のシーズン（Season {currentSeasonInfo.seasonNumber}）で既に対戦済みです。同一フェーズ内での再対戦は制限されています。
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Kick Off Button */}
+                  <div>
+                    <button
+                      id="btn-confirm-kickoff"
+                      disabled={isAlreadyMatched}
+                      onClick={() => {
+                        if (isAlreadyMatched) return;
+                        if (preMatchMode === 'OVR') {
+                          startOVRMatch(preMatchOpponent, activePlayingSquad, preMatchCategory);
+                        } else {
+                          startTacticalMatch(preMatchOpponent, activePlayingSquad, preMatchCategory);
+                        }
+                      }}
+                      className={`w-full py-3.5 rounded-2xl font-heading font-black text-base tracking-wider flex items-center justify-center gap-2 transition-all ${
+                        isAlreadyMatched
+                          ? 'bg-slate-800/80 text-slate-500 border border-slate-700 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-xl shadow-emerald-500/20 transform active:scale-95 cursor-pointer'
+                      }`}
+                    >
+                      {isAlreadyMatched ? (
+                        <>
+                          <CheckCircle2 className="w-5 h-5 text-slate-500" />
+                          <span>今週のフェーズで対戦済み (MATCHED)</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-5 h-5 fill-slate-950" />
+                          <span>KICK OFF (試合開始)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1010,8 +1160,8 @@ export const PvPView: React.FC<PvPViewProps> = ({
               <div className="font-heading font-black text-lg sm:text-xl text-white truncate">
                 @{userProfile.username || 'YOU'}
               </div>
-              <div className="text-xs text-slate-400">
-                OVR {currentPlayingSquad.players.length ? Math.round(currentPlayingSquad.players.reduce((s, p) => s + p.rating, 0) / currentPlayingSquad.players.length) : 80}
+              <div className="text-xs text-slate-400 font-mono">
+                OVR {getTeamEffectiveOvr(currentPlayingSquad)}
               </div>
             </div>
 
@@ -1026,11 +1176,27 @@ export const PvPView: React.FC<PvPViewProps> = ({
               <div className="font-heading font-black text-lg sm:text-xl text-white truncate">
                 @{activeOpponent.username}
               </div>
-              <div className="text-xs text-slate-400">
-                OVR {activeOpponent.team?.players?.length ? Math.round(activeOpponent.team.players.reduce((s, p) => s + p.rating, 0) / activeOpponent.team.players.length) : 85}
+              <div className="text-xs text-slate-400 font-mono">
+                OVR {getTeamEffectiveOvr(activeOpponent.team)}
               </div>
             </div>
           </div>
+
+          {/* OVR Match Fast Skip Button */}
+          {matchMode === 'OVR' && matchPhase !== 'finished' && (
+            <div className="flex justify-center">
+              <button
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  skipToOVRMatchResult();
+                }}
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-heading font-black text-xs tracking-wider shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+              >
+                <FastForward className="w-4 h-4" />
+                <span>⚡ 結果を今すぐ確認 (Skip to Full Time)</span>
+              </button>
+            </div>
+          )}
 
           {/* Half-Time Tactics Adjustment Panel */}
           {matchPhase === 'halftime' && (
@@ -1124,19 +1290,49 @@ export const PvPView: React.FC<PvPViewProps> = ({
           </div>
 
           {/* Final Match Finished Action */}
-          {matchPhase === 'finished' && (
-            <div className="text-center pt-2">
-              <button
-                onClick={() => {
-                  soundManager.playButtonClick();
-                  setMatchMode(null);
-                  setActiveOpponent(null);
-                  refreshCommunityData(selectedSeason);
-                }}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-heading font-black text-xs tracking-wider shadow-lg"
-              >
-                対戦ロビーに戻る
-              </button>
+          {matchPhase === 'finished' && finalMatchRecord && (
+            <div className="p-5 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-indigo-500/50 space-y-4 shadow-2xl animate-fadeIn">
+              <div className="text-center space-y-1">
+                <span
+                  className={`inline-block px-4 py-1 rounded-full text-xs font-black tracking-wider uppercase border ${
+                    finalMatchRecord.result === 'WIN'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-400/60 shadow-amber-500/20'
+                      : finalMatchRecord.result === 'DRAW'
+                      ? 'bg-slate-500/20 text-slate-300 border-slate-400/40'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-400/40'
+                  }`}
+                >
+                  {finalMatchRecord.result === 'WIN'
+                    ? '🏆 試合勝利 (VICTORY)'
+                    : finalMatchRecord.result === 'DRAW'
+                    ? '🤝 引き分け (DRAW)'
+                    : '💔 試合敗北 (DEFEAT)'}
+                </span>
+                <h3 className="font-heading font-black text-2xl text-white">
+                  {currentScore[0]} - {currentScore[1]}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {finalMatchRecord.result === 'WIN'
+                    ? '素晴らしい采配でした！リーグポイント +3 を獲得しました！'
+                    : finalMatchRecord.result === 'DRAW'
+                    ? '互角の白熱戦でした！リーグポイント +1 を獲得しました。'
+                    : '惜しい結果となりました。フォーメーションや選手配置を調整してリベンジしましょう！'}
+                </p>
+              </div>
+
+              <div className="flex justify-center gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    setMatchMode(null);
+                    setActiveOpponent(null);
+                    refreshCommunityData(selectedSeason);
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-heading font-black text-xs tracking-wider shadow-lg cursor-pointer"
+                >
+                  対戦ロビーに戻る
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1145,6 +1341,45 @@ export const PvPView: React.FC<PvPViewProps> = ({
       {/* TAB 1: MATCH LOBBY */}
       {activeTab === 'lobby' && !matchMode && (
         <div className="space-y-6">
+          {/* Quick OVR Match Hero Banner */}
+          <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-indigo-950/80 border-2 border-amber-500/50 rounded-3xl p-5 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-left">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-400/40 flex items-center justify-center text-2xl shrink-0 shadow-md">
+                ⚡
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-widest">
+                    Quick Match
+                  </span>
+                  <span className="px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
+                    即時対戦可能
+                  </span>
+                </div>
+                <h3 className="font-heading font-black text-lg text-white">
+                  ⚡ クイックOVR対戦 (Quick OVR Challenge)
+                </h3>
+                <p className="text-xs text-slate-300">
+                  現在編成中のMy Team（OVR {getTeamEffectiveOvr(activePlayingSquad)}）で、おすすめのライバルチームと即座にOVR対戦を開始します。
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                soundManager.playButtonClick();
+                const candidate = onlineUsers[0] || allRegisteredUsers[0];
+                if (candidate) {
+                  handleOpenPreMatch(candidate, 'OVR', onlineUsers[0] ? 'REALTIME' : 'ASYNC');
+                }
+              }}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-heading font-black text-xs tracking-wider shadow-xl flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shrink-0"
+            >
+              <Zap className="w-4 h-4 fill-slate-950" />
+              <span>今すぐOVR対戦を開始</span>
+            </button>
+          </div>
+
           {/* Mode Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-gradient-to-br from-slate-900 to-indigo-950/60 border border-indigo-500/30 rounded-3xl p-5 space-y-4 shadow-xl">
@@ -1255,20 +1490,29 @@ export const PvPView: React.FC<PvPViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
-                        <button
-                          onClick={() => handleOpenPreMatch(opp, 'OVR', 'REALTIME')}
-                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-heading font-black text-xs tracking-wider shadow-md transition-all flex items-center justify-center gap-1"
-                        >
-                          <Zap className="w-3.5 h-3.5 fill-white" />
-                          <span>CHALLENGE</span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenPreMatch(opp, 'TACTICAL', 'REALTIME')}
-                          className="py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Sliders className="w-3.5 h-3.5" />
-                          <span>戦術</span>
-                        </button>
+                        {isOpponentMatchedInPhase(opp.userId) ? (
+                          <div className="flex-1 py-2 px-3 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-400 text-xs font-bold flex items-center justify-center gap-1.5 shadow-inner">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>対戦済み (MATCHED)</span>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleOpenPreMatch(opp, 'OVR', 'REALTIME')}
+                              className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-heading font-black text-xs tracking-wider shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Zap className="w-3.5 h-3.5 fill-white" />
+                              <span>CHALLENGE</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenPreMatch(opp, 'TACTICAL', 'REALTIME')}
+                              className="py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Sliders className="w-3.5 h-3.5" />
+                              <span>戦術</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -1337,7 +1581,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-400">
-                              {opp.team?.name || 'Best XI'} · {opp.team?.formation || '4-3-3'}
+                              {opp.team?.name || 'Best XI'} · {getTeamFormationDisplayName(opp.team)}
                             </div>
                           </div>
                         </div>
@@ -1349,24 +1593,33 @@ export const PvPView: React.FC<PvPViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
-                        <button
-                          onClick={() => handleOpenPreMatch(opp, 'OVR', isOnline ? 'REALTIME' : 'ASYNC')}
-                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-                            isOnline
-                              ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40'
-                              : 'bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40'
-                          }`}
-                        >
-                          <Zap className="w-3.5 h-3.5" />
-                          <span>{isOnline ? 'CHALLENGE' : 'ASYNC MATCH'}</span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenPreMatch(opp, 'TACTICAL', isOnline ? 'REALTIME' : 'ASYNC')}
-                          className="py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Sliders className="w-3.5 h-3.5" />
-                          <span>戦術対戦</span>
-                        </button>
+                        {isOpponentMatchedInPhase(opp.userId) ? (
+                          <div className="flex-1 py-2 px-3 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-400 text-xs font-bold flex items-center justify-center gap-1.5 shadow-inner">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>対戦済み (MATCHED)</span>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleOpenPreMatch(opp, 'OVR', isOnline ? 'REALTIME' : 'ASYNC')}
+                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                isOnline
+                                  ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40'
+                                  : 'bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40'
+                              }`}
+                            >
+                              <Zap className="w-3.5 h-3.5" />
+                              <span>{isOnline ? 'CHALLENGE' : 'ASYNC MATCH'}</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenPreMatch(opp, 'TACTICAL', isOnline ? 'REALTIME' : 'ASYNC')}
+                              className="py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Sliders className="w-3.5 h-3.5" />
+                              <span>戦術対戦</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -1398,14 +1651,19 @@ export const PvPView: React.FC<PvPViewProps> = ({
               </h4>
               <div className="space-y-2">
                 {[
-                  { id: 'POSSESSION', name: 'ポゼッション', desc: 'パスをつなぎ主導権を握る' },
-                  { id: 'SHORT_PASS', name: 'ショートパス', desc: '細かな連携で崩す' },
-                  { id: 'DIRECT_PLAY', name: 'ダイレクトプレー', desc: '素早く前線へ運ぶ' },
-                  { id: 'COUNTER', name: 'カウンター', desc: 'ハイラインの裏を突く' },
-                  { id: 'LONG_BALL', name: 'ロングボール', desc: '前線ターゲットへ一気に供給' },
-                  { id: 'WIDE_ATTACK', name: 'サイド攻撃', desc: 'ウイングを活用したクロス' },
+                  { id: 'TIKI_TAKA', name: 'ティキ・タカ', desc: '超高密度なワンタッチパス連携で相手を翻弄' },
+                  { id: 'FALSE_NINE', name: '偽9番 (ゼロトップ)', desc: 'CFが中盤に下りて数的優位と隙間を創出' },
                   { id: 'CROSS_GAME', name: 'クロスゲーム', desc: '大型ターゲットの制空権とウイングのクロス精度' },
-                  { id: 'CENTRAL_ATTACK', name: '中央突破', desc: '中央密集をコンビネーションで攻略' },
+                  { id: 'DIRECT_PLAY', name: 'ダイレクトプレー', desc: '手数をかけず縦へ素早く直線的に運ぶ' },
+                  { id: 'COUNTER', name: 'カウンター', desc: '相手の前がかりな背後スペースを電光石火で急襲' },
+                  { id: 'LONG_COUNTER', name: 'ロングカウンター', desc: '自陣深くから一気呵成にゴール前へ直撃' },
+                  { id: 'OVERLOAD', name: 'オーバーロード', desc: '片サイドへ人数を過密配備し局所数的優位を形成' },
+                  { id: 'THROUGH_PASS', name: '裏への抜け出し', desc: '最終ラインの背後へ鋭いスルーパスを通す' },
+                  { id: 'POSSESSION', name: 'ポゼッション', desc: 'パスをつなぎ主導権を握りゲームを支配' },
+                  { id: 'SHORT_PASS', name: 'ショートパス', desc: '細かな連携とトライアングルで崩す' },
+                  { id: 'WIDE_ATTACK', name: 'サイド攻撃', desc: 'ウイングをピッチ一杯に活用したサイドアタック' },
+                  { id: 'CENTRAL_ATTACK', name: '中央突破', desc: '中央密集地帯をコンビネーションで攻略' },
+                  { id: 'LONG_BALL', name: 'ロングボール', desc: '前線ターゲットへ一気に供給し競り勝つ' },
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -1437,11 +1695,18 @@ export const PvPView: React.FC<PvPViewProps> = ({
               </h4>
               <div className="space-y-2">
                 {[
-                  { id: 'HIGH_PRESS', name: 'ハイプレス', desc: '前線から激しくボールを奪取' },
-                  { id: 'MID_BLOCK', name: 'ミドルブロック', desc: '中盤で安定した陣形を維持' },
-                  { id: 'LOW_BLOCK', name: 'ローブロック', desc: '自陣ゴール前を固めて封鎖' },
-                  { id: 'HIGH_LINE', name: 'ハイライン', desc: 'オフサイドトラップと積極奪回' },
-                  { id: 'DEFENSIVE_FOCUS', name: '守備重視', desc: 'リスクを徹底的に排除' },
+                  { id: 'OFFSIDE_TRAP', name: 'オフサイドトラップ', desc: '統率された最終ラインで相手の裏抜けを一網打尽' },
+                  { id: 'SWARM_DEFENSE', name: 'スウォーム守備', desc: 'ボールホルダーを群れで包囲しパスコースを完全遮断' },
+                  { id: 'CATENACCIO', name: 'カテナチオ', desc: '伝統の鍵をかける堅牢無比な中央施錠ブロック' },
+                  { id: 'BOX_CONTAIN', name: 'PA封鎖', desc: 'ペナルティエリア内に分厚い壁を築き侵入を拒絶' },
+                  { id: 'GEGENPRESSING', name: 'ゲーゲンプレス', desc: 'ボール奪われた瞬間から全員で即時猛烈プレス' },
+                  { id: 'HIGH_PRESS', name: 'ハイプレス', desc: '相手陣内深くから激しくボールを奪取' },
+                  { id: 'MID_BLOCK', name: 'ミドルブロック', desc: '中盤で安定した陣形を敷きスペースを管理' },
+                  { id: 'LOW_BLOCK', name: 'ローブロック', desc: '自陣ゴール前を固めて相手の決定機を排除' },
+                  { id: 'MAN_MARK', name: 'マンマーク', desc: '相手キーマンに密着し仕事を一切させない' },
+                  { id: 'ZONE_DEFENSE', name: 'ゾーンディフェンス', desc: '自陣のエリアを均等に守り破綻を防ぐ' },
+                  { id: 'COUNTER_PREVENT', name: 'カウンター対策', desc: '常に相手の速攻に備えて背後をカバー' },
+                  { id: 'DEFENSIVE_FOCUS', name: '守備重視', desc: 'リスクを徹底的に排除した安全第一の守備' },
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -1550,17 +1815,24 @@ export const PvPView: React.FC<PvPViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenPreMatch(user, 'OVR', isOnline ? 'REALTIME' : 'ASYNC')}
-                        className={`py-2 px-3.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-md ${
-                          isOnline
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-heading font-black'
-                            : 'bg-indigo-600 hover:bg-indigo-500 text-white font-heading font-black'
-                        }`}
-                      >
-                        <Zap className="w-3.5 h-3.5 fill-white" />
-                        <span>{isOnline ? 'CHALLENGE' : 'ASYNC MATCH'}</span>
-                      </button>
+                      {isOpponentMatchedInPhase(user.userId) ? (
+                        <div className="py-2 px-3.5 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-400 text-xs font-bold flex items-center gap-1.5 shadow-inner">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>対戦済み (MATCHED)</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenPreMatch(user, 'OVR', isOnline ? 'REALTIME' : 'ASYNC')}
+                          className={`py-2 px-3.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-md cursor-pointer ${
+                            isOnline
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-heading font-black'
+                              : 'bg-indigo-600 hover:bg-indigo-500 text-white font-heading font-black'
+                          }`}
+                        >
+                          <Zap className="w-3.5 h-3.5 fill-white" />
+                          <span>{isOnline ? 'CHALLENGE' : 'ASYNC MATCH'}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

@@ -2,17 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Language, Player } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
-import { BallonDorInfo, LegendPeakEraInfo, getBallonDorWinner, getLegendPeakEra } from '../data/legendaryEraDatabase';
-import { Zap, Sparkles, Trophy, Star, Award, Crown, CheckCircle } from 'lucide-react';
+import { getVerifiedPositionsForPlayer } from '../utils/positionEngine';
+import { Zap, Sparkles, Star, Award, Crown } from 'lucide-react';
 
-export type SpecialAnimationType = 'black' | 'gold' | 'ballon_dor' | 'blackball' | 'lightning-blackball' | 'golden';
+export type SpecialAnimationType = 'black' | 'gold';
 
 interface BlackBallAnimationProps {
   language: Language;
   type?: SpecialAnimationType;
   player?: Player | null;
-  ballonDorInfo?: BallonDorInfo | null;
-  legendPeakInfo?: LegendPeakEraInfo | null;
   onAnimationEnd: () => void;
 }
 
@@ -20,49 +18,16 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
   language,
   type = 'black',
   player = null,
-  ballonDorInfo: initialBallonDor = null,
-  legendPeakInfo: initialLegendPeak = null,
   onAnimationEnd,
 }) => {
   const t = TRANSLATIONS[language];
-  const isBallonDor = type === 'ballon_dor' || Boolean(initialBallonDor);
-  const isGold = type === 'gold' || type === 'golden';
-  const isBlack = type === 'black' || type === 'blackball' || type === 'lightning-blackball' || (!isBallonDor && !isGold);
-
-  // Auto-resolve Ballon d'Or info or Legend Peak info if not passed directly
-  const ballonDorData = initialBallonDor || (player ? getBallonDorWinner(player) : null);
-  const legendPeakData = initialLegendPeak || (player ? getLegendPeakEra(player) : null);
+  const isGold = type === 'gold';
+  const isBlack = !isGold;
 
   const [phase, setPhase] = useState<'initial' | 'lightning-burst' | 'sphere-spin' | 'legend-reveal'>('initial');
 
   useEffect(() => {
-    if (isBallonDor) {
-      soundManager.playBlackBallAura();
-      const lightningTimer = setTimeout(() => {
-        setPhase('lightning-burst');
-        soundManager.playGoldenLightning();
-      }, 350);
-
-      const spinTimer = setTimeout(() => {
-        setPhase('sphere-spin');
-      }, 950);
-
-      const revealTimer = setTimeout(() => {
-        setPhase('legend-reveal');
-        soundManager.playGoldenFanfare();
-      }, 1800);
-
-      const endTimer = setTimeout(() => {
-        onAnimationEnd();
-      }, 4200);
-
-      return () => {
-        clearTimeout(lightningTimer);
-        clearTimeout(spinTimer);
-        clearTimeout(revealTimer);
-        clearTimeout(endTimer);
-      };
-    } else if (isGold) {
+    if (isGold) {
       soundManager.playBlackBallAura();
       const lightningTimer = setTimeout(() => {
         setPhase('lightning-burst');
@@ -116,7 +81,7 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
         clearTimeout(endTimer);
       };
     }
-  }, [isBallonDor, isGold, isBlack, onAnimationEnd]);
+  }, [isGold, onAnimationEnd]);
 
   // Multilingual display helpers
   const getLocalizedText = (ja?: string, en?: string, es?: string) => {
@@ -124,6 +89,16 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
     if (language === 'es') return es || en || '';
     return en || ja || '';
   };
+
+  const playerName = player
+    ? getLocalizedText(player.nameJa, player.nameEn, player.nameEs) || player.playerName
+    : '';
+
+  const clubName = player
+    ? getLocalizedText(player.clubNameJa, player.clubNameEn, player.clubNameEs) || player.clubName
+    : '';
+
+  const verifiedPositions = player ? getVerifiedPositionsForPlayer(player) : [];
 
   return (
     <div
@@ -134,37 +109,28 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
       {phase === 'lightning-burst' && (
         <div
           className={`absolute inset-0 pointer-events-none transition-opacity ${
-            isBallonDor
-              ? 'bg-amber-300/45 animate-ping'
-              : isGold
-              ? 'bg-yellow-300/35 animate-ping'
-              : 'bg-white/60 animate-ping'
+            isGold ? 'bg-yellow-300/40 animate-ping' : 'bg-purple-300/40 animate-ping'
           }`}
         />
       )}
 
       {/* 2. Ambient Ray Emitters */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-        {isBallonDor ? (
+        {isGold ? (
           <>
             <div className="w-[500px] h-[500px] sm:w-[750px] sm:h-[750px] rounded-full bg-gradient-to-tr from-amber-500/30 via-yellow-400/40 to-amber-600/30 blur-3xl animate-spin" />
             <div className="absolute w-[300px] h-[300px] sm:w-[450px] sm:h-[450px] rounded-full bg-yellow-300/30 blur-2xl animate-pulse" />
           </>
-        ) : isGold ? (
-          <>
-            <div className="w-[450px] h-[450px] sm:w-[700px] sm:h-[700px] rounded-full bg-gradient-to-tr from-yellow-500/25 via-amber-300/35 to-yellow-600/25 blur-3xl animate-spin" />
-            <div className="absolute w-[280px] h-[280px] sm:w-[420px] sm:h-[420px] rounded-full bg-amber-400/25 blur-2xl animate-pulse" />
-          </>
         ) : (
           <>
-            <div className="w-[450px] h-[450px] sm:w-[650px] sm:h-[650px] rounded-full bg-gradient-to-tr from-purple-900/40 via-slate-900/60 to-amber-900/30 blur-3xl animate-spin" />
-            <div className="absolute w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] rounded-full bg-amber-500/20 blur-2xl animate-pulse" />
+            <div className="w-[450px] h-[450px] sm:w-[650px] sm:h-[650px] rounded-full bg-gradient-to-tr from-purple-900/40 via-slate-900/60 to-indigo-900/30 blur-3xl animate-spin" />
+            <div className="absolute w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] rounded-full bg-purple-500/20 blur-2xl animate-pulse" />
           </>
         )}
       </div>
 
       {/* 3. Floating Lightning & Sparks */}
-      {(isBallonDor || isGold) && phase !== 'initial' && (
+      {isGold && phase !== 'initial' && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-0 left-1/6 w-1 h-full bg-gradient-to-b from-yellow-300 via-amber-400 to-transparent opacity-75 animate-pulse" />
           <div className="absolute top-0 left-2/6 w-1.5 h-full bg-gradient-to-b from-yellow-200 via-amber-300 to-transparent opacity-90 animate-ping" />
@@ -181,9 +147,9 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
       {isBlack && phase !== 'initial' && (
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-16 left-12 text-purple-400 text-3xl animate-ping">⚡</div>
-          <div className="absolute top-24 right-14 text-amber-300 text-4xl animate-pulse">⚡</div>
-          <div className="absolute bottom-28 left-20 text-indigo-400 text-2xl animate-bounce">⚡</div>
-          <div className="absolute bottom-20 right-20 text-yellow-400 text-3xl animate-ping">⚡</div>
+          <div className="absolute top-24 right-14 text-indigo-300 text-4xl animate-pulse">⚡</div>
+          <div className="absolute bottom-28 left-20 text-purple-400 text-2xl animate-bounce">⚡</div>
+          <div className="absolute bottom-20 right-20 text-slate-300 text-3xl animate-ping">⚡</div>
         </div>
       )}
 
@@ -192,22 +158,16 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
         
         {/* Rarity & Event Header Badge */}
         <div className="mb-4 animate-bounce">
-          {isBallonDor ? (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500/40 via-yellow-400/50 to-amber-500/40 border-2 border-yellow-300 text-yellow-200 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_25px_rgba(253,224,71,0.8)]">
-              <Trophy className="w-4 h-4 text-yellow-300 fill-yellow-300 animate-pulse" />
-              <span>1.8% SUPREME LEGEND • BALLON D'OR</span>
-              <Trophy className="w-4 h-4 text-yellow-300 fill-yellow-300 animate-pulse" />
-            </div>
-          ) : isGold ? (
+          {isGold ? (
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-yellow-500/30 via-amber-400/40 to-yellow-500/30 border-2 border-amber-300 text-amber-200 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_20px_rgba(251,191,36,0.7)]">
               <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
-              <span>1.8% ULTRA RARE • GOLD</span>
+              <span>1.8% SPECIAL LEGEND • GOLDEN</span>
               <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
             </div>
           ) : (
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/90 border-2 border-purple-500/60 text-purple-300 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_20px_rgba(168,85,247,0.6)]">
               <Zap className="w-4 h-4 fill-purple-300 animate-pulse" />
-              <span>1.8% ULTRA RARE • BLACK</span>
+              <span>1.8% ULTRA RARE • BLACK BALL</span>
               <Zap className="w-4 h-4 fill-purple-300 animate-pulse" />
             </div>
           )}
@@ -215,20 +175,7 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
 
         {/* Floating Sphere Graphic */}
         <div className="relative w-40 h-40 sm:w-56 sm:h-56 mb-4 flex items-center justify-center">
-          {isBallonDor ? (
-            /* BALLON D'OR TROPHY SPHERE */
-            <div className="relative flex items-center justify-center">
-              <div className="absolute inset-0 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-300 to-amber-400 animate-spin blur-2xl opacity-90 shadow-[0_0_80px_rgba(253,224,71,1)]" />
-              <div className="relative w-32 h-32 sm:w-44 sm:h-44 rounded-full bg-gradient-to-b from-yellow-200 via-amber-400 to-yellow-600 border-4 border-yellow-100 shadow-[inset_0_0_30px_rgba(255,255,255,0.9),0_0_50px_rgba(250,204,21,0.9)] flex flex-col items-center justify-center transform transition-transform animate-pulse">
-                <span className="text-5xl sm:text-7xl drop-shadow-[0_0_20px_rgba(255,255,255,1)] animate-bounce">
-                  🏆
-                </span>
-                <span className="text-[10px] sm:text-xs font-heading font-black text-slate-950 uppercase tracking-widest bg-yellow-200/90 px-2 py-0.5 rounded-full mt-1 border border-yellow-400">
-                  BALLON D'OR
-                </span>
-              </div>
-            </div>
-          ) : isGold ? (
+          {isGold ? (
             /* GOLD BALL SPHERE */
             <div className="relative flex items-center justify-center">
               <div className="absolute inset-0 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-200 to-amber-600 animate-spin blur-2xl opacity-90 shadow-[0_0_60px_rgba(234,179,8,0.9)]" />
@@ -237,7 +184,7 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
                   ✨
                 </span>
                 <span className="text-[10px] sm:text-xs font-heading font-black text-slate-950 uppercase tracking-widest bg-yellow-100 px-2 py-0.5 rounded-full mt-1 border border-yellow-300">
-                  GOLD BALL
+                  GOLDEN
                 </span>
               </div>
             </div>
@@ -260,118 +207,82 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
         {/* Event Main Title */}
         <h2
           className={`font-heading font-black text-xl sm:text-3xl tracking-wide mb-2 ${
-            isBallonDor
-              ? 'text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-yellow-300 to-amber-400 drop-shadow-[0_0_20px_rgba(253,224,71,0.8)]'
-              : isGold
+            isGold
               ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-100 via-yellow-200 to-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]'
-              : 'text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-purple-300 to-amber-200 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+              : 'text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-purple-300 to-indigo-200 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]'
           }`}
         >
-          {isBallonDor
-            ? t.goldenBallonDorTriggered
-            : isGold
-            ? '✨ GOLD BALL STAGING ACTIVATED ✨'
-            : t.blackBallTriggered}
+          {isGold ? '✨ ゴールデン演出発動！ ✨' : '⚡ 黒玉演出発動！ ⚡'}
         </h2>
 
-        {/* Context Description or Player Historical Peak Card */}
-        {phase === 'legend-reveal' && (ballonDorData || legendPeakData) ? (
-          /* REVEALED HISTORICAL DATA CARD */
+        {/* Real Player Showcase Card during Reveal */}
+        {phase === 'legend-reveal' && player ? (
           <div
             className={`w-full mt-2 p-3.5 sm:p-4 rounded-2xl border text-left transition-all animate-fade-in ${
-              isBallonDor
-                ? 'bg-slate-900/90 border-yellow-400/80 shadow-2xl shadow-yellow-500/30'
-                : isGold
+              isGold
                 ? 'bg-slate-900/90 border-amber-400/80 shadow-xl shadow-amber-500/25'
                 : 'bg-slate-900/90 border-purple-500/60 shadow-xl shadow-purple-500/20'
             }`}
           >
-            {isBallonDor && ballonDorData ? (
-              /* BALLON D'OR WINNER SHOWCASE */
-              <div className="space-y-2">
-                <div className="flex items-center justify-between border-b border-yellow-500/30 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl sm:text-2xl">{ballonDorData.nationalityFlag}</span>
-                    <div>
-                      <div className="text-xs font-mono font-bold text-yellow-300 uppercase tracking-wider flex items-center gap-1">
-                        <Crown className="w-3.5 h-3.5 text-yellow-400" />
-                        <span>
-                          {ballonDorData.totalWins > 1
-                            ? `${ballonDorData.totalWins}x BALLON D'OR WINNER`
-                            : 'BALLON D\'OR WINNER'}
-                        </span>
-                      </div>
-                      <h3 className="font-heading font-black text-lg sm:text-xl text-white">
-                        {getLocalizedText(ballonDorData.nameJa, ballonDorData.nameEn, ballonDorData.nameEs)}
-                      </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl sm:text-2xl">{player.nationalityFlag}</span>
+                  <div>
+                    <div className="text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1 text-amber-300">
+                      {isGold ? <Sparkles className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5 text-purple-400" />}
+                      <span>{isGold ? 'GOLDEN TARGET PLAYER' : 'BLACK BALL SUPERSTAR'}</span>
                     </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-[10px] font-mono text-slate-400 uppercase">AWARD YEARS</div>
-                    <div className="text-xs sm:text-sm font-mono font-black text-yellow-300">
-                      {ballonDorData.winningYears.join(', ')}
-                    </div>
+                    <h3 className="font-heading font-black text-lg sm:text-xl text-white">
+                      {playerName}
+                    </h3>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-                  <span className="px-2 py-0.5 rounded bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 text-[10px] font-mono">
-                    {getLocalizedText(ballonDorData.clubAtWinJa, ballonDorData.clubAtWinEn, ballonDorData.clubAtWinEs)}
+                <div className="text-right">
+                  <div className="text-[10px] font-mono text-slate-400 uppercase">OVR RATING</div>
+                  <div className={`text-xl sm:text-2xl font-mono font-black ${isGold ? 'text-amber-300' : 'text-purple-300'}`}>
+                    {player.rating}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs font-bold text-slate-200 pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-mono">
+                    {player.joiningYear} {clubName}
                   </span>
-                  <span className="text-[11px] text-yellow-200/90 font-medium">
-                    {getLocalizedText(ballonDorData.goldenSubtitleJa, ballonDorData.goldenSubtitleEn, ballonDorData.goldenSubtitleEs)}
+                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-black">
+                    {player.subPosition || player.position}
                   </span>
                 </div>
-
-                <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded-xl border border-yellow-500/20">
-                  <span className="font-bold text-yellow-400 mr-1">✦ </span>
-                  {getLocalizedText(ballonDorData.iconicFeatJa, ballonDorData.iconicFeatEn, ballonDorData.iconicFeatEs)}
-                </p>
+                {player.height && (
+                  <span className="text-slate-400 text-[11px] font-mono">
+                    {player.height} cm
+                  </span>
+                )}
               </div>
-            ) : legendPeakData ? (
-              /* LEGEND ICONIC PEAK ERA SHOWCASE */
-              <div className="space-y-2">
-                <div className="flex items-center justify-between border-b border-amber-500/30 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl sm:text-2xl">{legendPeakData.nationalityFlag}</span>
-                    <div>
-                      <div className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                        <Award className="w-3.5 h-3.5 text-amber-400" />
-                        <span>{legendPeakData.seasonLabel}</span>
-                      </div>
-                      <h3 className="font-heading font-black text-lg sm:text-xl text-white">
-                        {getLocalizedText(legendPeakData.nameJa, legendPeakData.nameEn, legendPeakData.nameEs)}
-                      </h3>
-                    </div>
-                  </div>
 
-                  <div className="text-right">
-                    <div className="text-[10px] font-mono text-slate-400 uppercase">CLUB</div>
-                    <div className="text-xs font-bold text-amber-300">
-                      {getLocalizedText(legendPeakData.clubJa, legendPeakData.clubEn, legendPeakData.clubEs)}
-                    </div>
-                  </div>
+              {verifiedPositions.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  <span className="text-[10px] font-mono text-slate-400">適正:</span>
+                  {verifiedPositions.map((pos) => (
+                    <span
+                      key={pos}
+                      className="px-1.5 py-0.5 rounded bg-slate-800 text-emerald-400 font-mono text-[10px] border border-slate-700"
+                    >
+                      {pos}
+                    </span>
+                  ))}
                 </div>
-
-                <div className="text-xs font-bold text-amber-200">
-                  {getLocalizedText(legendPeakData.eraTitleJa, legendPeakData.eraTitleEn, legendPeakData.eraTitleEs)}
-                </div>
-
-                <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded-xl border border-amber-500/20">
-                  <span className="font-bold text-amber-400 mr-1">⚡ </span>
-                  {getLocalizedText(legendPeakData.eraDescriptionJa, legendPeakData.eraDescriptionEn, legendPeakData.eraDescriptionEs)}
-                </p>
-              </div>
-            ) : null}
+              )}
+            </div>
           </div>
         ) : (
           <p className="text-xs sm:text-sm text-slate-200 font-medium max-w-md">
-            {isBallonDor
-              ? t.goldenBallonDorDesc
-              : isGold
-              ? 'GOLD BALL STAGING: A world-class superstar has descended into the draft pool!'
-              : t.blackBallDesc}
+            {isGold
+              ? '【確率1.8%】選ばれし伝説の選手が登場！特別なゴールデン選手が降臨します。'
+              : '【確率1.8%】超激レア黒玉が出現！最高峰のレジェンド・スーパースターが候補に加わります。'}
           </p>
         )}
 

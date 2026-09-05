@@ -12,6 +12,7 @@ import {
 import { getPersistentUserId, getSavedUserHandle } from './supabasePvP';
 import { getPlayerHeight } from '../data/playerHeights';
 import { getSeasonNumberForTimestamp } from './seasonEngine';
+import { getTeamEffectiveOvr } from './positionEngine';
 
 export const STORAGE_KEY_PVP_USER = 'FOOTBALL_DRAFT_PVP_USER_v113';
 export const STORAGE_KEY_PVP_MATCH_HISTORY = 'FOOTBALL_DRAFT_PVP_HISTORY_v113';
@@ -219,9 +220,7 @@ export function computeWeeklyStandings(
   // Seed every registered user
   combinedUsers.forEach((u) => {
     if (!u || !u.username) return;
-    const teamOvr = u.team?.players?.length
-      ? Math.round(u.team.players.reduce((s, p) => s + p.rating, 0) / u.team.players.length)
-      : 85;
+    const teamOvr = u.team ? getTeamEffectiveOvr(u.team) : 85;
 
     allUsersMap.set(u.userId, {
       userId: u.userId,
@@ -436,22 +435,54 @@ export function evaluateTacticalAdvantage(
     adv += 0.42;
     reasonJa = '相手の前線プレスの背後広大なスペースへ、電光石火のカウンターが完全に突き刺さる！';
     reasonEn = 'Lightning fast counter attack exploits the vacant space behind opponent aggressive press!';
+  } else if (uAtk === 'TIKI_TAKA' && (oDef === 'MID_BLOCK' || oDef === 'ZONE_DEFENSE')) {
+    adv += 0.40;
+    reasonJa = '超高密度なワンタッチパスの連続（ティキ・タカ）が相手のゾーンブロックを完全に崩壊させる！';
+    reasonEn = 'Hypnotic one-touch Tiki-Taka combinations slice right through the opponent defensive block!';
+  } else if (uAtk === 'TIKI_TAKA' && (oDef === 'SWARM_DEFENSE' || oDef === 'HIGH_PRESS')) {
+    adv -= 0.28;
+    reasonJa = '相手の群がるような包囲ディフェンス（スウォーム守備）にパスの出しどころを塞がれる。';
+    reasonEn = 'Opponent aggressive swarm defense crowds the passing lanes against Tiki-Taka.';
+  } else if (uAtk === 'FALSE_NINE' && (oDef === 'MAN_MARK' || oDef === 'CENTRAL_CONTAIN')) {
+    adv += 0.42;
+    reasonJa = '偽9番（ゼロトップ）が中盤へ下りて相手センターバックを釣り出し、空いたバイタルエリアを完全制圧！';
+    reasonEn = 'False Nine drops deep, disorienting opponent markers and completely dominating the vacant hole!';
+  } else if (uAtk === 'DIRECT_PLAY' && oDef === 'OFFSIDE_TRAP') {
+    adv -= 0.32;
+    reasonJa = '相手の高い最終ラインと統率されたオフサイドトラップにダイレクトパスが次々と引っかかる。';
+    reasonEn = 'Opponent disciplined offside trap repeatedly catches direct forward passes.';
+  } else if (uAtk === 'DIRECT_PLAY' && (oDef === 'RETREAT' || oDef === 'LOW_BLOCK')) {
+    adv += 0.28;
+    reasonJa = '手数をかけないダイレクトプレーが相手のブロック完成前にゴール前を強襲！';
+    reasonEn = 'Rapid direct vertical play breaches opponent territory before the low block consolidates!';
+  } else if (uAtk === 'OVERLOAD' && (oDef === 'MAN_MARK' || oDef === 'MID_BLOCK')) {
+    adv += 0.36;
+    reasonJa = '片サイドへの集中的な数的過負荷（オーバーロード）で相手のマンマーク網を局所崩壊させる！';
+    reasonEn = 'Flank overload creates overwhelming numerical superiority, dismantling opponent marking structure!';
   } else if (uAtk === 'THROUGH_PASS' && (oDef === 'HIGH_PRESS' || oDef === 'FRONT_PRESS')) {
     adv += 0.38;
     reasonJa = '前がかりな相手守備ラインの裏へ鋭いスルーパスが通り、決定的一対一を演出！';
     reasonEn = 'Incisive through balls split the opponent high line cleanly.';
-  } else if ((uAtk === 'POSSESSION' || uAtk === 'BUILD_UP' || uAtk === 'SHORT_PASS') && oDef === 'LOW_BLOCK') {
-    adv -= 0.25;
-    reasonJa = '相手の強固なローブロックにパス回しを外へ追いやられ、決定打を欠く展開。';
-    reasonEn = 'Opponent compact low block frustrates possession rhythm.';
+  } else if (uAtk === 'THROUGH_PASS' && oDef === 'OFFSIDE_TRAP') {
+    adv -= 0.35;
+    reasonJa = '相手の一斉に押し上げるオフサイドトラップに裏へのスルーパスを完全に無効化される。';
+    reasonEn = 'Opponent offside trap catches the through-ball runners offside consistently.';
+  } else if ((uAtk === 'POSSESSION' || uAtk === 'BUILD_UP' || uAtk === 'SHORT_PASS') && (oDef === 'LOW_BLOCK' || oDef === 'CATENACCIO')) {
+    adv -= 0.28;
+    reasonJa = '相手の強固なカテナチオ・ローブロックにパス回しを外へ追いやられ、決定打を欠く展開。';
+    reasonEn = 'Opponent fortress-like Catenaccio/low block frustrates possession rhythm.';
   } else if ((uAtk === 'POSSESSION' || uAtk === 'BUILD_UP') && oDef === 'MID_BLOCK') {
     adv += 0.22;
     reasonJa = '落ち着いたポゼッションとパスワークで中盤の主導権を確実に支配。';
     reasonEn = 'Controlled possession maintains dominance through the midfield.';
-  } else if ((uAtk === 'WIDE_ATTACK' || uAtk === 'WIDE_SPREAD') && oDef === 'CENTRAL_CONTAIN') {
+  } else if ((uAtk === 'WIDE_ATTACK' || uAtk === 'WIDE_SPREAD') && (oDef === 'CENTRAL_CONTAIN' || oDef === 'BOX_CONTAIN')) {
     adv += 0.35;
-    reasonJa = '中央を固める相手に対してワイドにピッチを広く使い、サイドアタックを展開！';
+    reasonJa = '中央とペナルティエリアを固める相手に対してワイドにピッチを広く使い、サイドアタックを展開！';
     reasonEn = 'Wide attack takes full advantage of opponent central narrowness.';
+  } else if (uAtk === 'CENTRAL_ATTACK' && (oDef === 'CATENACCIO' || oDef === 'BOX_CONTAIN')) {
+    adv -= 0.30;
+    reasonJa = 'カテナチオとPA封鎖の堅牢な中央要塞に中央突破をことごとく阻まれる。';
+    reasonEn = 'Central penetration is completely neutralized by opponent impenetrable Catenaccio.';
   } else if (uAtk === 'CENTRAL_ATTACK' && oDef === 'WIDE_CONTAIN') {
     adv += 0.32;
     reasonJa = 'サイド警戒の相手の隙を突き、中央コンビネーションで中央突破に成功！';
@@ -471,6 +502,22 @@ export function evaluateTacticalAdvantage(
     adv += 0.3;
     reasonJa += ' また、こちらの激しいゲーゲンプレスが相手の組み立てをことごとく寸断！';
     reasonEn += ' Furthermore, high pressing suffocates opponent short build-up.';
+  } else if (uDef === 'SWARM_DEFENSE' && (oAtk === 'TIKI_TAKA' || oAtk === 'SHORT_PASS')) {
+    adv += 0.34;
+    reasonJa += ' さらにスウォーム守備でボールホルダーを複数人で瞬時に包囲し自由を剥奪！';
+    reasonEn += ' Furthermore, swarm defense envelops the ball handler instantly.';
+  } else if (uDef === 'OFFSIDE_TRAP' && (oAtk === 'THROUGH_PASS' || oAtk === 'DIRECT_PLAY')) {
+    adv += 0.36;
+    reasonJa += ' 完璧なタイミングのオフサイドトラップで相手の裏抜けの試みを一網打尽！';
+    reasonEn += ' Synchronized offside trap completely neutralizes opponent through runs.';
+  } else if (uDef === 'CATENACCIO' && (oAtk === 'CENTRAL_ATTACK' || oAtk === 'QUICK_ATTACK')) {
+    adv += 0.38;
+    reasonJa += ' 堅牢無比なカテナチオの施錠守備が相手の決定機をことごとく跳ね返す！';
+    reasonEn += ' Impenetrable Catenaccio locks down the defensive third with absolute discipline.';
+  } else if (uDef === 'BOX_CONTAIN' && (oAtk === 'SHORT_PASS' || oAtk === 'CENTRAL_ATTACK')) {
+    adv += 0.32;
+    reasonJa += ' ペナルティエリア封鎖の分厚い壁が相手のボックス内侵入をシャットアウト！';
+    reasonEn += ' Rigid box containment walls off all entry passes into the penalty area.';
   } else if (uDef === 'COUNTER_PREVENT' && (oAtk === 'COUNTER' || oAtk === 'LONG_COUNTER' || oAtk === 'QUICK_ATTACK')) {
     adv += 0.32;
     reasonJa += ' さらにカウンター対策の守備配置が相手の速攻を未然に遮断！';
@@ -495,8 +542,121 @@ export function evaluateTacticalAdvantage(
 }
 
 /**
- * SIMULATE OVR MATCH (Pure OVR Dominance)
- * Rule: Higher OVR team wins based strictly on OVR gap. No tactical inversions.
+ * Calculate win, draw, loss probabilities based on OVR gap.
+ * Guarantees:
+ * 1. "OVRが高いチーム＝必ず勝つ" is strictly forbidden (upset rate always exists).
+ * 2. Probabilities scale smoothly with OVR difference.
+ * 3. Even with a large gap, the underdog has a fighting chance (e.g. 5% win, 10% draw).
+ */
+export function calculateOVRMatchOdds(
+  cOvr: number,
+  oOvr: number
+): {
+  winProb: number;
+  drawProb: number;
+  lossProb: number;
+  winPct: number;
+  drawPct: number;
+  lossPct: number;
+} {
+  const diff = cOvr - oOvr; // Positive means challenger has higher OVR
+
+  // Base draw probability around 20%-25%, slightly reduced when gap is massive
+  const drawPct = Math.max(10, Math.min(24, Math.round(22 - Math.abs(diff) * 1.2)));
+  const remaining = 100 - drawPct;
+
+  // Logistic win share: diff = 0 -> 50% of remaining (approx 39% win, 22% draw, 39% loss)
+  // diff = +5 -> win share ~73% -> approx 57% win, 21% draw, 22% loss
+  // diff = +10 -> win share ~88% -> approx 75% win, 14% draw, 11% loss
+  const winShare = 1 / (1 + Math.exp(-diff * 0.22));
+  let winPct = Math.round(remaining * winShare);
+  let lossPct = remaining - winPct;
+
+  // Underdog protection: even with a massive gap (+15), underdog always has at least 5% win chance and 10% draw chance
+  if (winPct < 5) {
+    winPct = 5;
+    lossPct = remaining - 5;
+  } else if (winPct > remaining - 5) {
+    winPct = remaining - 5;
+    lossPct = 5;
+  }
+
+  return {
+    winProb: winPct / 100,
+    drawProb: drawPct / 100,
+    lossProb: lossPct / 100,
+    winPct,
+    drawPct,
+    lossPct,
+  };
+}
+
+/**
+ * Realistic Goal Scorer Picker
+ * Fixes bug where DF/GK score too frequently.
+ * FW/ST: ~55%
+ * Winger/SS: ~28%
+ * CAM/AMF: ~12%
+ * CM/Midfield: ~4%
+ * CB/DF: ~1% (rare header from set piece)
+ * GK: 0% (Goalkeepers never score in open play)
+ */
+export function pickRealisticGoalScorer(players: Player[]): { player: Player; isHeader?: boolean } | null {
+  if (!players || players.length === 0) return null;
+
+  // Filter out Goalkeepers completely
+  const outfield = players.filter((p) => {
+    const pos = (p.subPosition || p.position || '').toUpperCase();
+    return pos !== 'GK';
+  });
+
+  if (outfield.length === 0) return { player: players[0] };
+
+  const weighted = outfield.map((p) => {
+    const pos = (p.subPosition || p.position || '').toUpperCase();
+    let baseWeight = 4;
+    let isHeaderPossible = false;
+
+    if (['CF', 'ST'].includes(pos)) {
+      baseWeight = 55;
+      isHeaderPossible = true;
+    } else if (['LWG', 'RWG', 'LW', 'RW', 'SS', 'FW'].includes(pos)) {
+      baseWeight = 28;
+    } else if (['CAM', 'AMF'].includes(pos)) {
+      baseWeight = 12;
+    } else if (['CM', 'CMF', 'LM', 'RM', 'LMF', 'RMF'].includes(pos)) {
+      baseWeight = 5;
+    } else if (['CDM', 'DMF', 'LB', 'RB', 'LWB', 'RWB'].includes(pos)) {
+      baseWeight = 2;
+    } else if (['CB', 'DF'].includes(pos)) {
+      baseWeight = 0.8; // Only 0.8% chance of a defender set piece goal
+      isHeaderPossible = true;
+    }
+
+    const shootingFactor = (p.stats?.shooting || p.rating || 80) / 80;
+    return {
+      player: p,
+      weight: baseWeight * shootingFactor,
+      isHeader: isHeaderPossible && Math.random() < 0.45,
+    };
+  });
+
+  const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+  let roll = Math.random() * totalWeight;
+
+  for (const item of weighted) {
+    if (roll <= item.weight) {
+      return { player: item.player, isHeader: item.isHeader };
+    }
+    roll -= item.weight;
+  }
+
+  return { player: weighted[0]?.player || outfield[0] };
+}
+
+/**
+ * SIMULATE OVR MATCH (Win-rate based on OVR gap with odds & realistic scoring)
+ * Rule: Higher OVR has higher win probability, but upset is always possible ("OVRが高い＝必ず勝つ" is forbidden).
  */
 export function simulateOVRMatch(
   challenger: BetaUserProfile,
@@ -506,6 +666,14 @@ export function simulateOVRMatch(
 ): {
   record: BetaMatchRecord;
   events: BetaMatchEvent[];
+  odds: {
+    winProb: number;
+    drawProb: number;
+    lossProb: number;
+    winPct: number;
+    drawPct: number;
+    lossPct: number;
+  };
 } {
   const activeChallengerTeam = challengerPlayingSquad || challenger.team;
   const activeOpponentTeam = opponent.team;
@@ -513,142 +681,105 @@ export function simulateOVRMatch(
   const challengerPlayers = activeChallengerTeam?.players || [];
   const opponentPlayers = activeOpponentTeam?.players || [];
 
-  const cOvr = challengerPlayers.length
-    ? Math.round(challengerPlayers.reduce((s, p) => s + p.rating, 0) / challengerPlayers.length)
-    : 85;
-  const oOvr = opponentPlayers.length
-    ? Math.round(opponentPlayers.reduce((s, p) => s + p.rating, 0) / opponentPlayers.length)
-    : 85;
+  const cOvr = getTeamEffectiveOvr(activeChallengerTeam);
+  const oOvr = getTeamEffectiveOvr(activeOpponentTeam);
 
-  const diff = cOvr - oOvr; // Positive means challenger has higher OVR
+  const diff = cOvr - oOvr;
+  const odds = calculateOVRMatchOdds(cOvr, oOvr);
 
+  const roll = Math.random();
   let cScore = 0;
   let oScore = 0;
 
-  // STRICT OVR-BASED DETERMINATION
-  if (diff >= 5) {
-    // Huge gap: Challenger decisive win
-    cScore = 3 + Math.floor(Math.random() * 2);
-    oScore = Math.random() < 0.3 ? 1 : 0;
-  } else if (diff >= 3) {
-    // Clear gap: Challenger win 95%, draw 5%
-    if (Math.random() < 0.95) {
-      cScore = 2 + Math.floor(Math.random() * 2);
-      oScore = Math.floor(Math.random() * (cScore - 1));
+  if (roll < odds.winProb) {
+    // Challenger Win
+    if (diff >= 6) {
+      cScore = 2 + Math.floor(Math.random() * 2); // 2 or 3
+      oScore = Math.random() < 0.4 ? 1 : 0;
     } else {
-      cScore = 1;
-      oScore = 1;
-    }
-  } else if (diff >= 1) {
-    // Small gap: Challenger favored (75% win, 20% draw, 5% loss)
-    const roll = Math.random();
-    if (roll < 0.75) {
-      cScore = 2 + Math.floor(Math.random() * 2);
+      cScore = 1 + (Math.random() < 0.5 ? 1 : 0); // 1 or 2
       oScore = cScore - 1;
-    } else if (roll < 0.95) {
-      cScore = 1;
-      oScore = 1;
-    } else {
-      cScore = 0;
-      oScore = 1;
     }
-  } else if (diff === 0) {
-    // Equal OVR: 50-50 battle
-    const roll = Math.random();
-    if (roll < 0.4) {
-      cScore = 1;
-      oScore = 0;
-    } else if (roll < 0.7) {
-      cScore = 1;
-      oScore = 1;
-    } else {
-      cScore = 0;
-      oScore = 1;
-    }
-  } else if (diff <= -5) {
-    // Huge gap: Opponent decisive win
-    oScore = 3 + Math.floor(Math.random() * 2);
-    cScore = Math.random() < 0.3 ? 1 : 0;
-  } else if (diff <= -3) {
-    // Clear gap: Opponent win 95%, draw 5%
-    if (Math.random() < 0.95) {
-      oScore = 2 + Math.floor(Math.random() * 2);
-      cScore = Math.floor(Math.random() * (oScore - 1));
-    } else {
-      cScore = 1;
-      oScore = 1;
-    }
+  } else if (roll < odds.winProb + odds.drawProb) {
+    // Draw
+    const drawScores = [0, 1, 1, 2];
+    const s = drawScores[Math.floor(Math.random() * drawScores.length)];
+    cScore = s;
+    oScore = s;
   } else {
-    // diff is -1 or -2: Opponent favored (75% win, 20% draw, 5% loss)
-    const roll = Math.random();
-    if (roll < 0.75) {
+    // Opponent Win (Upset or expected if opponent has higher OVR)
+    if (diff <= -6) {
       oScore = 2 + Math.floor(Math.random() * 2);
-      cScore = oScore - 1;
-    } else if (roll < 0.95) {
-      cScore = 1;
-      oScore = 1;
+      cScore = Math.random() < 0.4 ? 1 : 0;
     } else {
-      cScore = 1;
-      oScore = 0;
+      oScore = 1 + (Math.random() < 0.5 ? 1 : 0);
+      cScore = oScore - 1;
     }
   }
-
-  const cStar = challengerPlayers[0]?.nameJa || 'エース';
-  const oStar = opponentPlayers[0]?.nameJa || 'エース';
 
   const events: BetaMatchEvent[] = [
     {
       minute: 1,
       type: 'whistle',
-      textJa: `主審のホイッスルでOVR総合値マッチがキックオフ！ (OVR ${cOvr} ${challenger.username} vs OVR ${oOvr} ${opponent.username})`,
-      textEn: `Kickoff! OVR Match begins (OVR ${cOvr} vs OVR ${oOvr})`,
+      textJa: `主審のホイッスルでOVR総合値マッチがキックオフ！ (OVR ${cOvr} ${challenger.username} vs OVR ${oOvr} ${opponent.username} · 勝率予想: ${odds.winPct}% / 引分: ${odds.drawPct}% / 敗率: ${odds.lossPct}%)`,
+      textEn: `Kickoff! OVR Match begins (OVR ${cOvr} vs OVR ${oOvr} · Win Odds: ${odds.winPct}%)`,
       textEs: `¡Comienza el Partido de OVR! (OVR ${cOvr} vs OVR ${oOvr})`,
     },
     {
       minute: 16,
       type: 'chance',
-      textJa: diff > 0
-        ? `高いチーム総合値(OVR ${cOvr})を誇る${challenger.username}が序盤から主導権を掌握！`
-        : diff < 0
-        ? `圧倒的総合値(OVR ${oOvr})の${opponent.username}が猛攻を仕掛ける！`
-        : '両チーム互角の総合値で一進一退の攻防が続く！',
-      textEn: 'Early tactical and physical pressure unfolds on the pitch.',
+      textJa: diff > 2
+        ? `高いチーム総合値(OVR ${cOvr} · 予想勝率${odds.winPct}%)を誇る${challenger.username}が前線から主導権を掌握！`
+        : diff < -2
+        ? `圧倒的総合値(OVR ${oOvr} · 相手予想勝率${odds.lossPct}%)の${opponent.username}が猛攻を仕掛ける！`
+        : `互角の総合値対決(OVR ${cOvr} vs ${oOvr})！ 予想勝率${odds.winPct}%対${odds.lossPct}%で白熱の一進一退！`,
+      textEn: 'Early pressure unfolds on the pitch as both squads test each other.',
       textEs: 'Presión intensa en los primeros minutos de juego.',
     },
   ];
 
-  if (cScore > 0) {
+  // Distribute challenger goals to realistic scorers (FW/MF)
+  for (let g = 0; g < cScore; g++) {
+    const scorerData = pickRealisticGoalScorer(challengerPlayers);
+    const scorer = scorerData?.player;
+    const scorerName = scorer?.nameJa || challenger.username;
+    const scorerRole = scorer?.subPosition || scorer?.position || 'FW';
+    const min = g === 0 ? 32 : g === 1 ? 68 : 84;
+
     events.push({
-      minute: 32,
+      minute: min,
       type: 'goal',
       isChallengerGoal: true,
-      textJa: `⚽ GOOOAL!! ${challenger.username}がチーム力の差を見せつけ先制！ ${cStar}が突き刺す！`,
-      textEn: `⚽ GOAL!! ${cStar} opens the scoring for ${challenger.username}!`,
-      textEs: `⚽ ¡¡GOLAZO!! ¡${cStar} anota para ${challenger.username}!`,
+      textJa: scorerData?.isHeader
+        ? `⚽ GOOOAL!! ${challenger.username}の${scorerRole} ${scorerName}が高精度クロスに頭で完璧に合わせてゴール！`
+        : `⚽ GOOOAL!! ${challenger.username}の${scorerRole} ${scorerName}が鮮烈なシュートを突き刺す！`,
+      textEn: `⚽ GOAL!! ${scorerName} (${scorerRole}) scores for ${challenger.username}!`,
+      textEs: `⚽ ¡¡GOLAZO!! ¡${scorerName} anota para ${challenger.username}!`,
     });
   }
 
-  if (oScore > 0) {
+  // Distribute opponent goals to realistic scorers (FW/MF)
+  for (let g = 0; g < oScore; g++) {
+    const oppScorerData = pickRealisticGoalScorer(opponentPlayers);
+    const oppScorer = oppScorerData?.player;
+    const oppScorerName = oppScorer?.nameJa || opponent.username;
+    const oppScorerRole = oppScorer?.subPosition || oppScorer?.position || 'FW';
+    const min = g === 0 ? 44 : g === 1 ? 75 : 88;
+
     events.push({
-      minute: 58,
+      minute: min,
       type: 'goal',
       isOpponentGoal: true,
-      textJa: `⚽ GOAL! ${opponent.username}の${oStar}がゴールをこじ開ける！`,
-      textEn: `⚽ GOAL! ${oStar} scores for ${opponent.username}!`,
-      textEs: `⚽ ¡GOL! ¡${oStar} anota para ${opponent.username}!`,
+      textJa: oppScorerData?.isHeader
+        ? `⚽ GOAL! ${opponent.username}の${oppScorerRole} ${oppScorerName}が打点の高いヘディングでネットを揺らす！`
+        : `⚽ GOAL! ${opponent.username}の${oppScorerRole} ${oppScorerName}がゴールネットを揺らす！`,
+      textEn: `⚽ GOAL! ${oppScorerName} (${oppScorerRole}) scores for ${opponent.username}!`,
+      textEs: `⚽ ¡GOL! ¡${oppScorerName} anota para ${opponent.username}!`,
     });
   }
 
-  if (cScore > 1) {
-    events.push({
-      minute: 82,
-      type: 'goal',
-      isChallengerGoal: true,
-      textJa: `⚽ GOAL!! ${challenger.username}がダメ押しの追加点！`,
-      textEn: `⚽ GOAL!! Decisive finish extends the lead!`,
-      textEs: `⚽ ¡¡GOL!! ¡Gol decisivo para sentenciar!`,
-    });
-  }
+  // Sort events chronologically by minute
+  events.sort((a, b) => a.minute - b.minute);
 
   events.push({
     minute: 90,
@@ -685,9 +816,14 @@ export function simulateOVRMatch(
     fullTimeScore: [cScore, oScore],
     challengerTactics: challenger.tactics,
     opponentTactics: opponent.tactics,
+    odds: {
+      winPct: odds.winPct,
+      drawPct: odds.drawPct,
+      lossPct: odds.lossPct,
+    },
   };
 
-  return { record, events };
+  return { record, events, odds };
 }
 
 /**
@@ -767,30 +903,37 @@ export function simulateTacticalMatchHalf(
   if (roll > challengerGoalThreshold) {
     newCScore += 1;
     const isCross = tacticalEval.isCrossGame;
-    const targetPlayer = cPlayers.find((p) => ['FW', 'ST', 'CF'].includes(p.subPosition || p.position)) || cPlayers[0];
+    const scorerData = pickRealisticGoalScorer(cPlayers);
+    const targetPlayer = scorerData?.player;
     const scorerName = targetPlayer?.nameJa || challenger.username;
+    const scorerRole = targetPlayer?.subPosition || targetPlayer?.position || 'FW';
     const scorerHeight = targetPlayer ? getPlayerHeight(targetPlayer) : 185;
 
     events.push({
       minute: half === 1 ? 36 : 76,
       type: 'goal',
       isChallengerGoal: true,
-      textJa: isCross
-        ? `⚽ GOOOAL!! サイドからの高精度クロスに${scorerName}（身長${scorerHeight}cm）が打点の高いヘディングで合わせゴールネットを揺らす！`
-        : `⚽ GOAL!! 戦術通りの美しい連係から${scorerName}が鮮やかにゴール！`,
-      textEn: isCross
+      textJa: isCross || scorerData?.isHeader
+        ? `⚽ GOOOAL!! サイドからの高精度クロスに${scorerRole} ${scorerName}（身長${scorerHeight}cm）が打点の高いヘディングで合わせゴールネットを揺らす！`
+        : `⚽ GOAL!! 戦術通りの美しい連係から${scorerRole} ${scorerName}が鮮やかにゴール！`,
+      textEn: isCross || scorerData?.isHeader
         ? `⚽ GOAL!! ${scorerName} (${scorerHeight}cm) connects with a towering header!`
-        : `⚽ GOAL!! Clinical tactical buildup leads to a fine goal!`,
+        : `⚽ GOAL!! Clinical tactical buildup leads to a fine goal by ${scorerName}!`,
       textEs: `⚽ ¡¡GOLAZO!! ¡Gol de excelente factura táctica!`,
     });
   } else if (roll < (1 - opponentGoalThreshold)) {
     newOScore += 1;
+    const oppScorerData = pickRealisticGoalScorer(oPlayers);
+    const oppScorer = oppScorerData?.player;
+    const oppScorerName = oppScorer?.nameJa || opponent.username;
+    const oppScorerRole = oppScorer?.subPosition || oppScorer?.position || 'FW';
+
     events.push({
       minute: half === 1 ? 40 : 80,
       type: 'goal',
       isOpponentGoal: true,
-      textJa: `⚽ GOAL! 相手の戦術的プレッシャーから隙を突かれ失点！`,
-      textEn: `⚽ GOAL! Opponent capitalizes on a tactical counter!`,
+      textJa: `⚽ GOAL! 相手${oppScorerRole} ${oppScorerName}の鋭い突破から隙を突かれ失点！`,
+      textEn: `⚽ GOAL! Opponent ${oppScorerName} capitalizes on a counter!`,
       textEs: `⚽ ¡GOL! ¡El rival aprovecha un error táctico!`,
     });
   }

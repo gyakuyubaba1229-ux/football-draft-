@@ -27,6 +27,10 @@ export type EFootballPosition =
  */
 export const VERIFIED_PLAYER_POSITIONS: Record<string, EFootballPosition[]> = {
   // ── WORLD LEGENDS & STARS ──
+  figo: ['RWG', 'RMF', 'AMF', 'LMF', 'SS'],
+  owen: ['CF', 'SS'],
+  iniesta: ['CMF', 'AMF', 'LMF', 'LWG'],
+  f_ribery: ['LMF', 'LWG', 'AMF', 'RMF', 'RWG'],
   l_messi: ['RWG', 'CF', 'SS', 'AMF', 'RMF'],
   c_ronaldo: ['LWG', 'CF', 'RWG', 'LMF', 'RMF', 'SS'],
   ronaldo_nazario: ['CF', 'SS'],
@@ -286,6 +290,8 @@ export const VERIFIED_PLAYER_POSITIONS: Record<string, EFootballPosition[]> = {
   d_milito: ['CF', 'SS'],
   s_etoo_int: ['CF', 'RWG', 'LWG', 'SS'],
   l_martinez_int: ['CF', 'SS'],
+  lautaro_martinez: ['CF', 'SS'],
+  lautaro: ['CF', 'SS'],
   n_barella: ['CMF', 'AMF', 'DMF', 'RMF'],
   h_calhanoglu: ['DMF', 'CMF', 'AMF', 'LMF'],
   m_thuram: ['CF', 'LWG', 'RWG', 'SS'],
@@ -320,7 +326,6 @@ export const VERIFIED_PLAYER_POSITIONS: Record<string, EFootballPosition[]> = {
   m_ballack: ['CMF', 'AMF', 'DMF', 'SS'],
   b_schweinsteiger: ['CMF', 'DMF', 'RMF', 'LMF', 'AMF', 'RWG'],
   p_lahm: ['RB', 'LB', 'DMF', 'CMF', 'RWB'],
-  f_ribery: ['LWG', 'LMF', 'AMF', 'RWG', 'SS'],
   a_robben: ['RWG', 'RMF', 'LWG', 'SS'],
   t_muller: ['SS', 'AMF', 'RWG', 'CF', 'RMF'],
   m_neuer_bay: ['GK'],

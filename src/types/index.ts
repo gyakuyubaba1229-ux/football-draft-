@@ -61,7 +61,26 @@ export interface Player {
   stats: PlayerStats;
 }
 
-export type FormationType = '4-3-3' | '4-4-2' | '3-5-2' | '4-2-3-1' | '3-4-3' | '5-3-2' | 'CUSTOM';
+export type FormationType =
+  | '4-3-3'
+  | '4-4-2'
+  | '4-2-3-1'
+  | '4-3-1-2'
+  | '4-3-2-1'
+  | '4-1-4-1'
+  | '4-2-2-2'
+  | '4-4-1-1'
+  | '3-4-3'
+  | '3-5-2'
+  | '3-4-2-1'
+  | '3-4-1-2'
+  | '5-3-2'
+  | '5-4-1'
+  | '5-2-3'
+  | '4-2-4'
+  | '4-1-2-3'
+  | '4-3-3 False 9'
+  | 'CUSTOM';
 
 export interface CustomPlayerPosition {
   x: number; // percentage (0-100)
@@ -114,22 +133,6 @@ export const FORMATIONS: Record<Exclude<FormationType, 'CUSTOM'>, FormationConfi
       { id: 'st2', role: 'ST', pos: 'FW', x: 64, y: 20 },
     ],
   },
-  '3-5-2': {
-    name: '3-5-2 Wing Play',
-    slots: [
-      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
-      { id: 'cb1', role: 'CB', pos: 'DF', x: 26, y: 74 },
-      { id: 'cb2', role: 'CB', pos: 'DF', x: 50, y: 76 },
-      { id: 'cb3', role: 'CB', pos: 'DF', x: 74, y: 74 },
-      { id: 'lm', role: 'LWB', pos: 'MF', x: 14, y: 50 },
-      { id: 'cm1', role: 'CM', pos: 'MF', x: 36, y: 52 },
-      { id: 'cam', role: 'CAM', pos: 'MF', x: 50, y: 38 },
-      { id: 'cm2', role: 'CM', pos: 'MF', x: 64, y: 52 },
-      { id: 'rm', role: 'RWB', pos: 'MF', x: 86, y: 50 },
-      { id: 'st1', role: 'ST', pos: 'FW', x: 36, y: 18 },
-      { id: 'st2', role: 'ST', pos: 'FW', x: 64, y: 18 },
-    ],
-  },
   '4-2-3-1': {
     name: '4-2-3-1 Modern',
     slots: [
@@ -143,6 +146,86 @@ export const FORMATIONS: Record<Exclude<FormationType, 'CUSTOM'>, FormationConfi
       { id: 'lam', role: 'LAM', pos: 'MF', x: 24, y: 36 },
       { id: 'cam', role: 'CAM', pos: 'MF', x: 50, y: 34 },
       { id: 'ram', role: 'RAM', pos: 'MF', x: 76, y: 36 },
+      { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 16 },
+    ],
+  },
+  '4-3-1-2': {
+    name: '4-3-1-2 Narrow Diamond',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 28, y: 52 },
+      { id: 'cdm', role: 'CDM', pos: 'MF', x: 50, y: 58 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 72, y: 52 },
+      { id: 'cam', role: 'CAM', pos: 'MF', x: 50, y: 36 },
+      { id: 'st1', role: 'ST', pos: 'FW', x: 36, y: 18 },
+      { id: 'st2', role: 'ST', pos: 'FW', x: 64, y: 18 },
+    ],
+  },
+  '4-3-2-1': {
+    name: '4-3-2-1 Christmas Tree',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 28, y: 56 },
+      { id: 'cdm', role: 'CDM', pos: 'MF', x: 50, y: 60 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 72, y: 56 },
+      { id: 'lam', role: 'LAM', pos: 'MF', x: 36, y: 36 },
+      { id: 'ram', role: 'RAM', pos: 'MF', x: 64, y: 36 },
+      { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 18 },
+    ],
+  },
+  '4-1-4-1': {
+    name: '4-1-4-1 Controlled Flat',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'cdm', role: 'CDM', pos: 'MF', x: 50, y: 60 },
+      { id: 'lm', role: 'LM', pos: 'MF', x: 18, y: 44 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 38, y: 46 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 62, y: 46 },
+      { id: 'rm', role: 'RM', pos: 'MF', x: 82, y: 44 },
+      { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 18 },
+    ],
+  },
+  '4-2-2-2': {
+    name: '4-2-2-2 Box Midfield',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'cdm1', role: 'CDM', pos: 'MF', x: 36, y: 58 },
+      { id: 'cdm2', role: 'CDM', pos: 'MF', x: 64, y: 58 },
+      { id: 'lam', role: 'LAM', pos: 'MF', x: 26, y: 40 },
+      { id: 'ram', role: 'RAM', pos: 'MF', x: 74, y: 40 },
+      { id: 'st1', role: 'ST', pos: 'FW', x: 36, y: 20 },
+      { id: 'st2', role: 'ST', pos: 'FW', x: 64, y: 20 },
+    ],
+  },
+  '4-4-1-1': {
+    name: '4-4-1-1 Shadow Striker',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'lm', role: 'LM', pos: 'MF', x: 18, y: 48 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 38, y: 52 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 62, y: 52 },
+      { id: 'rm', role: 'RM', pos: 'MF', x: 82, y: 48 },
+      { id: 'ss', role: 'SS', pos: 'FW', x: 50, y: 32 },
       { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 16 },
     ],
   },
@@ -162,6 +245,54 @@ export const FORMATIONS: Record<Exclude<FormationType, 'CUSTOM'>, FormationConfi
       { id: 'rw', role: 'RW', pos: 'FW', x: 78, y: 22 },
     ],
   },
+  '3-5-2': {
+    name: '3-5-2 Wing Play',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 26, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 50, y: 76 },
+      { id: 'cb3', role: 'CB', pos: 'DF', x: 74, y: 74 },
+      { id: 'lm', role: 'LWB', pos: 'MF', x: 14, y: 50 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 36, y: 52 },
+      { id: 'cam', role: 'CAM', pos: 'MF', x: 50, y: 38 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 64, y: 52 },
+      { id: 'rm', role: 'RWB', pos: 'MF', x: 86, y: 50 },
+      { id: 'st1', role: 'ST', pos: 'FW', x: 36, y: 18 },
+      { id: 'st2', role: 'ST', pos: 'FW', x: 64, y: 18 },
+    ],
+  },
+  '3-4-2-1': {
+    name: '3-4-2-1 Dual Playmakers',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 26, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 50, y: 76 },
+      { id: 'cb3', role: 'CB', pos: 'DF', x: 74, y: 74 },
+      { id: 'lm', role: 'LM', pos: 'MF', x: 16, y: 52 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 38, y: 56 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 62, y: 56 },
+      { id: 'rm', role: 'RM', pos: 'MF', x: 84, y: 52 },
+      { id: 'lam', role: 'LAM', pos: 'MF', x: 34, y: 34 },
+      { id: 'ram', role: 'RAM', pos: 'MF', x: 66, y: 34 },
+      { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 16 },
+    ],
+  },
+  '3-4-1-2': {
+    name: '3-4-1-2 Attacking Midfield',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 26, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 50, y: 76 },
+      { id: 'cb3', role: 'CB', pos: 'DF', x: 74, y: 74 },
+      { id: 'lm', role: 'LM', pos: 'MF', x: 16, y: 52 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 38, y: 56 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 62, y: 56 },
+      { id: 'rm', role: 'RM', pos: 'MF', x: 84, y: 52 },
+      { id: 'cam', role: 'CAM', pos: 'MF', x: 50, y: 36 },
+      { id: 'st1', role: 'ST', pos: 'FW', x: 36, y: 18 },
+      { id: 'st2', role: 'ST', pos: 'FW', x: 64, y: 18 },
+    ],
+  },
   '5-3-2': {
     name: '5-3-2 Solid Wall',
     slots: [
@@ -176,6 +307,86 @@ export const FORMATIONS: Record<Exclude<FormationType, 'CUSTOM'>, FormationConfi
       { id: 'cm2', role: 'CM', pos: 'MF', x: 70, y: 48 },
       { id: 'st1', role: 'ST', pos: 'FW', x: 36, y: 20 },
       { id: 'st2', role: 'ST', pos: 'FW', x: 64, y: 20 },
+    ],
+  },
+  '5-4-1': {
+    name: '5-4-1 Fortified Counter',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lwb', role: 'LWB', pos: 'DF', x: 14, y: 68 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 32, y: 76 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 50, y: 77 },
+      { id: 'cb3', role: 'CB', pos: 'DF', x: 68, y: 76 },
+      { id: 'rwb', role: 'RWB', pos: 'DF', x: 86, y: 68 },
+      { id: 'lm', role: 'LM', pos: 'MF', x: 18, y: 46 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 38, y: 50 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 62, y: 50 },
+      { id: 'rm', role: 'RM', pos: 'MF', x: 82, y: 46 },
+      { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 18 },
+    ],
+  },
+  '5-2-3': {
+    name: '5-2-3 Wide Counter',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lwb', role: 'LWB', pos: 'DF', x: 14, y: 68 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 32, y: 76 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 50, y: 77 },
+      { id: 'cb3', role: 'CB', pos: 'DF', x: 68, y: 76 },
+      { id: 'rwb', role: 'RWB', pos: 'DF', x: 86, y: 68 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 38, y: 50 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 62, y: 50 },
+      { id: 'lw', role: 'LW', pos: 'FW', x: 20, y: 22 },
+      { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 16 },
+      { id: 'rw', role: 'RW', pos: 'FW', x: 80, y: 22 },
+    ],
+  },
+  '4-2-4': {
+    name: '4-2-4 All-Out Attack',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 38, y: 50 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 62, y: 50 },
+      { id: 'lw', role: 'LW', pos: 'FW', x: 18, y: 22 },
+      { id: 'st1', role: 'ST', pos: 'FW', x: 40, y: 18 },
+      { id: 'st2', role: 'ST', pos: 'FW', x: 60, y: 18 },
+      { id: 'rw', role: 'RW', pos: 'FW', x: 82, y: 22 },
+    ],
+  },
+  '4-1-2-3': {
+    name: '4-1-2-3 Fluid Play',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'cdm', role: 'CDM', pos: 'MF', x: 50, y: 58 },
+      { id: 'cam1', role: 'CAM', pos: 'MF', x: 34, y: 42 },
+      { id: 'cam2', role: 'CAM', pos: 'MF', x: 66, y: 42 },
+      { id: 'lw', role: 'LW', pos: 'FW', x: 20, y: 22 },
+      { id: 'st', role: 'ST', pos: 'FW', x: 50, y: 16 },
+      { id: 'rw', role: 'RW', pos: 'FW', x: 80, y: 22 },
+    ],
+  },
+  '4-3-3 False 9': {
+    name: '4-3-3 False 9 (Total Football)',
+    slots: [
+      { id: 'gk', role: 'GK', pos: 'GK', x: 50, y: 88 },
+      { id: 'lb', role: 'LB', pos: 'DF', x: 18, y: 72 },
+      { id: 'cb1', role: 'CB', pos: 'DF', x: 38, y: 74 },
+      { id: 'cb2', role: 'CB', pos: 'DF', x: 62, y: 74 },
+      { id: 'rb', role: 'RB', pos: 'DF', x: 82, y: 72 },
+      { id: 'cm1', role: 'CM', pos: 'MF', x: 30, y: 50 },
+      { id: 'cdm', role: 'CDM', pos: 'MF', x: 50, y: 58 },
+      { id: 'cm2', role: 'CM', pos: 'MF', x: 70, y: 50 },
+      { id: 'lw', role: 'LW', pos: 'FW', x: 20, y: 20 },
+      { id: 'cf', role: 'CF', pos: 'FW', x: 50, y: 28 },
+      { id: 'rw', role: 'RW', pos: 'FW', x: 80, y: 20 },
     ],
   },
 };
@@ -220,6 +431,7 @@ export interface UserTeam {
   playerSlots: Record<string, string>; // slotId -> playerId
   customPositions: Record<string, CustomPlayerPosition>;
   isCompleted: boolean;
+  isLocked?: boolean; // v1.2.0 Team Lock feature to protect squad edits
   createdAt: number;
   completedAt?: number;
 }
@@ -236,7 +448,7 @@ export type BlackBallSpinType =
 
 export type SpecialStagingType = 'none' | 'black' | 'gold' | 'ballon_dor';
 
-export type DraftStagingRarity = 'normal' | 'black' | 'gold' | 'ballon_dor';
+export type DraftStagingRarity = 'normal' | 'black' | 'gold';
 
 export interface PositionCounts {
   GK: number;
@@ -261,7 +473,11 @@ export type AttackTactics =
   | 'BUILD_UP'            // ビルドアップ重視
   | 'HIGH_SPEED_ATTACK'   // 前線からの速い攻撃
   | 'THROUGH_PASS'        // 裏への抜け出し
-  | 'WIDE_SPREAD';        // ワイド攻撃
+  | 'WIDE_SPREAD'         // ワイド攻撃
+  | 'TIKI_TAKA'           // ティキ・タカ (超短パス連携)
+  | 'FALSE_NINE'          // 偽9番 (ゼロトップ)
+  | 'DIRECT_PLAY'         // ダイレクトプレー
+  | 'OVERLOAD';           // オーバーロード (局所数的過負荷)
 
 export type DefenseTactics =
   | 'HIGH_PRESS'          // ハイプレス
@@ -275,7 +491,11 @@ export type DefenseTactics =
   | 'COUNTER_PREVENT'     // カウンター対策
   | 'RETREAT'             // リトリート
   | 'FRONT_PRESS'         // 前線プレス
-  | 'DEFENSIVE_FOCUS';    // 守備重視
+  | 'DEFENSIVE_FOCUS'     // 守備重視
+  | 'OFFSIDE_TRAP'        // オフサイドトラップ
+  | 'SWARM_DEFENSE'       // スウォーム守備 (群れ包囲)
+  | 'CATENACCIO'          // カテナチオ (堅牢な鍵)
+  | 'BOX_CONTAIN';        // ペナルティエリア封鎖
 
 export interface TeamTactics {
   attackTactic: AttackTactics;
@@ -328,6 +548,7 @@ export interface BetaMatchRecord {
   fullTimeScore: [number, number];
   challengerTactics?: TeamTactics;
   opponentTactics?: TeamTactics;
+  odds?: { winPct: number; drawPct: number; lossPct: number };
 }
 
 export interface BetaStandingEntry {

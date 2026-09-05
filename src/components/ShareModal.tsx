@@ -3,6 +3,7 @@ import { UserTeam, Language, FORMATIONS, FormationType, Player } from '../types'
 import { TRANSLATIONS, getLocalizedPlayerName, getLocalizedClubName } from '../utils/translations';
 import { soundManager } from '../utils/audio';
 import { generateShareData, DEFAULT_X_CHAR_LIMIT } from '../utils/shareUtils';
+import { getTeamFormationDisplayName } from '../utils/formationUtils';
 import { ALL_PLAYERS } from '../data/playerDatabase';
 import { ALL_CLUBS } from '../data/clubs';
 import { toPng } from 'html-to-image';
@@ -61,7 +62,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const baseSlots = FORMATIONS[presetBase]?.slots || FORMATIONS['4-3-3'].slots;
 
   const pitchSlots = baseSlots.map((baseSlot) => {
-    if (team.formation === 'CUSTOM' && team.customPositions?.[baseSlot.id]) {
+    if (team.customPositions?.[baseSlot.id]) {
       return {
         ...baseSlot,
         x: team.customPositions[baseSlot.id].x,
@@ -302,7 +303,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 </div>
                 <div className="px-3 py-1 rounded-xl bg-teal-400/20 border border-teal-400/40 text-center">
                   <div className="text-[9px] uppercase font-bold text-teal-300">FORM</div>
-                  <div className="font-heading font-black text-sm text-teal-400 leading-none">{team.formation}</div>
+                  <div className="font-heading font-black text-sm text-teal-400 leading-none">
+                    {getTeamFormationDisplayName(team)}
+                  </div>
                 </div>
               </div>
             </div>

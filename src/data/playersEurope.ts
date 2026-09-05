@@ -2056,7 +2056,7 @@ export const EUROPEAN_PLAYERS: Player[] = [
   },
   {
     playerId: 'lautaro_inter_2018',
-    personId: 'l_martinez',
+    personId: 'lautaro_martinez',
     playerName: 'Lautaro Martínez',
     nameJa: 'ラウタロ・マルティネス',
     nameEn: 'Lautaro Martínez',

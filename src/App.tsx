@@ -21,7 +21,7 @@ import {
   getLegendaryCombination,
 } from './data/playerDatabase';
 import {
-  findBallonDorCombination,
+  findGoldenCandidates,
   getBallonDorWinner,
   getLegendPeakEra,
 } from './data/legendaryEraDatabase';
@@ -37,8 +37,10 @@ import { PositionCountsBar } from './components/PositionCountsBar';
 import { HistoryModal } from './components/HistoryModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HowToPlayModal } from './components/HowToPlayModal';
+import { PlayerDetailModal } from './components/PlayerDetailModal';
 import { ModeSelectModal } from './components/ModeSelectModal';
 import { getDefenseSquadId, setDefenseSquad } from './utils/pvpEngine';
+import { saveLockedTeamToSupabase } from './utils/supabasePvP';
 import { CelebrationModal } from './components/CelebrationModal';
 import { ShareModal } from './components/ShareModal';
 import { UpdateNotesModal } from './components/UpdateNotesModal';
@@ -334,8 +336,12 @@ export default function App() {
     soundManager.sfxEnabled = next;
   };
 
-  // Mutate active team properties in teams state
+  // Mutate active team properties in teams state (prevent mutation if locked)
   const updateActiveTeam = (updater: (prevTeam: UserTeam) => UserTeam) => {
+    if (activeTeam.isLocked) {
+      console.warn('Cannot edit locked team');
+      return;
+    }
     setTeams((prevTeams) =>
       prevTeams.map((tItem) => {
         if (tItem.teamId === activeTeam.teamId) {
@@ -344,6 +350,27 @@ export default function App() {
         return tItem;
       })
     );
+  };
+
+  // Team Lock handler (v1.2.0)
+  const handleToggleTeamLock = (teamId: string, willLock: boolean) => {
+    let updatedList: UserTeam[] = [];
+    setTeams((prevTeams) => {
+      updatedList = prevTeams.map((tItem) =>
+        tItem.teamId === teamId ? { ...tItem, isLocked: willLock } : tItem
+      );
+      return updatedList;
+    });
+
+    const target = (updatedList.length > 0 ? updatedList : teams).find((t) => t.teamId === teamId);
+    if (target) {
+      if (willLock) {
+        handleSetDefenseSquad(teamId);
+      }
+      saveLockedTeamToSupabase({ ...target, isLocked: willLock }).catch((err) => {
+        console.warn('Sync locked team to Supabase failed:', err);
+      });
+    }
   };
 
   // CREATE NEW TEAM (Team 2, Team 3, etc.)
@@ -465,21 +492,22 @@ export default function App() {
     const currentTeamPlayerIds = activeTeam.players.map((p) => p.playerId);
     const currentTeamPersonIds = activeTeam.players.map((p) => p.personId);
 
-    // 1.8% Rare Event trigger (1.8 in 100) for Ballon d'Or Supreme / Peak Era staging
-    const isRareTrigger = Math.random() < 0.018;
+    // 2.1% Rare Event trigger (approx 1.17x increase from 1.8%) for Golden Special / Peak Era staging
+    const isRareTrigger = Math.random() < 0.021;
 
     if (isRareTrigger) {
-      // 🥇 PRIORITY 1: GOLDEN BALLON D'OR SUPREME EVENT
-      const ballonDorCandidate = findBallonDorCombination(
+      // 🥇 PRIORITY 1: GOLDEN SUPREME EVENT (3 randomized candidates across eras/clubs)
+      const goldenCandidates = findGoldenCandidates(
         mode,
         currentTeamPlayerIds,
-        currentTeamPersonIds
+        currentTeamPersonIds,
+        3
       );
 
-      if (ballonDorCandidate) {
-        const pickedPlayer = ballonDorCandidate.player;
-        const targetYear = pickedPlayer.joiningYear;
-        const targetClub = clubs.find((c) => c.id === pickedPlayer.clubId) || clubs[0];
+      if (goldenCandidates.length > 0) {
+        const primaryPlayer = goldenCandidates[0];
+        const targetYear = primaryPlayer.joiningYear;
+        const targetClub = clubs.find((c) => c.id === primaryPlayer.clubId) || clubs[0];
         const isLightning = Math.random() < 0.6;
         const spinType: BlackBallSpinType = isLightning
           ? 'golden-lightning-ballon-dor'
@@ -522,14 +550,8 @@ export default function App() {
             colors: ['#fde047', '#eab308', '#ca8a04', '#ffffff', '#fbbf24'],
           });
 
-          const candidates = findCandidatePlayers(
-            mode,
-            targetYear,
-            targetClub.id,
-            currentTeamPlayerIds,
-            currentTeamPersonIds
-          );
-          setCandidatePlayers(candidates.length > 0 ? candidates : [pickedPlayer]);
+          // Set all 3 randomized Golden candidates for user selection
+          setCandidatePlayers(goldenCandidates);
         }, 2400);
         return;
       }
@@ -609,7 +631,21 @@ export default function App() {
       let targetClub: Club;
 
       if (matchingPlayers.length > 0 && Math.random() < 0.8) {
-        const pickedPlayer = matchingPlayers[Math.floor(Math.random() * matchingPlayers.length)];
+        // レジェンド選手の排出率を約1.15倍（1.1〜1.2倍の指定範囲内）に微増
+        const totalWeight = matchingPlayers.reduce(
+          (acc, p) => acc + (p.isLegendary ? 1.15 : 1.0),
+          0
+        );
+        let randomWeight = Math.random() * totalWeight;
+        let pickedPlayer = matchingPlayers[0];
+        for (const p of matchingPlayers) {
+          const weight = p.isLegendary ? 1.15 : 1.0;
+          if (randomWeight < weight) {
+            pickedPlayer = p;
+            break;
+          }
+          randomWeight -= weight;
+        }
         targetYear = pickedPlayer.joiningYear;
         targetClub = clubs.find((c) => c.id === pickedPlayer.clubId) || clubs[0];
       } else {
@@ -961,6 +997,8 @@ export default function App() {
             onUpdateCustomPositions={(newPos) => {
               updateActiveTeam((prev) => ({ ...prev, customPositions: newPos }));
             }}
+            isLocked={activeTeam.isLocked}
+            onToggleLock={handleToggleTeamLock}
             language={language}
           />
         )}

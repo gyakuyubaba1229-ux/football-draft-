@@ -199,12 +199,12 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           <span className="text-emerald-400 font-semibold">{player.clubName}</span>
         </div>
 
-        {/* Ballon d'Or / Legend Peak Era Highlight */}
+        {/* Golden Special / Legend Peak Era Highlight */}
         {ballonDor ? (
           <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/20 border border-yellow-400/50 flex items-center gap-2 text-[11px] text-yellow-300">
             <Trophy className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
             <span className="font-extrabold truncate">
-              🏆 {ballonDor.totalWins}x BALLON D'OR ({ballonDor.winningYears.join(', ')})
+              ⭐ GOLDEN LEGEND SPECIAL ({ballonDor.winningYears.join(', ')})
             </span>
           </div>
         ) : legendPeak ? (

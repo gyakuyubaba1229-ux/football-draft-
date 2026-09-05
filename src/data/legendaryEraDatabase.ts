@@ -969,7 +969,7 @@ export function getLegendPeakEra(player: Player): LegendPeakEraInfo | null {
       nameEn: bDor.nameEn,
       nameEs: bDor.nameEs,
       peakYear: bDor.iconicYear,
-      seasonLabel: `${bDor.iconicYear} (Ballon d'Or Winner)`,
+      seasonLabel: `${bDor.iconicYear} (Golden Legend Special)`,
       clubJa: bDor.clubAtWinJa,
       clubEn: bDor.clubAtWinEn,
       clubEs: bDor.clubAtWinEs,
@@ -1011,21 +1011,20 @@ export function getLegendPeakEra(player: Player): LegendPeakEraInfo | null {
 
 /**
  * =========================================================================
- * 3. SPECIAL BALLON D'OR ROSTER (OVR 100-103)
- * EXCLUSIVELY appears during Special Ballon d'Or Presentation.
+ * 3. SPECIAL GOLDEN ROSTER (OVR 100-103)
+ * EXCLUSIVELY appears during Golden Staging (出現率1.8%).
  * STRICTLY excluded from normal roulette candidate generations (OVR cap <= 99).
- * Grounded in 100% verified historical Ballon d'Or award years and feats.
  * =========================================================================
  */
 export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
-  // Lionel Messi - 2012 (91 Goals Record, 4th Consecutive Ballon d'Or)
+  // Lionel Messi - 2012 (91 Goals Record)
   {
     playerId: 'bd_special_messi_2012',
     personId: 'messi',
-    playerName: 'Lionel Messi (2012 Ballon d\'Or)',
-    nameJa: 'リオネル・メッシ (2012 バロンドール)',
-    nameEn: 'Lionel Messi (2012 Ballon d\'Or)',
-    nameEs: 'Lionel Messi (Balón de Oro 2012)',
+    playerName: 'Lionel Messi (2012 GOLDEN)',
+    nameJa: 'リオネル・メッシ (2012 GOLDEN)',
+    nameEn: 'Lionel Messi (2012 GOLDEN)',
+    nameEs: 'Lionel Messi (2012 GOLDEN)',
     clubId: 'barcelona',
     clubName: 'FC Barcelona',
     joiningYear: 2012,
@@ -1041,14 +1040,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 98, shooting: 103, passing: 101, dribbling: 104, defending: 55, physical: 84 },
   },
-  // Cristiano Ronaldo - 2008 (Man Utd UCL & Premier League double, 1st Ballon d'Or)
+  // Cristiano Ronaldo - 2008 (Man Utd UCL & Premier League double)
   {
     playerId: 'bd_special_c_ronaldo_2008',
     personId: 'c_ronaldo',
-    playerName: 'Cristiano Ronaldo (2008 Ballon d\'Or)',
-    nameJa: 'C・ロナウド (2008 バロンドール)',
-    nameEn: 'Cristiano Ronaldo (2008 Ballon d\'Or)',
-    nameEs: 'Cristiano Ronaldo (Balón de Oro 2008)',
+    playerName: 'Cristiano Ronaldo (2008 GOLDEN)',
+    nameJa: 'C・ロナウド (2008 GOLDEN)',
+    nameEn: 'Cristiano Ronaldo (2008 GOLDEN)',
+    nameEs: 'Cristiano Ronaldo (2008 GOLDEN)',
     clubId: 'man_united',
     clubName: 'Manchester United',
     joiningYear: 2008,
@@ -1064,14 +1063,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 102, shooting: 101, passing: 94, dribbling: 100, defending: 52, physical: 94 },
   },
-  // Cristiano Ronaldo - 2014 (Real Madrid Decima & Ballon d'Or)
+  // Cristiano Ronaldo - 2014 (Real Madrid Decima)
   {
     playerId: 'bd_special_c_ronaldo_2014',
     personId: 'c_ronaldo',
-    playerName: 'Cristiano Ronaldo (2014 Ballon d\'Or)',
-    nameJa: 'C・ロナウド (2014 バロンドール)',
-    nameEn: 'Cristiano Ronaldo (2014 Ballon d\'Or)',
-    nameEs: 'Cristiano Ronaldo (Balón de Oro 2014)',
+    playerName: 'Cristiano Ronaldo (2014 GOLDEN)',
+    nameJa: 'C・ロナウド (2014 GOLDEN)',
+    nameEn: 'Cristiano Ronaldo (2014 GOLDEN)',
+    nameEs: 'Cristiano Ronaldo (2014 GOLDEN)',
     clubId: 'real_madrid',
     clubName: 'Real Madrid',
     joiningYear: 2014,
@@ -1087,14 +1086,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 100, shooting: 103, passing: 93, dribbling: 98, defending: 50, physical: 96 },
   },
-  // Ronaldo Nazário - 2002 (World Cup Champion 8 Goals & Ballon d'Or)
+  // Ronaldo Nazário - 2002 (World Cup Champion 8 Goals)
   {
     playerId: 'bd_special_ronaldo_nazario_2002',
     personId: 'ronaldo_nazario',
-    playerName: 'Ronaldo Nazário (2002 Ballon d\'Or)',
-    nameJa: 'ロナウド (2002 バロンドール)',
-    nameEn: 'Ronaldo Nazário (2002 Ballon d\'Or)',
-    nameEs: 'Ronaldo Nazário (Balón de Oro 2002)',
+    playerName: 'Ronaldo Nazário (2002 GOLDEN)',
+    nameJa: 'ロナウド (2002 GOLDEN)',
+    nameEn: 'Ronaldo Nazário (2002 GOLDEN)',
+    nameEs: 'Ronaldo Nazário (2002 GOLDEN)',
     clubId: 'real_madrid',
     clubName: 'Real Madrid',
     joiningYear: 2002,
@@ -1110,14 +1109,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 102, shooting: 102, passing: 90, dribbling: 103, defending: 48, physical: 92 },
   },
-  // Ronaldinho - 2005 (Bernabeu standing ovation & Ballon d'Or)
+  // Ronaldinho - 2005 (Bernabeu standing ovation)
   {
     playerId: 'bd_special_ronaldinho_2005',
     personId: 'ronaldinho',
-    playerName: 'Ronaldinho (2005 Ballon d\'Or)',
-    nameJa: 'ロナウジーニョ (2005 バロンドール)',
-    nameEn: 'Ronaldinho (2005 Ballon d\'Or)',
-    nameEs: 'Ronaldinho (Balón de Oro 2005)',
+    playerName: 'Ronaldinho (2005 GOLDEN)',
+    nameJa: 'ロナウジーニョ (2005 GOLDEN)',
+    nameEn: 'Ronaldinho (2005 GOLDEN)',
+    nameEs: 'Ronaldinho (2005 GOLDEN)',
     clubId: 'barcelona',
     clubName: 'FC Barcelona',
     joiningYear: 2005,
@@ -1133,14 +1132,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 98, shooting: 97, passing: 101, dribbling: 104, defending: 50, physical: 89 },
   },
-  // Zinedine Zidane - 1998 (World Cup Winner Brace in Final & Ballon d'Or)
+  // Zinedine Zidane - 1998 (World Cup Winner Brace in Final)
   {
     playerId: 'bd_special_zidane_1998',
     personId: 'zidane',
-    playerName: 'Zinedine Zidane (1998 Ballon d\'Or)',
-    nameJa: 'ジネディーヌ・ジダン (1998 バロンドール)',
-    nameEn: 'Zinedine Zidane (1998 Ballon d\'Or)',
-    nameEs: 'Zinedine Zidane (Balón de Oro 1998)',
+    playerName: 'Zinedine Zidane (1998 GOLDEN)',
+    nameJa: 'ジネディーヌ・ジダン (1998 GOLDEN)',
+    nameEn: 'Zinedine Zidane (1998 GOLDEN)',
+    nameEs: 'Zinedine Zidane (1998 GOLDEN)',
     clubId: 'juventus',
     clubName: 'Juventus',
     joiningYear: 1998,
@@ -1156,14 +1155,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 88, shooting: 94, passing: 103, dribbling: 102, defending: 70, physical: 93 },
   },
-  // Kaká - 2007 (AC Milan UCL Top Scorer & Champion Ballon d'Or)
+  // Kaká - 2007 (AC Milan UCL Top Scorer & Champion)
   {
     playerId: 'bd_special_kaka_2007',
     personId: 'kaka',
-    playerName: 'Kaká (2007 Ballon d\'Or)',
-    nameJa: 'カカ (2007 バロンドール)',
-    nameEn: 'Kaká (2007 Ballon d\'Or)',
-    nameEs: 'Kaká (Balón de Oro 2007)',
+    playerName: 'Kaká (2007 GOLDEN)',
+    nameJa: 'カカ (2007 GOLDEN)',
+    nameEn: 'Kaká (2007 GOLDEN)',
+    nameEs: 'Kaká (2007 GOLDEN)',
     clubId: 'ac_milan',
     clubName: 'AC Milan',
     joiningYear: 2007,
@@ -1183,10 +1182,10 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
   {
     playerId: 'bd_special_modric_2018',
     personId: 'modric',
-    playerName: 'Luka Modrić (2018 Ballon d\'Or)',
-    nameJa: 'ルカ・モドリッチ (2018 バロンドール)',
-    nameEn: 'Luka Modrić (2018 Ballon d\'Or)',
-    nameEs: 'Luka Modrić (Balón de Oro 2018)',
+    playerName: 'Luka Modrić (2018 GOLDEN)',
+    nameJa: 'ルカ・モドリッチ (2018 GOLDEN)',
+    nameEn: 'Luka Modrić (2018 GOLDEN)',
+    nameEs: 'Luka Modrić (2018 GOLDEN)',
     clubId: 'real_madrid',
     clubName: 'Real Madrid',
     joiningYear: 2018,
@@ -1206,10 +1205,10 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
   {
     playerId: 'bd_special_benzema_2022',
     personId: 'benzema',
-    playerName: 'Karim Benzema (2022 Ballon d\'Or)',
-    nameJa: 'カリム・ベンゼマ (2022 バロンドール)',
-    nameEn: 'Karim Benzema (2022 Ballon d\'Or)',
-    nameEs: 'Karim Benzema (Balón de Oro 2022)',
+    playerName: 'Karim Benzema (2022 GOLDEN)',
+    nameJa: 'カリム・ベンゼマ (2022 GOLDEN)',
+    nameEn: 'Karim Benzema (2022 GOLDEN)',
+    nameEs: 'Karim Benzema (2022 GOLDEN)',
     clubId: 'real_madrid',
     clubName: 'Real Madrid',
     joiningYear: 2022,
@@ -1225,14 +1224,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 91, shooting: 101, passing: 94, dribbling: 96, defending: 50, physical: 90 },
   },
-  // Fabio Cannavaro - 2006 (World Cup Winning Captain & Ballon d'Or Defender)
+  // Fabio Cannavaro - 2006 (World Cup Winning Captain Defender)
   {
     playerId: 'bd_special_cannavaro_2006',
     personId: 'cannavaro',
-    playerName: 'Fabio Cannavaro (2006 Ballon d\'Or)',
-    nameJa: 'ファビオ・カンナヴァーロ (2006 バロンドール)',
-    nameEn: 'Fabio Cannavaro (2006 Ballon d\'Or)',
-    nameEs: 'Fabio Cannavaro (Balón de Oro 2006)',
+    playerName: 'Fabio Cannavaro (2006 GOLDEN)',
+    nameJa: 'ファビオ・カンナヴァーロ (2006 GOLDEN)',
+    nameEn: 'Fabio Cannavaro (2006 GOLDEN)',
+    nameEs: 'Fabio Cannavaro (2006 GOLDEN)',
     clubId: 'juventus',
     clubName: 'Juventus',
     joiningYear: 2006,
@@ -1252,10 +1251,10 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
   {
     playerId: 'bd_special_shevchenko_2004',
     personId: 'shevchenko',
-    playerName: 'Andriy Shevchenko (2004 Ballon d\'Or)',
-    nameJa: 'アンドリー・シェフチェンコ (2004 バロンドール)',
-    nameEn: 'Andriy Shevchenko (2004 Ballon d\'Or)',
-    nameEs: 'Andriy Shevchenko (Balón de Oro 2004)',
+    playerName: 'Andriy Shevchenko (2004 GOLDEN)',
+    nameJa: 'アンドリー・シェフチェンコ (2004 GOLDEN)',
+    nameEn: 'Andriy Shevchenko (2004 GOLDEN)',
+    nameEs: 'Andriy Shevchenko (2004 GOLDEN)',
     clubId: 'ac_milan',
     clubName: 'AC Milan',
     joiningYear: 2004,
@@ -1275,10 +1274,10 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
   {
     playerId: 'bd_special_nedved_2003',
     personId: 'nedved',
-    playerName: 'Pavel Nedvěd (2003 Ballon d\'Or)',
-    nameJa: 'パベル・ネドベド (2003 バロンドール)',
-    nameEn: 'Pavel Nedvěd (2003 Ballon d\'Or)',
-    nameEs: 'Pavel Nedvěd (Balón de Oro 2003)',
+    playerName: 'Pavel Nedvěd (2003 GOLDEN)',
+    nameJa: 'パベル・ネドベド (2003 GOLDEN)',
+    nameEn: 'Pavel Nedvěd (2003 GOLDEN)',
+    nameEs: 'Pavel Nedvěd (2003 GOLDEN)',
     clubId: 'juventus',
     clubName: 'Juventus',
     joiningYear: 2003,
@@ -1298,10 +1297,10 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
   {
     playerId: 'bd_special_rivaldo_1999',
     personId: 'rivaldo',
-    playerName: 'Rivaldo (1999 Ballon d\'Or)',
-    nameJa: 'リバウド (1999 バロンドール)',
-    nameEn: 'Rivaldo (1999 Ballon d\'Or)',
-    nameEs: 'Rivaldo (Balón de Oro 1999)',
+    playerName: 'Rivaldo (1999 GOLDEN)',
+    nameJa: 'リバウド (1999 GOLDEN)',
+    nameEn: 'Rivaldo (1999 GOLDEN)',
+    nameEs: 'Rivaldo (1999 GOLDEN)',
     clubId: 'barcelona',
     clubName: 'FC Barcelona',
     joiningYear: 1999,
@@ -1317,14 +1316,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 93, shooting: 101, passing: 98, dribbling: 100, defending: 50, physical: 90 },
   },
-  // Michael Owen - 2001 (Liverpool Cup Treble & 2001 Ballon d'Or)
+  // Michael Owen - 2001 (Liverpool Cup Treble)
   {
     playerId: 'bd_special_owen_2001',
     personId: 'owen',
-    playerName: 'Michael Owen (2001 Ballon d\'Or)',
-    nameJa: 'マイケル・オーウェン (2001 バロンドール)',
-    nameEn: 'Michael Owen (2001 Ballon d\'Or)',
-    nameEs: 'Michael Owen (Balón de Oro 2001)',
+    playerName: 'Michael Owen (2001 GOLDEN)',
+    nameJa: 'マイケル・オーウェン (2001 GOLDEN)',
+    nameEn: 'Michael Owen (2001 GOLDEN)',
+    nameEs: 'Michael Owen (2001 GOLDEN)',
     clubId: 'liverpool',
     clubName: 'Liverpool',
     joiningYear: 2001,
@@ -1340,14 +1339,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 102, shooting: 99, passing: 84, dribbling: 96, defending: 44, physical: 84 },
   },
-  // Hristo Stoichkov - 1994 (1994 Ballon d'Or Winner & Kashiwa Legend)
+  // Hristo Stoichkov - 1994 (Kashiwa Legend & European Golden Boot)
   {
     playerId: 'bd_special_stoichkov_1998',
     personId: 'stoichkov',
-    playerName: 'Hristo Stoichkov (1994 Ballon d\'Or Winner)',
-    nameJa: 'フリスト・ストイチコフ (1994 バロンドール受賞者)',
-    nameEn: 'Hristo Stoichkov (1994 Ballon d\'Or Winner)',
-    nameEs: 'Hristo Stoichkov (Ganador Balón de Oro 1994)',
+    playerName: 'Hristo Stoichkov (1994 GOLDEN)',
+    nameJa: 'フリスト・ストイチコフ (1994 GOLDEN)',
+    nameEn: 'Hristo Stoichkov (1994 GOLDEN)',
+    nameEs: 'Hristo Stoichkov (1994 GOLDEN)',
     clubId: 'kashiwa_reysol',
     clubName: 'Kashiwa Reysol',
     joiningYear: 1998,
@@ -1386,14 +1385,14 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 90, shooting: 101, passing: 103, dribbling: 101, defending: 56, physical: 88 },
   },
-  // Andrés Iniesta - Vissel Kobe (2010 Ballon d'Or Silver & World Cup Winning Goal)
+  // Andrés Iniesta - Vissel Kobe (World Cup Winning Goal & Golden Maestro)
   {
     playerId: 'bd_special_iniesta_2018',
     personId: 'a_iniesta',
-    playerName: 'Andrés Iniesta (Ballon d\'Or Podium Maestro)',
-    nameJa: 'アンドレス・イニエスタ (バロンドール銀賞・世界的至宝)',
-    nameEn: 'Andrés Iniesta (Ballon d\'Or Podium Maestro)',
-    nameEs: 'Andrés Iniesta (Maestro Balón de Oro de Plata)',
+    playerName: 'Andrés Iniesta (GOLDEN SPECIAL)',
+    nameJa: 'アンドレス・イニエスタ (世界的至宝・GOLDEN)',
+    nameEn: 'Andrés Iniesta (GOLDEN SPECIAL)',
+    nameEs: 'Andrés Iniesta (GOLDEN SPECIAL)',
     clubId: 'vissel_kobe',
     clubName: 'Vissel Kobe',
     joiningYear: 2018,
@@ -1433,6 +1432,44 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     stats: { pace: 86, shooting: 88, passing: 98, dribbling: 88, defending: 102, physical: 98 },
   },
 ];
+
+/**
+ * Find 3 distinct Golden candidates (randomized, no fixed years/clubs)
+ */
+export function findGoldenCandidates(
+  mode: GameMode,
+  excludePlayerIds: string[] = [],
+  excludePersonIds: string[] = [],
+  count: number = 3
+): Player[] {
+  const eligible = SPECIAL_BALLON_DOR_PLAYERS.filter((p) => {
+    if (excludePlayerIds.includes(p.playerId)) return false;
+    if (excludePersonIds.includes(p.personId)) return false;
+    if (mode === 'j1') {
+      return ['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus'].includes(p.clubId);
+    }
+    return !['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus'].includes(p.clubId);
+  });
+
+  const pool = (eligible.length >= count ? eligible : SPECIAL_BALLON_DOR_PLAYERS).filter(
+    (p) => !excludePlayerIds.includes(p.playerId) && !excludePersonIds.includes(p.personId)
+  );
+
+  // Shuffle and pick unique players
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  const picked: Player[] = [];
+  const pickedPersonIds = new Set<string>();
+
+  for (const player of shuffled) {
+    if (!pickedPersonIds.has(player.personId)) {
+      picked.push(player);
+      pickedPersonIds.add(player.personId);
+      if (picked.length >= count) break;
+    }
+  }
+
+  return picked;
+}
 
 /**
  * Helper to find Ballon d'Or winner combination from the dedicated SPECIAL_BALLON_DOR_PLAYERS
@@ -1479,9 +1516,9 @@ export function findBallonDorCombination(
     nationalityEn: pickedPlayer.nationalityEn,
     nationalityEs: pickedPlayer.nationalityEs,
     nationalityFlag: pickedPlayer.nationalityFlag,
-    goldenSubtitleJa: `${pickedPlayer.joiningYear}年 バロンドール最高峰特別選手 OVR ${pickedPlayer.rating}`,
-    goldenSubtitleEn: `${pickedPlayer.joiningYear} Ballon d\'Or Supreme Special Edition OVR ${pickedPlayer.rating}`,
-    goldenSubtitleEs: `${pickedPlayer.joiningYear} Edición Especial Suprema Balón de Oro OVR ${pickedPlayer.rating}`,
+    goldenSubtitleJa: `${pickedPlayer.joiningYear}年 GOLDEN最高峰特別選手 OVR ${pickedPlayer.rating}`,
+    goldenSubtitleEn: `${pickedPlayer.joiningYear} GOLDEN Supreme Special Edition OVR ${pickedPlayer.rating}`,
+    goldenSubtitleEs: `${pickedPlayer.joiningYear} Edición Especial Suprema GOLDEN OVR ${pickedPlayer.rating}`,
     iconicFeatJa: `${pickedPlayer.clubName}で獲得した世界最高峰の栄誉（総合値 OVR ${pickedPlayer.rating}）`,
     iconicFeatEn: `World football supreme honor achieved at ${pickedPlayer.clubName} (OVR Rating ${pickedPlayer.rating})`,
     iconicFeatEs: `Máximo honor mundial logrado con el ${pickedPlayer.clubName} (Valoración OVR ${pickedPlayer.rating})`,

@@ -2,6 +2,7 @@ import React from 'react';
 import { Language, UserTeam } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
+import { getTeamFormationDisplayName } from '../utils/formationUtils';
 import { Trophy, Share2, Plus, Eye, Sparkles, X } from 'lucide-react';
 
 interface CelebrationModalProps {
@@ -85,7 +86,9 @@ export const CelebrationModal: React.FC<CelebrationModalProps> = ({
           </div>
           <div>
             <div className="text-[10px] uppercase font-bold text-slate-400">{t.formation}</div>
-            <div className="font-heading font-black text-xl text-emerald-400">{team.formation}</div>
+            <div className="font-heading font-black text-xl text-emerald-400">
+              {getTeamFormationDisplayName(team)}
+            </div>
           </div>
         </div>
 

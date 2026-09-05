@@ -1,13 +1,54 @@
 import { Player, FormationType, MainPosition, FORMATIONS, FormationSlotConfig } from '../types';
+import { canPlayerPlayAtPosition, normalizeRoleToEFootball } from './positionEngine';
 
 export const PRESET_FORMATIONS: Exclude<FormationType, 'CUSTOM'>[] = [
   '4-3-3',
   '4-4-2',
   '4-2-3-1',
+  '4-3-1-2',
+  '4-3-2-1',
+  '4-1-4-1',
+  '4-2-2-2',
+  '4-4-1-1',
   '3-4-3',
   '3-5-2',
+  '3-4-2-1',
+  '3-4-1-2',
   '5-3-2',
+  '5-4-1',
+  '5-2-3',
+  '4-2-4',
+  '4-1-2-3',
+  '4-3-3 False 9',
 ];
+
+/**
+ * 自由配置（customPositionsが存在するか）に応じて表示用フォーメーション名を返却します。
+ * - 選手を1人でも自由に移動した場合: "カスタムフォーメーション"
+ * - 移動していない通常配置の場合: 選択されたフォーメーション名（例: "4-3-3"）
+ */
+export function getDisplayFormationName(
+  formation?: string,
+  customPositions?: Record<string, any> | null
+): string {
+  if (customPositions && Object.keys(customPositions).length > 0) {
+    return 'カスタムフォーメーション';
+  }
+  if (formation === 'CUSTOM') {
+    return 'カスタムフォーメーション';
+  }
+  return formation || '4-3-3';
+}
+
+/**
+ * チームオブジェクトから表示用フォーメーション名を取得します。
+ */
+export function getTeamFormationDisplayName(
+  team?: { formation?: string; customPositions?: Record<string, any> | null } | null
+): string {
+  if (!team) return '4-3-3';
+  return getDisplayFormationName(team.formation, team.customPositions);
+}
 
 /**
  * Identify the best matching base preset for a set of slot IDs.
@@ -37,6 +78,12 @@ export function detectBasePresetFromSlots(slotIds: string[]): Exclude<FormationT
  * Higher score means better suitability.
  */
 function calculatePositionSuitability(player: Player, slot: FormationSlotConfig): number {
+  const ePos = normalizeRoleToEFootball(slot.role);
+  const legalCheck = canPlayerPlayAtPosition(player, ePos);
+  if (!legalCheck.allowed) {
+    return -9999;
+  }
+
   let score = 0;
 
   // 1. Exact main position match
@@ -93,34 +140,30 @@ export function remapPlayerSlots(
   const assignedPlayerIds = new Set<string>();
   const availableSlots = [...targetSlots];
 
-  // 1. Mandatory GK Guarantee: If a GK exists in players, assign immediately to the GK slot
-  const gkPlayer = players.find((p) => p.position === 'GK');
-  const gkSlotIdx = availableSlots.findIndex((s) => s.pos === 'GK' || s.role === 'GK');
-  if (gkPlayer && gkSlotIdx !== -1) {
-    const gkSlot = availableSlots.splice(gkSlotIdx, 1)[0];
-    newSlots[gkSlot.id] = gkPlayer.playerId;
-    assignedPlayerIds.add(gkPlayer.playerId);
-  }
-
-  // Pass 1: Retain existing slot assignments if slot exists in target formation and player matches
+  // Pass 1: Retain existing user slot assignments if slot exists in target formation and player is valid
   for (let i = availableSlots.length - 1; i >= 0; i--) {
     const slot = availableSlots[i];
     const prevPlayerId = currentSlots[slot.id];
     if (prevPlayerId && playerMap.has(prevPlayerId) && !assignedPlayerIds.has(prevPlayerId)) {
-      const player = playerMap.get(prevPlayerId)!;
-      // Keep if position category matches and neither is GK (already handled)
-      if (player.position !== 'GK' && slot.pos !== 'GK' && (player.position === slot.pos || true)) {
-        newSlots[slot.id] = prevPlayerId;
-        assignedPlayerIds.add(prevPlayerId);
-        availableSlots.splice(i, 1);
-      }
+      newSlots[slot.id] = prevPlayerId;
+      assignedPlayerIds.add(prevPlayerId);
+      availableSlots.splice(i, 1);
     }
   }
 
-  // List of remaining unassigned players (excluding GK)
+  // Pass 2: If GK slot is still unassigned and an unassigned GK player exists, assign GK to that slot
+  const gkSlotIdx = availableSlots.findIndex((s) => s.pos === 'GK' || s.role === 'GK');
+  const unassignedGk = players.find((p) => p.position === 'GK' && !assignedPlayerIds.has(p.playerId));
+  if (gkSlotIdx !== -1 && unassignedGk) {
+    const gkSlot = availableSlots.splice(gkSlotIdx, 1)[0];
+    newSlots[gkSlot.id] = unassignedGk.playerId;
+    assignedPlayerIds.add(unassignedGk.playerId);
+  }
+
+  // List of remaining unassigned players
   const unassignedPlayers = players.filter((p) => !assignedPlayerIds.has(p.playerId));
 
-  // Pass 2: Best-fit matching for remaining outfield players into remaining slots
+  // Pass 3: Best-fit matching for remaining players into remaining slots
   while (unassignedPlayers.length > 0 && availableSlots.length > 0) {
     let bestPlayerIdx = -1;
     let bestSlotIdx = -1;
@@ -173,9 +216,12 @@ export function autoAssignSlot(
   const formationSlots = FORMATIONS[basePreset]?.slots || FORMATIONS['4-3-3'].slots;
   const assignedIds = new Set(Object.values(currentSlots));
 
-  // 1. Try matching exact role or position
+  // 1. Try matching exact role or position with legality check
   let emptySlot = formationSlots.find((s) => {
     if (currentSlots[s.id] && assignedIds.has(currentSlots[s.id])) return false;
+    const ePos = normalizeRoleToEFootball(s.role);
+    if (!canPlayerPlayAtPosition(player, ePos).allowed) return false;
+
     if (player.position === 'GK' && s.role === 'GK') return true;
     if (player.position === 'DF' && ['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(s.role)) return true;
     if (player.position === 'MF' && ['CM', 'CDM', 'CAM', 'LM', 'RM', 'LAM', 'RAM'].includes(s.role)) return true;
@@ -183,9 +229,13 @@ export function autoAssignSlot(
     return false;
   });
 
-  // 2. If no role-matched slot is empty, take any available empty slot
+  // 2. If no role-matched slot is empty, take any available empty slot that is strictly legally allowed
   if (!emptySlot) {
-    emptySlot = formationSlots.find((s) => !currentSlots[s.id]);
+    emptySlot = formationSlots.find((s) => {
+      if (currentSlots[s.id] && assignedIds.has(currentSlots[s.id])) return false;
+      const ePos = normalizeRoleToEFootball(s.role);
+      return canPlayerPlayAtPosition(player, ePos).allowed;
+    });
   }
 
   if (emptySlot) {

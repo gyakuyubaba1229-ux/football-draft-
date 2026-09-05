@@ -262,7 +262,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
                     : 'text-emerald-400/80'
                 }`}
               >
-                {isGoldenResult ? '🏆 BALLON D\'OR YEAR 🏆' : isBlackBallResult ? '⭐ LEGENDARY YEAR ⭐' : 'SIGNING YEAR'}
+                {isGoldenResult ? '👑 GOLDEN SPECIAL YEAR 👑' : isBlackBallResult ? '⭐ LEGENDARY YEAR ⭐' : 'SIGNING YEAR'}
               </div>
 
               <div
@@ -343,10 +343,10 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
                 <span className="text-3xl sm:text-4xl animate-bounce">🏆</span>
               </div>
               <div className="text-xs sm:text-sm font-heading font-black text-yellow-300 tracking-widest uppercase">
-                WINNER CLUB
+                GOLDEN CLUB
               </div>
               <div className="text-[10px] font-mono text-yellow-200/90 font-bold">
-                BALLON D'OR
+                SPECIAL EDITION
               </div>
             </div>
           ) : isSpecialReelActive ? (
@@ -443,7 +443,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               />
               <span>
                 {isGoldenSpin
-                  ? '🏆 GOLDEN BALLON D\'OR SPINNING...'
+                  ? '👑 GOLDEN SPECIAL SPINNING...'
                   : isSpecialReelActive
                   ? '⚫ BLACK BALL SPINNING...'
                   : t.spinning}
