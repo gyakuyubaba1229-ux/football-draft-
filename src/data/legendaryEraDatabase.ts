@@ -1035,10 +1035,10 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     nationalityEn: 'Argentina',
     nationalityEs: 'Argentina',
     nationalityFlag: '🇦🇷',
-    rating: 103,
+    rating: 104,
     category: 'LEGEND',
     isLegendary: true,
-    stats: { pace: 98, shooting: 103, passing: 101, dribbling: 104, defending: 55, physical: 84 },
+    stats: { pace: 99, shooting: 104, passing: 102, dribbling: 105, defending: 55, physical: 85 },
   },
   // Cristiano Ronaldo - 2008 (Man Utd UCL & Premier League double)
   {
@@ -1058,10 +1058,10 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     nationalityEn: 'Portugal',
     nationalityEs: 'Portugal',
     nationalityFlag: '🇵🇹',
-    rating: 102,
+    rating: 104,
     category: 'LEGEND',
     isLegendary: true,
-    stats: { pace: 102, shooting: 101, passing: 94, dribbling: 100, defending: 52, physical: 94 },
+    stats: { pace: 103, shooting: 104, passing: 95, dribbling: 101, defending: 52, physical: 96 },
   },
   // Cristiano Ronaldo - 2014 (Real Madrid Decima)
   {
@@ -1431,10 +1431,305 @@ export const SPECIAL_BALLON_DOR_PLAYERS: Player[] = [
     isLegendary: true,
     stats: { pace: 86, shooting: 88, passing: 98, dribbling: 88, defending: 102, physical: 98 },
   },
+  // Gianluigi Buffon - 102 (Juventus & World Cup Winner)
+  {
+    playerId: 'bd_special_buffon_2006',
+    personId: 'buffon',
+    playerName: 'Gianluigi Buffon (GOLDEN SPECIAL)',
+    nameJa: 'ジャンルイジ・ブッフォン (GOLDEN SPECIAL)',
+    nameEn: 'Gianluigi Buffon (GOLDEN SPECIAL)',
+    nameEs: 'Gianluigi Buffon (GOLDEN SPECIAL)',
+    clubId: 'juventus',
+    clubName: 'Juventus',
+    joiningYear: 2001,
+    position: 'GK',
+    subPosition: 'GK',
+    nationality: 'Italy',
+    nationalityJa: 'イタリア',
+    nationalityEn: 'Italy',
+    nationalityEs: 'Italia',
+    nationalityFlag: '🇮🇹',
+    rating: 102,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 70, shooting: 25, passing: 78, dribbling: 65, defending: 103, physical: 96 },
+  },
+  // Petr Čech - 101 (Chelsea Legendary Wall)
+  {
+    playerId: 'bd_special_cech_2004',
+    personId: 'cech',
+    playerName: 'Petr Čech (GOLDEN SPECIAL)',
+    nameJa: 'ペトル・チェフ (GOLDEN SPECIAL)',
+    nameEn: 'Petr Čech (GOLDEN SPECIAL)',
+    nameEs: 'Petr Čech (GOLDEN SPECIAL)',
+    clubId: 'chelsea',
+    clubName: 'Chelsea',
+    joiningYear: 2004,
+    position: 'GK',
+    subPosition: 'GK',
+    nationality: 'Czech Republic',
+    nationalityJa: 'チェコ',
+    nationalityEn: 'Czech Republic',
+    nationalityEs: 'República Checa',
+    nationalityFlag: '🇨🇿',
+    rating: 101,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 68, shooting: 22, passing: 75, dribbling: 62, defending: 102, physical: 95 },
+  },
+  // Edwin van der Sar - 102 (Manchester United Treble Hero)
+  {
+    playerId: 'bd_special_van_der_sar_2005',
+    personId: 'van_der_sar',
+    playerName: 'Edwin van der Sar (GOLDEN SPECIAL)',
+    nameJa: 'エトヴィン・ファン・デル・サール (GOLDEN SPECIAL)',
+    nameEn: 'Edwin van der Sar (GOLDEN SPECIAL)',
+    nameEs: 'Edwin van der Sar (GOLDEN SPECIAL)',
+    clubId: 'man_united',
+    clubName: 'Manchester United',
+    joiningYear: 2005,
+    position: 'GK',
+    subPosition: 'GK',
+    nationality: 'Netherlands',
+    nationalityJa: 'オランダ',
+    nationalityEn: 'Netherlands',
+    nationalityEs: 'Países Bajos',
+    nationalityFlag: '🇳🇱',
+    rating: 102,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 68, shooting: 24, passing: 84, dribbling: 66, defending: 103, physical: 94 },
+  },
+  // Paolo Maldini - 103 (AC Milan Unified All-Time Legend Defender)
+  {
+    playerId: 'bd_special_maldini_2003',
+    personId: 'p_maldini',
+    playerName: 'Paolo Maldini (GOLDEN SPECIAL)',
+    nameJa: 'パオロ・マルディーニ (GOLDEN SPECIAL)',
+    nameEn: 'Paolo Maldini (GOLDEN SPECIAL)',
+    nameEs: 'Paolo Maldini (GOLDEN SPECIAL)',
+    clubId: 'ac_milan',
+    clubName: 'AC Milan',
+    joiningYear: 2000,
+    position: 'DF',
+    subPosition: 'CB',
+    nationality: 'Italy',
+    nationalityJa: 'イタリア',
+    nationalityEn: 'Italy',
+    nationalityEs: 'Italia',
+    nationalityFlag: '🇮🇹',
+    rating: 103,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 88, shooting: 60, passing: 84, dribbling: 82, defending: 105, physical: 95 },
+  },
+  // Alessandro Nesta - 101 (AC Milan Art of Defending)
+  {
+    playerId: 'bd_special_nesta_2002',
+    personId: 'a_nesta',
+    playerName: 'Alessandro Nesta (GOLDEN SPECIAL)',
+    nameJa: 'アレッサンドロ・ネスタ (GOLDEN SPECIAL)',
+    nameEn: 'Alessandro Nesta (GOLDEN SPECIAL)',
+    nameEs: 'Alessandro Nesta (GOLDEN SPECIAL)',
+    clubId: 'ac_milan',
+    clubName: 'AC Milan',
+    joiningYear: 2002,
+    position: 'DF',
+    subPosition: 'CB',
+    nationality: 'Italy',
+    nationalityJa: 'イタリア',
+    nationalityEn: 'Italy',
+    nationalityEs: 'Italia',
+    nationalityFlag: '🇮🇹',
+    rating: 101,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 86, shooting: 45, passing: 78, dribbling: 76, defending: 103, physical: 92 },
+  },
+  // Roberto Carlos - 100 (Real Madrid Cannon Left Foot)
+  {
+    playerId: 'bd_special_roberto_carlos_1996',
+    personId: 'roberto_carlos',
+    playerName: 'Roberto Carlos (GOLDEN SPECIAL)',
+    nameJa: 'ロベルト・カルロス (GOLDEN SPECIAL)',
+    nameEn: 'Roberto Carlos (GOLDEN SPECIAL)',
+    nameEs: 'Roberto Carlos (GOLDEN SPECIAL)',
+    clubId: 'real_madrid',
+    clubName: 'Real Madrid',
+    joiningYear: 1996,
+    position: 'DF',
+    subPosition: 'LB',
+    nationality: 'Brazil',
+    nationalityJa: 'ブラジル',
+    nationalityEn: 'Brazil',
+    nationalityEs: 'Brasil',
+    nationalityFlag: '🇧🇷',
+    rating: 100,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 102, shooting: 96, passing: 90, dribbling: 90, defending: 92, physical: 96 },
+  },
+  // Cafu - 100 (AC Milan / Roma The Express Wingback)
+  {
+    playerId: 'bd_special_cafu_2003',
+    personId: 'cafu',
+    playerName: 'Cafu (GOLDEN SPECIAL)',
+    nameJa: 'カフー (GOLDEN SPECIAL)',
+    nameEn: 'Cafu (GOLDEN SPECIAL)',
+    nameEs: 'Cafú (GOLDEN SPECIAL)',
+    clubId: 'ac_milan',
+    clubName: 'AC Milan',
+    joiningYear: 2003,
+    position: 'DF',
+    subPosition: 'RB',
+    nationality: 'Brazil',
+    nationalityJa: 'ブラジル',
+    nationalityEn: 'Brazil',
+    nationalityEs: 'Brasil',
+    nationalityFlag: '🇧🇷',
+    rating: 100,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 98, shooting: 74, passing: 88, dribbling: 89, defending: 95, physical: 99 },
+  },
+  // Sergio Ramos - 102 (Real Madrid Decima Hero & Captain)
+  {
+    playerId: 'bd_special_sergio_ramos_2014',
+    personId: 'sergio_ramos',
+    playerName: 'Sergio Ramos (GOLDEN SPECIAL)',
+    nameJa: 'セルヒオ・ラモス (GOLDEN SPECIAL)',
+    nameEn: 'Sergio Ramos (GOLDEN SPECIAL)',
+    nameEs: 'Sergio Ramos (GOLDEN SPECIAL)',
+    clubId: 'real_madrid',
+    clubName: 'Real Madrid',
+    joiningYear: 2014,
+    position: 'DF',
+    subPosition: 'CB',
+    nationality: 'Spain',
+    nationalityJa: 'スペイン',
+    nationalityEn: 'Spain',
+    nationalityEs: 'España',
+    nationalityFlag: '🇪🇸',
+    rating: 102,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 89, shooting: 76, passing: 86, dribbling: 82, defending: 104, physical: 98 },
+  },
+  // Franz Beckenbauer - 102 (Bayern Munich Der Kaiser)
+  {
+    playerId: 'bd_special_beckenbauer_1994',
+    personId: 'beckenbauer',
+    playerName: 'Franz Beckenbauer (GOLDEN SPECIAL)',
+    nameJa: 'フランツ・ベッケンバウアー (GOLDEN SPECIAL)',
+    nameEn: 'Franz Beckenbauer (GOLDEN SPECIAL)',
+    nameEs: 'Franz Beckenbauer (GOLDEN SPECIAL)',
+    clubId: 'bayern_munich',
+    clubName: 'Bayern Munich',
+    joiningYear: 1994,
+    position: 'DF',
+    subPosition: 'CB',
+    nationality: 'Germany',
+    nationalityJa: 'ドイツ',
+    nationalityEn: 'Germany',
+    nationalityEs: 'Alemania',
+    nationalityFlag: '🇩🇪',
+    rating: 102,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 90, shooting: 82, passing: 101, dribbling: 94, defending: 104, physical: 94 },
+  },
+  // Frank Rijkaard - 101 (AC Milan Dutch Trio Anchor)
+  {
+    playerId: 'bd_special_rijkaard_1990',
+    personId: 'rijkaard',
+    playerName: 'Frank Rijkaard (GOLDEN SPECIAL)',
+    nameJa: 'フランク・ライカールト (GOLDEN SPECIAL)',
+    nameEn: 'Frank Rijkaard (GOLDEN SPECIAL)',
+    nameEs: 'Frank Rijkaard (GOLDEN SPECIAL)',
+    clubId: 'ac_milan',
+    clubName: 'AC Milan',
+    joiningYear: 1990,
+    position: 'MF',
+    subPosition: 'CDM',
+    nationality: 'Netherlands',
+    nationalityJa: 'オランダ',
+    nationalityEn: 'Netherlands',
+    nationalityEs: 'Países Bajos',
+    nationalityFlag: '🇳🇱',
+    rating: 101,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 86, shooting: 82, passing: 94, dribbling: 88, defending: 103, physical: 99 },
+  },
+  // Patrick Vieira - 101 (Arsenal Invincibles Captain)
+  {
+    playerId: 'bd_special_vieira_1996',
+    personId: 'vieira',
+    playerName: 'Patrick Vieira (GOLDEN SPECIAL)',
+    nameJa: 'パトリック・ヴィエラ (GOLDEN SPECIAL)',
+    nameEn: 'Patrick Vieira (GOLDEN SPECIAL)',
+    nameEs: 'Patrick Vieira (GOLDEN SPECIAL)',
+    clubId: 'arsenal',
+    clubName: 'Arsenal',
+    joiningYear: 1996,
+    position: 'MF',
+    subPosition: 'CDM',
+    nationality: 'France',
+    nationalityJa: 'フランス',
+    nationalityEn: 'France',
+    nationalityEs: 'Francia',
+    nationalityFlag: '🇫🇷',
+    rating: 101,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 88, shooting: 80, passing: 92, dribbling: 87, defending: 103, physical: 102 },
+  },
+  // Jan Koller - 101 (Borussia Dortmund Giant Striker)
+  {
+    playerId: 'bd_special_koller_2001',
+    personId: 'jan_koller',
+    playerName: 'Jan Koller (GOLDEN SPECIAL)',
+    nameJa: 'ヤン・コレル (GOLDEN SPECIAL)',
+    nameEn: 'Jan Koller (GOLDEN SPECIAL)',
+    nameEs: 'Jan Koller (GOLDEN SPECIAL)',
+    clubId: 'dortmund',
+    clubName: 'Borussia Dortmund',
+    joiningYear: 2001,
+    position: 'FW',
+    subPosition: 'ST',
+    nationality: 'Czech Republic',
+    nationalityJa: 'チェコ',
+    nationalityEn: 'Czech Republic',
+    nationalityEs: 'República Checa',
+    nationalityFlag: '🇨🇿',
+    rating: 101,
+    category: 'LEGEND',
+    isLegendary: true,
+    stats: { pace: 82, shooting: 98, passing: 84, dribbling: 80, defending: 55, physical: 104 },
+  },
 ];
 
 /**
+ * Normalizes person identity to strictly prevent any duplicate real person
+ */
+function getCanonicalPersonKey(player: Player): string {
+  if (player.personId) {
+    const p = player.personId.toLowerCase().trim();
+    if (p.includes('ronaldo') && !p.includes('nazario')) return 'c_ronaldo';
+    if (p.includes('messi')) return 'messi';
+    if (p.includes('maldini')) return 'p_maldini';
+    return p;
+  }
+  return player.playerName
+    .replace(/\(.*?\)/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/**
  * Find 3 distinct Golden candidates (randomized, no fixed years/clubs)
+ * Strictly guarantees that no 2 candidates are the same real person
  */
 export function findGoldenCandidates(
   mode: GameMode,
@@ -1442,28 +1737,38 @@ export function findGoldenCandidates(
   excludePersonIds: string[] = [],
   count: number = 3
 ): Player[] {
+  const normExcludePersons = new Set(
+    excludePersonIds.map((id) => id.toLowerCase().trim())
+  );
+
   const eligible = SPECIAL_BALLON_DOR_PLAYERS.filter((p) => {
     if (excludePlayerIds.includes(p.playerId)) return false;
-    if (excludePersonIds.includes(p.personId)) return false;
+    const canonKey = getCanonicalPersonKey(p);
+    if (normExcludePersons.has(canonKey) || (p.personId && normExcludePersons.has(p.personId.toLowerCase()))) {
+      return false;
+    }
     if (mode === 'j1') {
       return ['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus'].includes(p.clubId);
     }
     return !['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus'].includes(p.clubId);
   });
 
-  const pool = (eligible.length >= count ? eligible : SPECIAL_BALLON_DOR_PLAYERS).filter(
-    (p) => !excludePlayerIds.includes(p.playerId) && !excludePersonIds.includes(p.personId)
-  );
+  const pool = (eligible.length >= count ? eligible : SPECIAL_BALLON_DOR_PLAYERS).filter((p) => {
+    if (excludePlayerIds.includes(p.playerId)) return false;
+    const canonKey = getCanonicalPersonKey(p);
+    return !normExcludePersons.has(canonKey) && !(p.personId && normExcludePersons.has(p.personId.toLowerCase()));
+  });
 
-  // Shuffle and pick unique players
+  // Shuffle and pick unique players ensuring NO duplicate real persons
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
   const picked: Player[] = [];
-  const pickedPersonIds = new Set<string>();
+  const pickedPersonKeys = new Set<string>();
 
   for (const player of shuffled) {
-    if (!pickedPersonIds.has(player.personId)) {
+    const canonKey = getCanonicalPersonKey(player);
+    if (!pickedPersonKeys.has(canonKey)) {
       picked.push(player);
-      pickedPersonIds.add(player.personId);
+      pickedPersonKeys.add(canonKey);
       if (picked.length >= count) break;
     }
   }

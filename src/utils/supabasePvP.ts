@@ -1062,14 +1062,14 @@ export async function fetchMatchHistoryFromSupabase(
 ): Promise<BetaMatchRecord[]> {
   const matchesMap = new Map<string, BetaMatchRecord>();
 
-  // 1. Load local matches (filter >= SEASON_1_START_MS)
+  // 1. Load local matches
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_MATCHES);
     if (raw) {
       const list: BetaMatchRecord[] = JSON.parse(raw);
       list.forEach((m) => {
         if (
-          m.timestamp >= SEASON_1_START_MS &&
+          m.timestamp > 0 &&
           (m.challengerUserId === currentUserId || m.opponentUserId === currentUserId)
         ) {
           matchesMap.set(m.id, {
@@ -1088,7 +1088,6 @@ export async function fetchMatchHistoryFromSupabase(
     const { data, error } = await supabase
       .from('matches')
       .select('*')
-      .gte('created_at', new Date(SEASON_1_START_MS).toISOString())
       .or(`challenger_id.eq.${currentUserId},opponent_id.eq.${currentUserId}`)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -1155,6 +1154,7 @@ export async function fetchWeeklyStandingsFromSupabase(
   const seasonInfo = getSeasonInfo(seasonNumber);
   const startTimeIso = new Date(seasonInfo.startDateMs).toISOString();
   const endTimeIso = new Date(seasonInfo.endDateMs).toISOString();
+  const queryStartTimeIso = seasonNumber <= 1 ? new Date(0).toISOString() : startTimeIso;
 
   // 1. Fetch all registered users
   const registeredUsers = await fetchAllRegisteredUsersFromSupabase(profile.userId);
@@ -1186,7 +1186,7 @@ export async function fetchWeeklyStandingsFromSupabase(
     let query = supabase
       .from('matches')
       .select('*')
-      .gte('created_at', startTimeIso)
+      .gte('created_at', queryStartTimeIso)
       .lte('created_at', endTimeIso)
       .order('created_at', { ascending: false })
       .limit(500);

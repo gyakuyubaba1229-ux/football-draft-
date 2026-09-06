@@ -1,8 +1,8 @@
 /**
  * Weekly Season Engine (JST UTC+9)
- * Season 1: 2026/09/02 (Wed) 00:00:00 JST 〜 2026/09/06 (Sun) 23:59:59 JST
- * Season 2: 2026/09/07 (Mon) 00:00:00 JST 〜 2026/09/13 (Sun) 23:59:59 JST
- * Subsequent seasons: Every Monday 00:00:00 JST 〜 Sunday 23:59:59 JST
+ * Season 1 (Special Schedule): 2026/09/06 (Sun) 00:00:00 JST 〜 2026/09/12 (Sat) 23:59:59.999 JST
+ * Season 2: 2026/09/13 (Sun) 00:00:00 JST 〜 2026/09/20 (Sun) 23:59:59.999 JST
+ * Subsequent seasons: Every Monday 00:00:00 JST 〜 Sunday 23:59:59.999 JST
  */
 import { Language } from '../types';
 
@@ -23,15 +23,21 @@ export interface SeasonInfo {
 }
 
 // JST Offset in milliseconds: +9 hours
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+export const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-// Season 1 Start in JST (2026-09-02 00:00:00 JST = 2026-09-01 15:00:00 UTC)
-export const SEASON_1_START_MS = Date.UTC(2026, 8, 1, 15, 0, 0); // 2026-09-02 00:00:00 JST
+// Season 1 Start in JST (2026-09-06 00:00:00 JST = 2026-09-05 15:00:00 UTC)
+export const SEASON_1_START_MS = Date.UTC(2026, 8, 5, 15, 0, 0); // 2026-09-06 00:00:00 JST
 
-// Season 1 End in JST (2026-09-06 23:59:59.999 JST = 2026-09-06 14:59:59.999 UTC)
-export const SEASON_1_END_MS = Date.UTC(2026, 8, 6, 14, 59, 59, 999);
+// Season 1 End in JST (2026-09-12 23:59:59.999 JST = 2026-09-12 14:59:59.999 UTC - Saturday special rule)
+export const SEASON_1_END_MS = Date.UTC(2026, 8, 12, 14, 59, 59, 999);
 
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// Season 2 Start in JST (2026-09-13 00:00:00 JST = 2026-09-12 15:00:00 UTC - Sunday)
+export const SEASON_2_START_MS = SEASON_1_END_MS + 1; // 2026-09-13 00:00:00 JST
+
+// Season 2 End in JST (2026-09-20 23:59:59.999 JST = 2026-09-20 14:59:59.999 UTC - Sunday)
+export const SEASON_2_END_MS = Date.UTC(2026, 8, 20, 14, 59, 59, 999);
+
+export const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Returns current timestamp converted to JST Date object
@@ -44,17 +50,17 @@ export function getNowJST(baseTimestamp: number = Date.now()): Date {
  * Determine which season a given UTC timestamp belongs to
  */
 export function getSeasonNumberForTimestamp(timestamp: number): number {
-  if (timestamp < SEASON_1_START_MS) {
-    return 1;
-  }
   if (timestamp <= SEASON_1_END_MS) {
     return 1;
   }
+  if (timestamp <= SEASON_2_END_MS) {
+    return 2;
+  }
   
-  // From Season 2 onwards
-  const diffAfterS1 = timestamp - (SEASON_1_END_MS + 1);
-  const weeksAfter = Math.floor(diffAfterS1 / ONE_WEEK_MS);
-  return 2 + Math.max(0, weeksAfter);
+  // From Season 3 onwards: Monday 00:00:00 JST to Sunday 23:59:59.999 JST
+  const diffAfterS2 = timestamp - (SEASON_2_END_MS + 1);
+  const weeksAfter = Math.floor(diffAfterS2 / ONE_WEEK_MS);
+  return 3 + Math.max(0, weeksAfter);
 }
 
 /**
@@ -67,9 +73,16 @@ export function getSeasonRange(seasonNum: number): { startMs: number; endMs: num
       endMs: SEASON_1_END_MS,
     };
   }
+  if (seasonNum === 2) {
+    return {
+      startMs: SEASON_2_START_MS,
+      endMs: SEASON_2_END_MS,
+    };
+  }
   
-  const offsetWeeks = seasonNum - 2;
-  const startMs = SEASON_1_END_MS + 1 + offsetWeeks * ONE_WEEK_MS;
+  // From Season 3 onwards
+  const offsetWeeks = seasonNum - 3;
+  const startMs = (SEASON_2_END_MS + 1) + offsetWeeks * ONE_WEEK_MS;
   const endMs = startMs + ONE_WEEK_MS - 1;
   
   return { startMs, endMs };

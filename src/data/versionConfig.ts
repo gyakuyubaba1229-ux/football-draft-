@@ -29,13 +29,48 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = 'VERSION 1.2.1';
+export const CURRENT_VERSION = 'VERSION 1.2.5';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
-    version: 'VERSION 1.2.1',
+    version: 'VERSION 1.2.5',
     releaseDate: '2026.09',
     isLatest: true,
+    titleJa: 'FOOTBALL DRAFT v1.2.5 週間ランキング強化・防衛スカッド・100+データベース実装',
+    titleEn: 'FOOTBALL DRAFT v1.2.5 Weekly Rankings, Defensive Squad & 100+ Database',
+    titleEs: 'FOOTBALL DRAFT v1.2.5 Rankings Semanales, Escuadrón Defensivo y Base 100+',
+    notesJa: [
+      '【週間ランキング本格強化＆永続化】毎週日曜23:59 JST自動更新。自分vs他人・他人vs自分の対戦結果を集計（勝敗・得失点差・勝点）、過去の週間ランキング履歴も閲覧可能に',
+      '【対戦防衛スカッド設定機能】MY TEAMからOVR対戦・戦術対戦で他ユーザーと対戦する際の「防衛スカッド」をワンタップで指定・保存可能に',
+      '【対戦シミュレーション拡充】試合展開演出にこぼれ球、フリーキック、コーナーキック、高速カウンター、さらに0.1%のオウンゴール判定を追加',
+      '【チームロック機能の完全保護】チームロック状態のチームは削除・解体できないように保護ガードを強化',
+      '【カスタムフォーメーション改善】自由配置後の「カスタムフォーメーション」名称保持および配置リセット時の選手欠落防止（必ず11人を安全維持）',
+      '【OVR 100+ 選手データベース一覧】「HOW TO PLAY（遊び方）」に、ゲームデータベースからOVR 100以上の選手を自動抽出する一覧タブを新設',
+      '【レジェンド選手総合値アップデート】ブッフォン(102)、チェフ(101)、ファン・デル・サール(102)、マルディーニ(103)、ネスタ(101)、R・カルロス(100)、カフー(100)、S・ラモス(102)、ベッケンバウアー(102)、ライカールト(101)、ヴィエラ(101)、ヤン・コレル(101)、メッシ2012(104)、ロナウド2008(104)を更新',
+      '【ゴールデン演出候補の重複防止】ゴールデン演出の候補3人に同一人物（別年度含む）が選ばれないよう人物正規化チェックを徹底',
+    ],
+    notesEn: [
+      'Weekly Rankings Overhaul: Automatic Sunday 23:59 JST reset tracking user matches (P/W/D/L, GD, PTS) with historical weekly archives.',
+      'Defensive Squad Selection: Choose and lock your defensive squad in MY TEAM for asynchronous OVR and tactical matchups against other users.',
+      'Enriched Match Simulation: Expanded goal action types (rebounds, free kicks, corner kicks, counter attacks, and 0.1% rare own goals).',
+      'Team Lock Safeguard: Locked teams are fully protected against accidental deletion.',
+      'Custom Formation Refinement: Reliable "Custom Formation" name persistence and safe position resets ensuring 11 players remain intact.',
+      '100+ Player Database: Dynamic real-time browser for all OVR 100+ players inside the "How To Play" menu.',
+      'Legend OVR Updates: Buffon (102), Čech (101), Van der Sar (102), Maldini (103), Nesta (101), R. Carlos (100), Cafu (100), Ramos (102), Beckenbauer (102), Rijkaard (101), Vieira (101), Koller (101), Messi 2012 (104), and Ronaldo 2008 (104).',
+      'Candidate Person Deduplication: Absolute protection against the same person appearing multiple times in Golden presentation choices.',
+    ],
+    notesEs: [
+      'Rankings Semanales Mejorados: Reinicio automático los domingos a las 23:59 JST con estadísticas completas e histórico semanal.',
+      'Escuadrón Defensivo: Configura y guarda tu equipo defensivo en MI EQUIPO para partidos contra otros usuarios.',
+      'Simulación de Partido Enriquecida: Nuevos tipos de goles (rebotes, tiros libres, córners, contraataques y 0.1% autogoles).',
+      'Protección de Bloqueo de Equipo: Los equipos bloqueados quedan protegidos contra eliminación.',
+      'Base de Datos 100+: Listado interactivo en "Cómo Jugar" que extrae dinámicamente a todos los jugadores con OVR 100+.',
+    ],
+  },
+  {
+    version: 'VERSION 1.2.1',
+    releaseDate: '2026.09',
+    isLatest: false,
     titleJa: 'FOOTBALL DRAFT v1.2.1 大型操作性・フォーメーション刷新',
     titleEn: 'FOOTBALL DRAFT v1.2.1 Tactical Freedom & Interaction Overhaul',
     titleEs: 'FOOTBALL DRAFT v1.2.1 Libertad Táctica y Renovación de Interacción',

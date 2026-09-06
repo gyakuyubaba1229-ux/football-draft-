@@ -13,6 +13,11 @@ import { getPersistentUserId, getSavedUserHandle } from './supabasePvP';
 import { getPlayerHeight } from '../data/playerHeights';
 import { getSeasonNumberForTimestamp } from './seasonEngine';
 import { getTeamEffectiveOvr } from './positionEngine';
+import {
+  getTacticalDefenseSquad,
+  getOVRDefenseSquad,
+  getTacticalDefenseTactics,
+} from './defenseSquadEngine';
 
 export const STORAGE_KEY_PVP_USER = 'FOOTBALL_DRAFT_PVP_USER_v113';
 export const STORAGE_KEY_PVP_MATCH_HISTORY = 'FOOTBALL_DRAFT_PVP_HISTORY_v113';
@@ -134,6 +139,9 @@ export function getCurrentUserProfile(
 ): BetaUserProfile {
   const persistentId = getPersistentUserId();
   const savedHandle = getSavedUserHandle();
+  const tacticalDef = getTacticalDefenseSquad(activeTeam || undefined, teams);
+  const ovrDef = getOVRDefenseSquad(activeTeam || undefined, teams);
+  const tacticalTactics = getTacticalDefenseTactics();
 
   try {
     const saved = localStorage.getItem(STORAGE_KEY_PVP_USER);
@@ -150,8 +158,10 @@ export function getCurrentUserProfile(
         userId: parsed.userId || persistentId,
         username: parsed.username || savedHandle,
         team: defenseTeam || parsed.team,
+        tacticalDefenseSquad: tacticalDef || parsed.tacticalDefenseSquad || defenseTeam || parsed.team,
+        ovrDefenseSquad: ovrDef || parsed.ovrDefenseSquad || defenseTeam || parsed.team,
         defenseSquadId: defSquadId || parsed.defenseSquadId,
-        tactics: parsed.tactics || DEFAULT_TACTICS,
+        tactics: tacticalTactics || parsed.tactics || DEFAULT_TACTICS,
       };
     }
   } catch (e) {
@@ -162,8 +172,10 @@ export function getCurrentUserProfile(
     userId: persistentId,
     username: savedHandle,
     team: activeTeam,
+    tacticalDefenseSquad: tacticalDef || activeTeam || undefined,
+    ovrDefenseSquad: ovrDef || activeTeam || undefined,
     defenseSquadId: activeTeam?.teamId,
-    tactics: DEFAULT_TACTICS,
+    tactics: tacticalTactics || DEFAULT_TACTICS,
     updatedAt: Date.now(),
   };
 }
@@ -675,8 +687,9 @@ export function simulateOVRMatch(
     lossPct: number;
   };
 } {
-  const activeChallengerTeam = challengerPlayingSquad || challenger.team;
-  const activeOpponentTeam = opponent.team;
+  const activeChallengerTeam =
+    challengerPlayingSquad || challenger.ovrDefenseSquad || challenger.team;
+  const activeOpponentTeam = opponent.ovrDefenseSquad || opponent.team;
 
   const challengerPlayers = activeChallengerTeam?.players || [];
   const opponentPlayers = activeOpponentTeam?.players || [];
@@ -848,12 +861,16 @@ export function simulateTacticalMatchHalf(
     aerialAdvantage?: number;
   };
 } {
-  const activeChallengerTeam = challengerPlayingSquad || challenger.team;
-  const activeOpponentTeam = opponent.team;
+  const activeChallengerTeam =
+    challengerPlayingSquad || challenger.tacticalDefenseSquad || challenger.team;
+  const activeOpponentTeam = opponent.tacticalDefenseSquad || opponent.team;
+
+  const opponentTactics =
+    (opponent.tacticalDefenseSquad as any)?.tactics || opponent.tactics;
 
   const tacticalEval = evaluateTacticalAdvantage(
     activeTactics,
-    opponent.tactics,
+    opponentTactics,
     activeChallengerTeam,
     activeOpponentTeam
   );

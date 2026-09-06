@@ -244,3 +244,15 @@ export function autoAssignSlot(
 
   return currentSlots;
 }
+
+/**
+ * Returns the MainPosition category (GK, DF, MF, FW) for a given role or position string
+ */
+export function getPositionCategory(role: string): MainPosition {
+  const r = (role || '').toUpperCase().trim();
+  if (r.includes('GK')) return 'GK';
+  if (r.includes('CB') || r.includes('LB') || r.includes('RB') || r.includes('WB') || r.includes('DF')) return 'DF';
+  if (r.includes('CM') || r.includes('DM') || r.includes('AM') || r.includes('LM') || r.includes('RM') || r.includes('MF')) return 'MF';
+  return 'FW';
+}
+

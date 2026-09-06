@@ -510,6 +510,8 @@ export interface BetaUserProfile {
   team: UserTeam | null;
   tactics: TeamTactics;
   defenseSquadId?: string;
+  tacticalDefenseSquad?: UserTeam | null;
+  ovrDefenseSquad?: UserTeam | null;
   updatedAt: number;
   isOnline?: boolean;
   lastSeen?: number;

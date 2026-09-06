@@ -15,6 +15,7 @@ import {
   detectBasePresetFromSlots,
   PRESET_FORMATIONS,
   getDisplayFormationName,
+  getPositionCategory,
 } from '../utils/formationUtils';
 import {
   getEFootballPositionFromCoords,
@@ -23,6 +24,7 @@ import {
   getTeamEffectiveOvr,
 } from '../utils/positionEngine';
 import { PlayerDetailModal } from './PlayerDetailModal';
+import { DefenseSquadModal } from './DefenseSquadModal';
 import {
   Share2,
   RotateCcw,
@@ -131,6 +133,9 @@ export const PitchView: React.FC<PitchViewProps> = ({
   const [isSwapMode, setIsSwapMode] = useState<boolean>(false);
   const [selectedSwapSourceSlotId, setSelectedSwapSourceSlotId] = useState<string | null>(null);
 
+  // Defense Squad Modal state (v1.2.5 independent defense squads)
+  const [isDefenseSquadModalOpen, setIsDefenseSquadModalOpen] = useState<boolean>(false);
+
   // Pointer event references for strictly separating Tap (<280ms) vs Drag
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pointerStateRef = useRef<{
@@ -150,45 +155,60 @@ export const PitchView: React.FC<PitchViewProps> = ({
       : formation;
   const baseSlots = FORMATIONS[currentPresetBase]?.slots || FORMATIONS['4-3-3'].slots;
 
-  // Resolve player slots to guarantee NO player in myTeam is ever unmapped or lost
+  // Resolve player slots: if playerSlots is empty (first load of new team), map players into slots.
+  // Once slots are established, respect empty slots (where playerSlots[slotId] is undefined or null).
   const resolvedPlayerSlots = useMemo(() => {
-    return remapPlayerSlots(myTeam, playerSlots, formation);
+    if (!playerSlots || Object.keys(playerSlots).length === 0) {
+      return remapPlayerSlots(myTeam, {}, formation);
+    }
+    // Retain user's actual slot placements, verifying players still belong to this squad
+    const valid: Record<string, string> = {};
+    const teamPlayerIds = new Set(myTeam.map((p) => p.playerId));
+    for (const [slotId, pId] of Object.entries(playerSlots)) {
+      if (pId && typeof pId === 'string' && teamPlayerIds.has(pId)) {
+        valid[slotId] = pId;
+      }
+    }
+    return valid;
   }, [myTeam, playerSlots, formation]);
 
-  // Keep parent playerSlots in sync if resolution assigned missing slots
+  // Only sync if playerSlots was completely empty and got initialized
   useEffect(() => {
-    if (myTeam.length > 0) {
-      const keysA = Object.keys(resolvedPlayerSlots);
-      const keysB = Object.keys(playerSlots);
-      const isIdentical =
-        keysA.length === keysB.length &&
-        keysA.every((k) => resolvedPlayerSlots[k] === playerSlots[k]);
-      if (!isIdentical) {
+    if (myTeam.length > 0 && (!playerSlots || Object.keys(playerSlots).length === 0)) {
+      if (Object.keys(resolvedPlayerSlots).length > 0) {
         onUpdateSlotAssignment(resolvedPlayerSlots);
       }
     }
   }, [resolvedPlayerSlots, playerSlots, onUpdateSlotAssignment, myTeam.length]);
 
-  // Active slots: any slot with customPositions overrides default coordinates in ANY formation
+  // Active slots: strictly includes all 11 base slots of the formation (occupied or empty).
+  // Custom positions override slot coordinates, ensuring exactly 11 slots are ever rendered.
   const activeSlots: PitchSlot[] = useMemo(() => {
-    return baseSlots.map((baseSlot) => {
-      if (customPositions[baseSlot.id]) {
-        const x = customPositions[baseSlot.id].x;
-        const y = customPositions[baseSlot.id].y;
-        const dynamicRole =
-          customPositions[baseSlot.id].role || getEFootballPositionFromCoords(x, y);
-        return {
+    const slotsMap = new Map<string, PitchSlot>();
+
+    baseSlots.forEach((baseSlot) => {
+      const pId = resolvedPlayerSlots[baseSlot.id];
+      const custom = (customPositions[baseSlot.id] || (pId ? customPositions[pId] : undefined)) as
+        | { x: number; y: number; role?: string }
+        | undefined;
+      if (custom) {
+        const x = custom.x;
+        const y = custom.y;
+        const dynamicRole = custom.role || getEFootballPositionFromCoords(x, y);
+        slotsMap.set(baseSlot.id, {
           ...baseSlot,
           x,
           y,
           role: dynamicRole,
-        };
+          pos: getPositionCategory(dynamicRole),
+        });
+      } else {
+        slotsMap.set(baseSlot.id, { ...baseSlot });
       }
-      return {
-        ...baseSlot,
-      };
     });
-  }, [baseSlots, customPositions]);
+
+    return Array.from(slotsMap.values());
+  }, [baseSlots, customPositions, resolvedPlayerSlots]);
 
   // Calculate team effective OVR in real-time
   const averageRating = useMemo(() => {
@@ -250,6 +270,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
 
     soundManager.playSlotStop();
 
+    // Swap the slot assignments
     const updated = {
       ...resolvedPlayerSlots,
       [slotAId]: playerBId,
@@ -257,7 +278,45 @@ export const PitchView: React.FC<PitchViewProps> = ({
     };
     onUpdateSlotAssignment(updated);
 
+    // Clean up any legacy playerId keys from customPositions (only slotIds should be stored)
+    if (customPositionsRef.current) {
+      const nextCustom = { ...customPositionsRef.current };
+      delete nextCustom[playerA.playerId];
+      delete nextCustom[playerB.playerId];
+      customPositionsRef.current = nextCustom;
+      onUpdateCustomPositions(nextCustom);
+    }
+
     setMoveNoticeToast(`⇄ ${playerA.playerName} と ${playerB.playerName} を入れ替えました`);
+    setTimeout(() => setMoveNoticeToast(null), 3000);
+  };
+
+  // ---------------------------------------------------------------------------
+  // MOVE TO EMPTY SLOT LOGIC (Pattern A: Player ↔ Empty Position Slot)
+  // ---------------------------------------------------------------------------
+  const executeMoveToEmptySlot = (sourceSlotId: string, emptySlotId: string) => {
+    const movingPlayerId = resolvedPlayerSlots[sourceSlotId];
+    const movingPlayer = myTeam.find((p) => p.playerId === movingPlayerId);
+    if (!movingPlayer) return;
+
+    soundManager.playSlotStop();
+
+    // Source slot becomes empty (playerId deleted), target slot gets moving player
+    const updated = { ...resolvedPlayerSlots };
+    delete updated[sourceSlotId];
+    updated[emptySlotId] = movingPlayerId;
+    onUpdateSlotAssignment(updated);
+
+    // Keep custom positions in sync - ensure NO playerId keys are stored
+    const nextCustom = { ...customPositionsRef.current };
+    delete nextCustom[movingPlayer.playerId];
+    customPositionsRef.current = nextCustom;
+    onUpdateCustomPositions(nextCustom);
+
+    const targetSlotObj = activeSlotsRef.current.find((s) => s.id === emptySlotId);
+    setMoveNoticeToast(
+      `📍 ${movingPlayer.playerName} を ${targetSlotObj?.role || '空きスロット'} へ移動しました（元の位置は空き枠）`
+    );
     setTimeout(() => setMoveNoticeToast(null), 3000);
   };
 
@@ -284,7 +343,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
   myTeamRef.current = myTeam;
 
   // ---------------------------------------------------------------------------
-  // INTERACTION HANDLING: ONE-TAP (<220ms, dist < 22px) vs HOLD+DRAG (>220ms)
+  // INTERACTION HANDLING: ONE-TAP (<260ms, dist < 20px) vs HOLD+DRAG (>=260ms)
   // ---------------------------------------------------------------------------
   const commitDropOrSwap = () => {
     if (isCommittingRef.current) return;
@@ -302,35 +361,71 @@ export const PitchView: React.FC<PitchViewProps> = ({
     setLongPressingSlotId(null);
 
     try {
-      if (targetSwapId && targetSwapId !== slotIdToCommit) {
-        // Swap players!
-        executeSwap(slotIdToCommit, targetSwapId);
+      const movingPlayer = myTeamRef.current.find(
+        (p) => p.playerId === resolvedPlayerSlotsRef.current[slotIdToCommit]
+      );
+      if (!movingPlayer) return;
+
+      // Check if dropped directly onto another slot (occupied or empty)
+      let finalTargetSwapId = targetSwapId;
+      if (!finalTargetSwapId && targetCoord) {
+        let closestDist = Infinity;
+        activeSlotsRef.current.forEach((s) => {
+          if (s.id === slotIdToCommit) return;
+          const dist = Math.hypot(targetCoord.x - s.x, targetCoord.y - s.y);
+          if (dist < 8.0 && dist < closestDist) {
+            closestDist = dist;
+            finalTargetSwapId = s.id;
+          }
+        });
+      }
+
+      if (finalTargetSwapId && finalTargetSwapId !== slotIdToCommit) {
+        const otherPlayerId = resolvedPlayerSlotsRef.current[finalTargetSwapId];
+        const otherPlayer = otherPlayerId
+          ? myTeamRef.current.find((p) => p.playerId === otherPlayerId)
+          : null;
+
+        if (otherPlayer) {
+          // === PATTERN B: 別の選手がいる場所 ===
+          // A選手をB選手の位置へドラッグ -> AとBの位置を交換 (A ↔ B)
+          executeSwap(slotIdToCommit, finalTargetSwapId);
+        } else {
+          // === PATTERN A: 空いているポジション枠 ===
+          // A選手を空いている枠へドラッグ -> A選手を空き位置へ移動、元の位置は空き枠になる！
+          executeMoveToEmptySlot(slotIdToCommit, finalTargetSwapId);
+        }
       } else if (targetCoord) {
-        // Drop in free pitch position!
+        // === PATTERN C: ピッチ上の自由なX/Y相対座標へ配置 ===
         const dynamicRole = getEFootballPositionFromCoords(targetCoord.x, targetCoord.y);
+
         const nextCustom = {
           ...customPositionsRef.current,
-          [slotIdToCommit]: { x: targetCoord.x, y: targetCoord.y, role: dynamicRole },
+          [slotIdToCommit]: {
+            x: targetCoord.x,
+            y: targetCoord.y,
+            role: dynamicRole,
+          },
         };
+        // Clean up any legacy playerId keys
+        delete nextCustom[movingPlayer.playerId];
+
+        customPositionsRef.current = nextCustom;
         onUpdateCustomPositions(nextCustom);
 
-        const movingPlayer = myTeamRef.current.find(
-          (p) => p.playerId === resolvedPlayerSlotsRef.current[slotIdToCommit]
-        );
-        if (movingPlayer) {
-          soundManager.playButtonClick();
-          const evalResult = evaluatePlayerAtPosition(movingPlayer, dynamicRole);
-          if (evalResult.ratingDelta < 0) {
-            setMoveNoticeToast(
-              `📍 ${movingPlayer.playerName} を自由移動しました (${dynamicRole} 適正外 OVR ${evalResult.ratingDelta})`
-            );
-          } else {
-            setMoveNoticeToast(`📍 ${movingPlayer.playerName} を ${dynamicRole} に自由配置しました`);
-          }
-          setTimeout(() => setMoveNoticeToast(null), 3000);
+        soundManager.playButtonClick();
+        const evalResult = evaluatePlayerAtPosition(movingPlayer, dynamicRole);
+        if (evalResult.ratingDelta < 0) {
+          setMoveNoticeToast(
+            `📍 ${movingPlayer.playerName} を自由移動しました (${dynamicRole} 適正外 OVR ${evalResult.ratingDelta})`
+          );
+        } else {
+          setMoveNoticeToast(`📍 ${movingPlayer.playerName} を ${dynamicRole} に自由配置しました`);
         }
+        setTimeout(() => setMoveNoticeToast(null), 3000);
       }
     } finally {
+      document.body.style.overflow = '';
       setTimeout(() => {
         isCommittingRef.current = false;
       }, 80);
@@ -366,20 +461,26 @@ export const PitchView: React.FC<PitchViewProps> = ({
 
       setDragCoord({ x: clampedX, y: clampedY });
 
-      // Proximity check for SWAP highlight (threshold: 12%)
-      let nearestOtherSlotId: string | null = null;
-      let minDistance = 12;
+      // Overlapping check for SWAP or MOVE TO EMPTY SLOT
+      let overlappingOtherSlotId: string | null = null;
+      let minOverlapDist = Infinity;
 
       activeSlotsRef.current.forEach((otherSlot) => {
         if (otherSlot.id === draggingSlotIdRef.current) return;
-        const d = Math.hypot(clampedX - otherSlot.x, clampedY - otherSlot.y);
-        if (d < minDistance) {
-          minDistance = d;
-          nearestOtherSlotId = otherSlot.id;
+
+        const dx = Math.abs(clampedX - otherSlot.x);
+        const dy = Math.abs(clampedY - otherSlot.y);
+        const dist = Math.hypot(dx, dy);
+
+        if (dx < 8.0 && dy < 9.0 && dist < 8.5) {
+          if (dist < minOverlapDist) {
+            minOverlapDist = dist;
+            overlappingOtherSlotId = otherSlot.id;
+          }
         }
       });
 
-      setHoveredSwapSlotId(nearestOtherSlotId);
+      setHoveredSwapSlotId(overlappingOtherSlotId);
     };
 
     const handleWindowEnd = () => {
@@ -394,6 +495,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
     window.addEventListener('touchcancel', handleWindowEnd, { passive: false });
 
     return () => {
+      document.body.style.overflow = '';
       window.removeEventListener('pointermove', handleWindowMove);
       window.removeEventListener('pointerup', handleWindowEnd);
       window.removeEventListener('pointercancel', handleWindowEnd);
@@ -449,13 +551,14 @@ export const PitchView: React.FC<PitchViewProps> = ({
       clearTimeout(pressTimerRef.current);
     }
 
-    // 220ms threshold: Quick tap opens details modal; Hold enters drag mode
+    // 260ms threshold: Quick tap opens details modal; Hold enters drag mode
     pressTimerRef.current = setTimeout(() => {
       if (!pointerStateRef.current) return;
 
       pointerStateRef.current.isLongPressTriggered = true;
       setLongPressingSlotId(null);
       setDraggingSlotId(slotId);
+      document.body.style.overflow = 'hidden';
 
       const slotObj = activeSlotsRef.current.find((s) => s.id === slotId);
       if (slotObj) {
@@ -468,7 +571,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
 
       soundManager.playButtonClick();
       setMoveNoticeToast('ドラッグしてピッチ上に自由配置、または選手に重ねて入れ替え');
-    }, 220);
+    }, 260);
   };
 
   const handlePointerOrTouchMove = (clientX: number, clientY: number) => {
@@ -479,9 +582,9 @@ export const PitchView: React.FC<PitchViewProps> = ({
       clientY - pointerStateRef.current.startY
     );
 
-    // If moved before 220ms, only cancel long-press if finger moved beyond micro-tremor threshold (22px)
+    // If moved before 260ms, only cancel long-press if finger moved beyond micro-tremor threshold (20px)
     if (!pointerStateRef.current.isLongPressTriggered) {
-      if (dist > 22) {
+      if (dist > 20) {
         pointerStateRef.current.hasMoved = true;
         setLongPressingSlotId(null);
         if (pressTimerRef.current) {
@@ -502,23 +605,31 @@ export const PitchView: React.FC<PitchViewProps> = ({
 
       setDragCoord({ x: clampedX, y: clampedY });
 
-      let nearestOtherSlotId: string | null = null;
-      let minDistance = 12;
+      // Overlapping check for SWAP or MOVE TO EMPTY SLOT
+      let overlappingOtherSlotId: string | null = null;
+      let minOverlapDist = Infinity;
 
       activeSlotsRef.current.forEach((otherSlot) => {
         if (otherSlot.id === draggingSlotIdRef.current) return;
-        const d = Math.hypot(clampedX - otherSlot.x, clampedY - otherSlot.y);
-        if (d < minDistance) {
-          minDistance = d;
-          nearestOtherSlotId = otherSlot.id;
+
+        const dx = Math.abs(clampedX - otherSlot.x);
+        const dy = Math.abs(clampedY - otherSlot.y);
+        const dist = Math.hypot(dx, dy);
+
+        if (dx < 8.0 && dy < 9.0 && dist < 8.5) {
+          if (dist < minOverlapDist) {
+            minOverlapDist = dist;
+            overlappingOtherSlotId = otherSlot.id;
+          }
         }
       });
 
-      setHoveredSwapSlotId(nearestOtherSlotId);
+      setHoveredSwapSlotId(overlappingOtherSlotId);
     }
   };
 
   const handlePointerOrTouchEnd = (slotId: string, clientX: number, clientY: number) => {
+    document.body.style.overflow = '';
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
@@ -537,8 +648,37 @@ export const PitchView: React.FC<PitchViewProps> = ({
 
     const dist = Math.hypot(clientX - pState.startX, clientY - pState.startY);
 
-    // 1. ONE-TAP DETECTED: Tap duration < 220ms AND movement < 22px -> Open Player Details
-    if (!pState.isLongPressTriggered && dist < 22) {
+    // 1. ONE-TAP DETECTED: Tap duration < 260ms AND movement < 20px
+    if (!pState.isLongPressTriggered && dist < 20) {
+      if (isSwapMode) {
+        if (selectedSwapSourceSlotId) {
+          if (selectedSwapSourceSlotId === slotId) {
+            setSelectedSwapSourceSlotId(null);
+          } else {
+            const pAId = resolvedPlayerSlots[selectedSwapSourceSlotId];
+            const pBId = resolvedPlayerSlots[slotId];
+            if (pAId && pBId) {
+              executeSwap(selectedSwapSourceSlotId, slotId);
+            } else if (pAId && !pBId) {
+              executeMoveToEmptySlot(selectedSwapSourceSlotId, slotId);
+            } else if (!pAId && pBId) {
+              executeMoveToEmptySlot(slotId, selectedSwapSourceSlotId);
+            }
+            setSelectedSwapSourceSlotId(null);
+          }
+        } else {
+          setSelectedSwapSourceSlotId(slotId);
+          const p = myTeam.find((pl) => pl.playerId === resolvedPlayerSlots[slotId]);
+          const s = activeSlots.find((sl) => sl.id === slotId);
+          setMoveNoticeToast(
+            p
+              ? `「${p.playerName}」を選択中。入替先の選手または空き枠をタップしてください`
+              : `空き枠「${s?.role || 'ポジション'}」を選択中。移動させたい選手をタップしてください`
+          );
+        }
+        return;
+      }
+
       const pId = resolvedPlayerSlots[slotId];
       const player = myTeam.find((p) => p.playerId === pId);
       if (player) {
@@ -549,6 +689,12 @@ export const PitchView: React.FC<PitchViewProps> = ({
           role: slot?.role || player.position,
           slotId,
         });
+      } else {
+        const slot = activeSlots.find((s) => s.id === slotId);
+        setMoveNoticeToast(
+          `空き枠: ${slot?.role || 'ポジション'} （選手をドラッグするか「⇄ 選手入替」モードで配置できます）`
+        );
+        setTimeout(() => setMoveNoticeToast(null), 2500);
       }
       return;
     }
@@ -671,6 +817,9 @@ export const PitchView: React.FC<PitchViewProps> = ({
     }
 
     const basePreset = formation === 'CUSTOM' ? '4-3-3' : formation;
+    if (formation === 'CUSTOM') {
+      onChangeFormation('4-3-3');
+    }
     onUpdateCustomPositions({});
     const defaultSlots = remapPlayerSlots(myTeam, {}, basePreset);
     onUpdateSlotAssignment(defaultSlots);
@@ -771,7 +920,16 @@ export const PitchView: React.FC<PitchViewProps> = ({
           {/* Delete Team Button */}
           {onDeleteTeam && teams.length > 1 && activeTeamId && (
             <button
-              onClick={() => setTeamToDelete(activeTeamId)}
+              onClick={() => {
+                const target = teams.find((tItem) => tItem.teamId === activeTeamId);
+                if (target?.isLocked) {
+                  soundManager.playError();
+                  setLockNoticeToast('🔒 このチームはロックされています。削除するには先にロックを解除してください。');
+                  setTimeout(() => setLockNoticeToast(null), 3500);
+                  return;
+                }
+                setTeamToDelete(activeTeamId);
+              }}
               title={t.deleteTeam}
               className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
             >
@@ -833,6 +991,19 @@ export const PitchView: React.FC<PitchViewProps> = ({
                 {chemistry}%
               </div>
             </div>
+
+            {/* Defense Squad Settings Button (v1.2.5) */}
+            <button
+              id="btn-open-defense-squad-modal"
+              onClick={() => {
+                soundManager.playButtonClick();
+                setIsDefenseSquadModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-heading font-black text-xs tracking-wider shadow-lg shadow-indigo-500/25 border border-indigo-400/40 transition-all cursor-pointer"
+            >
+              <Shield className="w-4 h-4 text-indigo-200" />
+              <span>🛡️ 対戦守備設定</span>
+            </button>
 
             {/* Share / Copy Button */}
             <button
@@ -1071,6 +1242,23 @@ export const PitchView: React.FC<PitchViewProps> = ({
             const posX = isBeingDragged && dragCoord ? dragCoord.x : slot.x;
             const posY = isBeingDragged && dragCoord ? dragCoord.y : slot.y;
 
+            // Check if an empty slot is physically overlapped by another player on the pitch
+            const isCoveredByOtherPlayer =
+              !player &&
+              activeSlots.some((other) => {
+                if (other.id === slot.id) return false;
+                const otherPlayerId = resolvedPlayerSlots[other.id];
+                if (!otherPlayerId) return false;
+                const otherX = draggingSlotId === other.id && dragCoord ? dragCoord.x : other.x;
+                const otherY = draggingSlotId === other.id && dragCoord ? dragCoord.y : other.y;
+                return Math.hypot(otherX - slot.x, otherY - slot.y) < 7.0;
+              });
+
+            // If empty slot is covered by another player and not being hovered for drop, hide it completely to prevent overlap
+            if (!player && isCoveredByOtherPlayer && !isHoveredForSwap) {
+              return null;
+            }
+
             return (
               <div
                 key={slot.id}
@@ -1204,12 +1392,41 @@ export const PitchView: React.FC<PitchViewProps> = ({
                     );
                   })()
                 ) : (
-                  /* Empty Slot */
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl border-2 border-dashed border-white/30 bg-black/40 text-slate-300 hover:border-emerald-400/60 flex flex-col items-center justify-center text-center transition-all">
-                    <span className="text-[10px] sm:text-xs font-black tracking-widest uppercase">
+                  /* Empty Slot (v1.2.5 enhanced: clear position indicator, swap candidate badges, hover glow) */
+                  <div
+                    className={`w-12 h-12 sm:w-16 sm:h-16 rounded-2xl border-2 flex flex-col items-center justify-center text-center transition-all relative ${
+                      isHoveredForSwap
+                        ? 'border-emerald-400 bg-emerald-950/80 ring-4 ring-emerald-400 shadow-2xl scale-110 animate-pulse text-emerald-200'
+                        : isSwapSource
+                        ? 'border-amber-400 bg-amber-950/80 ring-4 ring-amber-400 shadow-2xl scale-110 text-amber-200'
+                        : isSwapTargetCandidate
+                        ? 'border-emerald-500/80 bg-emerald-950/40 ring-2 ring-emerald-400 text-emerald-300 hover:scale-105'
+                        : 'border-dashed border-white/30 bg-black/50 text-slate-300 hover:border-emerald-400/70 hover:bg-black/70'
+                    }`}
+                  >
+                    {isHoveredForSwap && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-slate-950 px-1.5 py-0.2 rounded-full text-[8px] font-black whitespace-nowrap shadow-md flex items-center gap-0.5">
+                        <span>⬇</span>
+                        <span>ここに移動</span>
+                      </div>
+                    )}
+
+                    {isSwapSource && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full text-[8px] font-black whitespace-nowrap shadow-md">
+                        移動元 (空き)
+                      </div>
+                    )}
+
+                    {isSwapTargetCandidate && !isHoveredForSwap && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-slate-950 px-1 py-0.2 rounded text-[7px] font-black whitespace-nowrap shadow-md">
+                        タップで配置
+                      </div>
+                    )}
+
+                    <span className="text-[11px] sm:text-xs font-black tracking-widest uppercase text-emerald-400">
                       {slot.role}
                     </span>
-                    <span className="text-[8px] opacity-60">EMPTY</span>
+                    <span className="text-[8px] font-mono opacity-60">EMPTY</span>
                   </div>
                 )}
               </div>
@@ -1382,33 +1599,87 @@ export const PitchView: React.FC<PitchViewProps> = ({
       {/* 8. DELETE TEAM MODAL */}
       {teamToDelete && onDeleteTeam && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="font-heading font-black text-base text-white">{t.deleteTeam}</h3>
-            <p className="text-xs text-slate-300">{t.deleteTeamConfirm}</p>
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                onClick={() => setTeamToDelete(null)}
-                className="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
-              >
-                {t.cancel}
-              </button>
-              <button
-                onClick={() => {
-                  soundManager.playButtonClick();
-                  onDeleteTeam(teamToDelete);
-                  setTeamToDelete(null);
-                }}
-                className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md cursor-pointer"
-              >
-                {t.confirm}
-              </button>
-            </div>
-          </div>
+          {(() => {
+            const targetTeam = teams.find((t) => t.teamId === teamToDelete);
+            const isLocked = targetTeam?.isLocked ?? false;
+
+            if (isLocked) {
+              return (
+                <div className="bg-slate-900 border border-amber-500/40 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-center animate-fadeIn">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+                    <Lock className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-heading font-black text-base text-white">
+                    このチームはロックされています
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    ロック中のチームは削除できません。チーム設定からロックを解除してから削除してください。
+                  </p>
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setTeamToDelete(null)}
+                      className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer transition-colors"
+                    >
+                      {t.close || '閉じる'}
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-center">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <h3 className="font-heading font-black text-base text-white">{t.deleteTeam}</h3>
+                <p className="text-xs text-slate-300">{t.deleteTeamConfirm}</p>
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    onClick={() => setTeamToDelete(null)}
+                    className="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (targetTeam?.isLocked) {
+                        setTeamToDelete(null);
+                        return;
+                      }
+                      soundManager.playButtonClick();
+                      onDeleteTeam(teamToDelete);
+                      setTeamToDelete(null);
+                    }}
+                    className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md cursor-pointer"
+                  >
+                    {t.confirm}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
+
+      {/* 8. Defense Squad Modal (v1.2.5 Independent Tactical & OVR Defense Squad Settings) */}
+      <DefenseSquadModal
+        isOpen={isDefenseSquadModalOpen}
+        onClose={() => setIsDefenseSquadModalOpen(false)}
+        activeTeam={
+          currentTeam || {
+            teamId: activeTeamId || 'team_1',
+            teamNumber: currentTeamNumber,
+            name: `TEAM ${currentTeamNumber}`,
+            formation,
+            players: myTeam,
+            playerSlots: resolvedPlayerSlots,
+            customPositions,
+          }
+        }
+        teams={teams}
+        language={language}
+      />
     </div>
   );
 };

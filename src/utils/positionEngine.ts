@@ -324,8 +324,9 @@ export function getTeamEffectiveOvr(team?: Partial<UserTeam> | null): number {
     if (!player) return;
 
     let targetPos: EFootballPosition;
-    if (customPositions[slot.id]) {
-      targetPos = getEFootballPositionFromCoords(customPositions[slot.id].x, customPositions[slot.id].y);
+    const custom = customPositions[slot.id] || (pId ? customPositions[pId] : undefined);
+    if (custom) {
+      targetPos = getEFootballPositionFromCoords(custom.x, custom.y);
     } else {
       targetPos = normalizeRoleToEFootball(slot.role);
     }

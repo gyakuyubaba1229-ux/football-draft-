@@ -396,8 +396,14 @@ export default function App() {
     setCurrentView('draft');
   };
 
-  // DELETE TEAM
+  // DELETE TEAM (Strictly protect locked teams)
   const handleDeleteTeam = (teamId: string) => {
+    const target = teams.find((tItem) => tItem.teamId === teamId);
+    if (!target) return;
+    if (target.isLocked) {
+      console.warn('Cannot delete locked team:', teamId);
+      return;
+    }
     if (teams.length <= 1) return;
     const filtered = teams.filter((tItem) => tItem.teamId !== teamId);
     setTeams(filtered);
@@ -432,11 +438,17 @@ export default function App() {
     setAcquiredPlayerBanner(null);
   };
 
-  // Reset ALL game data (Teams + Draft). HISTORY remains completely preserved!
+  // Reset ALL game data (Teams + Draft). HISTORY remains completely preserved! Locked teams are strictly protected!
   const handleResetGame = () => {
-    const freshTeam = createDefaultTeam(1, mode);
-    setTeams([freshTeam]);
-    setActiveTeamId(freshTeam.teamId);
+    const lockedTeams = teams.filter((t) => t.isLocked);
+    let nextTeams: UserTeam[];
+    if (lockedTeams.length > 0) {
+      nextTeams = lockedTeams;
+    } else {
+      nextTeams = [createDefaultTeam(1, mode)];
+    }
+    setTeams(nextTeams);
+    setActiveTeamId(nextTeams[0].teamId);
 
     setSelectedYear(null);
     setSelectedClub(null);
@@ -452,7 +464,11 @@ export default function App() {
 
     try {
       localStorage.removeItem(STORAGE_KEY_CURRENT_DRAFT);
-      localStorage.removeItem(STORAGE_KEY_TEAMS);
+      if (lockedTeams.length > 0) {
+        localStorage.setItem(STORAGE_KEY_TEAMS, JSON.stringify(lockedTeams));
+      } else {
+        localStorage.removeItem(STORAGE_KEY_TEAMS);
+      }
       localStorage.removeItem(LEGACY_STORAGE_KEY_SAVED_SQUAD);
     } catch (e) {
       // ignore

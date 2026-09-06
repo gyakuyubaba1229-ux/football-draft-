@@ -8,6 +8,7 @@ import { J1_PLAYERS_MODERN } from './playersJ1Modern';
 import { J1_PLAYERS_SQUAD } from './playersJ1Squad';
 import { J1_LEGENDS_EXPANDED } from './playersLegendsJ1';
 import { EUROPEAN_CLUBS, J1_CLUBS, ALL_CLUBS } from './clubs';
+import { SPECIAL_BALLON_DOR_PLAYERS } from './legendaryEraDatabase';
 
 // Helper to normalize and auto-assign categories if omitted
 function normalizePlayer(p: Player): Player {
@@ -48,6 +49,7 @@ export const COMBINED_EUROPEAN_PLAYERS: Player[] = deduplicatePlayers([
   ...EUROPEAN_PLAYERS_MODERN,
   ...EUROPEAN_PLAYERS_SQUAD,
   ...EUROPEAN_LEGENDS_EXPANDED,
+  ...SPECIAL_BALLON_DOR_PLAYERS.filter((p) => !['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus'].includes(p.clubId)),
 ]);
 
 export const COMBINED_J1_PLAYERS: Player[] = deduplicatePlayers([
@@ -55,9 +57,26 @@ export const COMBINED_J1_PLAYERS: Player[] = deduplicatePlayers([
   ...J1_PLAYERS_MODERN,
   ...J1_PLAYERS_SQUAD,
   ...J1_LEGENDS_EXPANDED,
+  ...SPECIAL_BALLON_DOR_PLAYERS.filter((p) => ['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus'].includes(p.clubId)),
 ]);
 
 export const ALL_PLAYERS: Player[] = [...COMBINED_EUROPEAN_PLAYERS, ...COMBINED_J1_PLAYERS];
+
+/**
+ * Returns all players with rating >= 100 dynamically extracted from the database,
+ * sorted by rating in descending order.
+ */
+export function getOver100Players(): Player[] {
+  const map = new Map<string, Player>();
+  for (const p of ALL_PLAYERS) {
+    if (p.rating >= 100) {
+      if (!map.has(p.playerId)) {
+        map.set(p.playerId, p);
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.rating - a.rating);
+}
 
 // Validate database integrity on module load to guarantee zero bugs
 export function validateDatabaseIntegrity(): { valid: boolean; errors: string[] } {
