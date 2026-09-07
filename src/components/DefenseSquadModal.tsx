@@ -144,11 +144,30 @@ export const DefenseSquadModal: React.FC<DefenseSquadModalProps> = ({
       : formation;
   const baseSlots = FORMATIONS[currentPresetBase]?.slots || FORMATIONS['4-3-3'].slots;
 
+  // Fully resolved defense slots ensuring 100% of squad players are assigned
+  const resolvedDefenseSlots = useMemo(() => {
+    const slots = { ...(playerSlots || {}) };
+    const assigned = new Set(Object.values(slots));
+    const unassigned = myTeam.filter((p) => !assigned.has(p.playerId));
+    if (unassigned.length > 0) {
+      const openSlots = baseSlots.filter((s) => !slots[s.id]);
+      for (const p of unassigned) {
+        if (openSlots.length > 0) {
+          const target = openSlots.shift()!;
+          slots[target.id] = p.playerId;
+        } else {
+          slots[`slot_def_${p.playerId}`] = p.playerId;
+        }
+      }
+    }
+    return slots;
+  }, [playerSlots, myTeam, baseSlots]);
+
   // Active slots map: strictly 11 base slots
   const activeSlots: DefensePitchSlot[] = useMemo(() => {
     const slotsMap = new Map<string, DefensePitchSlot>();
     baseSlots.forEach((bSlot) => {
-      const pId = playerSlots[bSlot.id];
+      const pId = resolvedDefenseSlots[bSlot.id];
       const custom = customPositions[bSlot.id] || (pId ? customPositions[pId] : undefined);
       if (custom) {
         const x = custom.x;
@@ -166,8 +185,25 @@ export const DefenseSquadModal: React.FC<DefenseSquadModalProps> = ({
       }
     });
 
+    // Also include any extra slots
+    Object.entries(resolvedDefenseSlots).forEach(([slotId, pId]) => {
+      if (pId && !slotsMap.has(slotId)) {
+        const custom = customPositions[slotId];
+        const x = custom?.x ?? 50;
+        const y = custom?.y ?? 50;
+        const dynamicRole = custom?.role || getEFootballPositionFromCoords(x, y);
+        slotsMap.set(slotId, {
+          id: slotId,
+          role: dynamicRole,
+          pos: getPositionCategory(dynamicRole),
+          x,
+          y,
+        });
+      }
+    });
+
     return Array.from(slotsMap.values());
-  }, [baseSlots, customPositions, playerSlots]);
+  }, [baseSlots, customPositions, resolvedDefenseSlots]);
 
   // Current squad effective OVR
   const effectiveOvr = useMemo(() => {

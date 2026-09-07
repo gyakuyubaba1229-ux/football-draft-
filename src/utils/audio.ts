@@ -510,6 +510,16 @@ class SoundManager {
     osc.start();
     osc.stop(ctx.currentTime + 0.15);
   }
+
+  // Fanfare for special scout reward acquisition
+  public playFanfare() {
+    this.playDraftAcquired();
+  }
+
+  // Lever pull / start for special scout
+  public playSlotLever() {
+    this.playSpinTick();
+  }
 }
 
 export const soundManager = new SoundManager();

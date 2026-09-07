@@ -44,6 +44,22 @@ import { saveLockedTeamToSupabase } from './utils/supabasePvP';
 import { CelebrationModal } from './components/CelebrationModal';
 import { ShareModal } from './components/ShareModal';
 import { UpdateNotesModal } from './components/UpdateNotesModal';
+import { GiftBoxModal } from './components/GiftBoxModal';
+import { RewardScoutModal } from './components/RewardScoutModal';
+import {
+  getStoredUserTickets,
+  getStoredPresents,
+  claimPresentBoxItem,
+  claimAllPresentBoxItems,
+  consumeScoutTicket,
+  ensureApologyGiftDistributed,
+  getTotalTicketsCount,
+  PresentBoxItem,
+  UserRewardTickets,
+  ScoutTicketType,
+} from './utils/rewardScoutEngine';
+import { checkAndPerformV130RankingReset } from './utils/supabasePvP';
+import { getCurrentUserProfile } from './utils/pvpEngine';
 import { CURRENT_VERSION } from './data/versionConfig';
 import { DEFAULT_X_CHAR_LIMIT, STORAGE_KEY_X_CHAR_LIMIT } from './utils/shareUtils';
 import { autoAssignSlot, remapPlayerSlots } from './utils/formationUtils';
@@ -324,6 +340,49 @@ export default function App() {
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState<boolean>(false);
   const [isUpdateNotesOpen, setIsUpdateNotesOpen] = useState<boolean>(false);
   const [sharingTeam, setSharingTeam] = useState<UserTeam | null>(null);
+
+  // Modals for Gift Box and Reward Scout
+  const [isGiftBoxOpen, setIsGiftBoxOpen] = useState<boolean>(false);
+  const [isRewardScoutOpen, setIsRewardScoutOpen] = useState<boolean>(false);
+  const [rewardTickets, setRewardTickets] = useState<UserRewardTickets>(() => getStoredUserTickets());
+  const [presents, setPresents] = useState<PresentBoxItem[]>([]);
+
+  // User Profile for persistent rewards
+  const userProfile = useMemo(() => getCurrentUserProfile(activeTeam, teams), [activeTeam, teams]);
+
+  // Initial mount: v1.3.0 ranking reset & apology gift
+  useEffect(() => {
+    // 1. Perform v1.3.0 ranking reset (wipes only matches/rankings, strictly preserves all other data)
+    checkAndPerformV130RankingReset();
+
+    // 2. Distribute apology gift "Legend 20% Scout x1" to all users
+    if (userProfile.userId) {
+      ensureApologyGiftDistributed(userProfile.userId);
+      const loadedPresents = getStoredPresents(userProfile.userId);
+      setPresents(loadedPresents);
+    }
+    setRewardTickets(getStoredUserTickets());
+  }, [userProfile.userId]);
+
+  const handleClaimGift = (giftId: string) => {
+    const updatedPresents = claimPresentBoxItem(giftId, userProfile.userId);
+    setPresents(updatedPresents);
+    setRewardTickets(getStoredUserTickets());
+  };
+
+  const handleClaimAllGifts = () => {
+    const updatedPresents = claimAllPresentBoxItems(userProfile.userId);
+    setPresents(updatedPresents);
+    setRewardTickets(getStoredUserTickets());
+  };
+
+  const handleConsumeTicket = (ticketType: ScoutTicketType): boolean => {
+    const success = consumeScoutTicket(ticketType);
+    if (success) {
+      setRewardTickets(getStoredUserTickets());
+    }
+    return success;
+  };
 
   // Language & Sound handlers
   const handleLanguageChange = (newLang: Language) => {
@@ -721,6 +780,19 @@ export default function App() {
 
     const newPlayers = [...activeTeam.players, player];
     const newSlots = autoAssignSlot(player, activeTeam.playerSlots, activeTeam.formation);
+    
+    // Double safeguard: ensure player.playerId is 100% assigned in newSlots
+    if (!Object.values(newSlots).includes(player.playerId)) {
+      const basePreset = activeTeam.formation === 'CUSTOM' ? '4-3-3' : activeTeam.formation;
+      const fSlots = FORMATIONS[basePreset]?.slots || FORMATIONS['4-3-3'].slots;
+      const openSlot = fSlots.find((s) => !newSlots[s.id]);
+      if (openSlot) {
+        newSlots[openSlot.id] = player.playerId;
+      } else {
+        newSlots[`slot_extra_${Date.now()}`] = player.playerId;
+      }
+    }
+
     const isCompleted = newPlayers.length === 11;
 
     const updatedTeam: UserTeam = {
@@ -795,6 +867,40 @@ export default function App() {
     }
   };
 
+  const handleAcquireScoutPlayer = (player: Player) => {
+    soundManager.playFanfare();
+    if (activeTeam.players.length < 11) {
+      handleDraftPlayer(player);
+    } else {
+      const incompleteTeam = teams.find((t) => t.players.length < 11);
+      if (incompleteTeam) {
+        setActiveTeamId(incompleteTeam.teamId);
+        const newPlayers = [...incompleteTeam.players, player];
+        const newSlots = autoAssignSlot(player, incompleteTeam.playerSlots, incompleteTeam.formation);
+        const isCompleted = newPlayers.length === 11;
+        const updated: UserTeam = {
+          ...incompleteTeam,
+          players: newPlayers,
+          playerSlots: newSlots,
+          isCompleted,
+          completedAt: isCompleted ? Date.now() : incompleteTeam.completedAt,
+        };
+        setTeams((prev) => prev.map((t) => (t.teamId === incompleteTeam.teamId ? updated : t)));
+      } else {
+        const newTeamNum = teams.length + 1;
+        const newTeam = createDefaultTeam(newTeamNum, activeTeam.mode);
+        newTeam.players = [player];
+        newTeam.playerSlots = autoAssignSlot(player, {}, newTeam.formation);
+        setTeams((prev) => [...prev, newTeam]);
+        setActiveTeamId(newTeam.teamId);
+      }
+    }
+    setAcquiredPlayerBanner(player);
+    setTimeout(() => {
+      setAcquiredPlayerBanner(null);
+    }, 2800);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950 font-sans">
       {/* Main Top Header */}
@@ -812,6 +918,10 @@ export default function App() {
         onOpenHowToPlay={() => setIsHowToPlayOpen(true)}
         soundEnabled={soundEnabled}
         onToggleSound={handleToggleSound}
+        onOpenGiftBox={() => setIsGiftBoxOpen(true)}
+        onOpenScoutModal={() => setIsRewardScoutOpen(true)}
+        unclaimedGiftsCount={presents.filter((p) => !p.claimed).length}
+        totalTicketsCount={getTotalTicketsCount(rewardTickets)}
       />
 
       {/* Main App Body */}
@@ -825,6 +935,10 @@ export default function App() {
             onOpenHowToPlay={() => setIsHowToPlayOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenUpdateNotes={() => setIsUpdateNotesOpen(true)}
+            onOpenGiftBox={() => setIsGiftBoxOpen(true)}
+            onOpenScoutModal={() => setIsRewardScoutOpen(true)}
+            unclaimedGiftsCount={presents.filter((p) => !p.claimed).length}
+            totalTicketsCount={getTotalTicketsCount(rewardTickets)}
             teams={teams}
             activeTeam={activeTeam}
             myTeam={activeTeam.players}
@@ -1039,10 +1153,33 @@ export default function App() {
             activeTeam={activeTeam}
             teams={teams}
             language={language}
+            onBackToDraft={() => setCurrentView('draft')}
             onNavigate={(tab) => setCurrentView(tab)}
           />
         )}
       </main>
+
+      {/* Gift Box Modal */}
+      <GiftBoxModal
+        isOpen={isGiftBoxOpen}
+        onClose={() => setIsGiftBoxOpen(false)}
+        presents={presents}
+        onClaim={handleClaimGift}
+        onClaimAll={handleClaimAllGifts}
+        onGoToScout={() => {
+          setIsGiftBoxOpen(false);
+          setIsRewardScoutOpen(true);
+        }}
+      />
+
+      {/* Reward Scout Modal */}
+      <RewardScoutModal
+        isOpen={isRewardScoutOpen}
+        onClose={() => setIsRewardScoutOpen(false)}
+        tickets={rewardTickets}
+        onConsumeTicket={handleConsumeTicket}
+        onAcquirePlayer={handleAcquireScoutPlayer}
+      />
 
       {/* Mode Select Modal (Pop-up on "PLAY / SPIN DRAFT" or mode change) */}
       <ModeSelectModal

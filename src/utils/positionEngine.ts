@@ -118,6 +118,28 @@ export function getVerifiedPositionsForPlayer(player: Player): EFootballPosition
     return VERIFIED_PLAYER_POSITIONS[player.playerId];
   }
 
+  // Explicit check for Beckenbauer (CB, DMF, CMF)
+  const pName = (player.playerName || '').toLowerCase();
+  const pNameJa = player.nameJa || '';
+  if (
+    pNameJa.includes('ベッケンバウアー') ||
+    pName.includes('beckenbauer') ||
+    player.personId === 'beckenbauer' ||
+    player.personId === 'f_beckenbauer'
+  ) {
+    return ['CB', 'DMF', 'CMF'];
+  }
+
+  // Explicit check for Sergio Ramos (CB, RB/RSB, DMF)
+  if (
+    pNameJa.includes('ラモス') ||
+    pName.includes('ramos') ||
+    player.personId === 'sergio_ramos' ||
+    player.personId === 's_ramos'
+  ) {
+    return ['CB', 'RB', 'DMF'];
+  }
+
   // 3. Fallback based on verified subPosition
   const subPos = (player.subPosition || player.position || '').toUpperCase();
   if (SUB_POSITION_COMPATIBILITY[subPos]) {

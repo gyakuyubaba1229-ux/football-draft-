@@ -44,6 +44,11 @@ export const VERIFIED_PLAYER_POSITIONS: Record<string, EFootballPosition[]> = {
   l_modric: ['CMF', 'AMF', 'DMF', 'LMF', 'RMF'],
   t_kroos: ['CMF', 'DMF', 'AMF', 'LMF'],
   s_ramos: ['CB', 'RB', 'DMF'],
+  sergio_ramos: ['CB', 'RB', 'DMF'],
+  bd_special_sergio_ramos_2014: ['CB', 'RB', 'DMF'],
+  beckenbauer: ['CB', 'DMF', 'CMF'],
+  f_beckenbauer: ['CB', 'DMF', 'CMF'],
+  bd_special_beckenbauer_1994: ['CB', 'DMF', 'CMF'],
   p_maldini: ['LB', 'CB', 'RB', 'LWB'],
   a_nesta: ['CB', 'RB'],
   f_cannavaro: ['CB', 'RB'],
@@ -318,7 +323,6 @@ export const VERIFIED_PLAYER_POSITIONS: Record<string, EFootballPosition[]> = {
   danilo_juv: ['CB', 'RB', 'LB', 'DMF'],
   
   // Bayern Munich
-  f_beckenbauer: ['CB', 'DMF', 'CMF'],
   g_muller: ['CF'],
   k_h_rummenigge: ['CF', 'SS', 'RWG', 'LWG'],
   l_matthaus: ['DMF', 'CMF', 'CB', 'AMF'],

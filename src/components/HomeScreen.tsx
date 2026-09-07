@@ -15,6 +15,8 @@ import {
   Plus,
   FileText,
   Swords,
+  Gift,
+  Ticket,
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -24,6 +26,10 @@ interface HomeScreenProps {
   onOpenHowToPlay: () => void;
   onOpenSettings: () => void;
   onOpenUpdateNotes?: () => void;
+  onOpenGiftBox?: () => void;
+  onOpenScoutModal?: () => void;
+  unclaimedGiftsCount?: number;
+  totalTicketsCount?: number;
   teams?: UserTeam[];
   activeTeam?: UserTeam;
   myTeam: Player[];
@@ -47,6 +53,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   language,
   onCreateNewTeam,
   hasActiveSpin,
+  onOpenGiftBox,
+  onOpenScoutModal,
+  unclaimedGiftsCount = 0,
+  totalTicketsCount = 0,
 }) => {
   const t = TRANSLATIONS[language];
   const isInProgress = myTeam.length < 11 || hasActiveSpin;
@@ -278,6 +288,69 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
           <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
         </button>
+
+        {/* 5.5 REWARD SCOUT & PRESENT BOX ROW */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* REWARD SCOUT */}
+          <button
+            id="btn-home-scout"
+            onClick={() => {
+              soundManager.playButtonClick();
+              if (onOpenScoutModal) onOpenScoutModal();
+            }}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-950/90 to-slate-900 border border-indigo-500/40 hover:border-indigo-400 text-white font-heading font-bold text-sm tracking-wide transition-all flex items-center justify-between group shadow-lg shadow-indigo-950/30"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center border border-indigo-500/30 shrink-0">
+                <Ticket className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-black leading-tight flex items-center gap-1.5">
+                  <span>スカウト</span>
+                  {totalTicketsCount > 0 && (
+                    <span className="text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-sm animate-pulse">
+                      {totalTicketsCount}枚
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-400 font-normal">
+                  報酬スカウト
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-300 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
+          {/* PRESENT BOX */}
+          <button
+            id="btn-home-gift-box"
+            onClick={() => {
+              soundManager.playButtonClick();
+              if (onOpenGiftBox) onOpenGiftBox();
+            }}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-950/70 to-slate-900 border border-amber-500/40 hover:border-amber-400 text-white font-heading font-bold text-sm tracking-wide transition-all flex items-center justify-between group shadow-lg shadow-amber-950/30"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/30 shrink-0">
+                <Gift className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-black leading-tight flex items-center gap-1.5">
+                  <span>BOX</span>
+                  {unclaimedGiftsCount > 0 && (
+                    <span className="text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full bg-rose-500 text-white shadow-sm animate-bounce">
+                      {unclaimedGiftsCount}件
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-400 font-normal">
+                  プレゼント
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
 
         {/* 6. SETTINGS */}
         <button

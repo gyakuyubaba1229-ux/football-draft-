@@ -8,7 +8,9 @@ export type SubPosition =
   | 'GK' 
   | 'CB' | 'LB' | 'RB' | 'LWB' | 'RWB'
   | 'CDM' | 'CM' | 'CAM' | 'LM' | 'RM'
-  | 'LW' | 'RW' | 'CF' | 'ST';
+  | 'DMF' | 'CMF' | 'AMF' | 'LMF' | 'RMF'
+  | 'LW' | 'RW' | 'CF' | 'ST' | 'SS'
+  | 'LWG' | 'RWG';
 
 export interface Club {
   id: string;
@@ -25,7 +27,7 @@ export interface Club {
   badgeSymbol: string;
 }
 
-export type PlayerCategory = 'YOUNG' | 'MID' | 'VETERAN' | 'STAR' | 'LEGEND' | 'NORMAL';
+export type PlayerCategory = 'YOUNG' | 'MID' | 'VETERAN' | 'STAR' | 'LEGEND' | 'NORMAL' | 'STANDARD' | 'PURPLE_ACTIVE';
 
 export interface PlayerStats {
   pace: number;
@@ -444,11 +446,13 @@ export type BlackBallSpinType =
   | 'gold-shine'
   | 'gold-spark'
   | 'golden-ballon-dor'
-  | 'golden-lightning-ballon-dor';
+  | 'golden-lightning-ballon-dor'
+  | 'purple-spark'
+  | 'purple-neon';
 
-export type SpecialStagingType = 'none' | 'black' | 'gold' | 'ballon_dor';
+export type SpecialStagingType = 'none' | 'black' | 'gold' | 'ballon_dor' | 'purple';
 
-export type DraftStagingRarity = 'normal' | 'black' | 'gold';
+export type DraftStagingRarity = 'normal' | 'black' | 'gold' | 'purple';
 
 export interface PositionCounts {
   GK: number;
@@ -536,6 +540,7 @@ export interface BetaMatchRecord {
   matchType: 'OVR' | 'TACTICAL';
   matchCategory?: 'REALTIME' | 'ASYNC';
   season?: number;
+  weekId?: string;
   challengerScore: number;
   opponentScore: number;
   result: 'WIN' | 'DRAW' | 'LOSS';
@@ -586,6 +591,46 @@ export interface CurrentDraftState {
   isBlackBallResult: boolean;
   isGoldenResult?: boolean;
   isGoldResult?: boolean;
+}
+
+export type RewardTicketType =
+  | 'legend_20'
+  | 'legend_50'
+  | 'legend_guaranteed'
+  | 'purple_20'
+  | 'purple_50'
+  | 'purple_guaranteed'
+  | 'legend_purple_guaranteed'
+  | 'legend_purple_50';
+
+export interface GiftBoxItem {
+  id: string;
+  weekId?: string;
+  userId: string;
+  title: string;
+  description: string;
+  rewardType: RewardTicketType;
+  amount: number;
+  isClaimed: boolean;
+  claimedAt?: number;
+  createdAt: number;
+  rank?: number;
+}
+
+export interface PastWeeklyRankingHistory {
+  weekId: string;
+  weekLabel: string;
+  startDateMs: number;
+  endDateMs: number;
+  standings: BetaStandingEntry[];
+  finalizedAt: number;
+  rewardRecipients: {
+    rank: 1 | 2 | 3;
+    userId: string;
+    username: string;
+    rewardType: RewardTicketType;
+    rewardLabel: string;
+  }[];
 }
 
 

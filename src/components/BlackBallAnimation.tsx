@@ -5,7 +5,7 @@ import { soundManager } from '../utils/audio';
 import { getVerifiedPositionsForPlayer } from '../utils/positionEngine';
 import { Zap, Sparkles, Star, Award, Crown } from 'lucide-react';
 
-export type SpecialAnimationType = 'black' | 'gold';
+export type SpecialAnimationType = 'black' | 'gold' | 'purple';
 
 interface BlackBallAnimationProps {
   language: Language;
@@ -22,7 +22,8 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
 }) => {
   const t = TRANSLATIONS[language];
   const isGold = type === 'gold';
-  const isBlack = !isGold;
+  const isPurple = type === 'purple';
+  const isBlack = type === 'black';
 
   const [phase, setPhase] = useState<'initial' | 'lightning-burst' | 'sphere-spin' | 'legend-reveal'>('initial');
 
@@ -41,6 +42,33 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
       const revealTimer = setTimeout(() => {
         setPhase('legend-reveal');
         soundManager.playGoldenFanfare();
+      }, 1700);
+
+      const endTimer = setTimeout(() => {
+        onAnimationEnd();
+      }, 3800);
+
+      return () => {
+        clearTimeout(lightningTimer);
+        clearTimeout(spinTimer);
+        clearTimeout(revealTimer);
+        clearTimeout(endTimer);
+      };
+    } else if (isPurple) {
+      // Purple Staging (8% Modern Active Superstars)
+      soundManager.playBlackBallAura();
+      const lightningTimer = setTimeout(() => {
+        setPhase('lightning-burst');
+        soundManager.playLightningElectricBuzz();
+      }, 350);
+
+      const spinTimer = setTimeout(() => {
+        setPhase('sphere-spin');
+      }, 900);
+
+      const revealTimer = setTimeout(() => {
+        setPhase('legend-reveal');
+        soundManager.playVictory();
       }, 1700);
 
       const endTimer = setTimeout(() => {
@@ -81,7 +109,7 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
         clearTimeout(endTimer);
       };
     }
-  }, [isGold, onAnimationEnd]);
+  }, [isGold, isPurple, onAnimationEnd]);
 
   // Multilingual display helpers
   const getLocalizedText = (ja?: string, en?: string, es?: string) => {
@@ -109,7 +137,11 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
       {phase === 'lightning-burst' && (
         <div
           className={`absolute inset-0 pointer-events-none transition-opacity ${
-            isGold ? 'bg-yellow-300/40 animate-ping' : 'bg-purple-300/40 animate-ping'
+            isGold
+              ? 'bg-yellow-300/40 animate-ping'
+              : isPurple
+              ? 'bg-fuchsia-400/40 animate-ping'
+              : 'bg-purple-300/40 animate-ping'
           }`}
         />
       )}
@@ -120,6 +152,11 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
           <>
             <div className="w-[500px] h-[500px] sm:w-[750px] sm:h-[750px] rounded-full bg-gradient-to-tr from-amber-500/30 via-yellow-400/40 to-amber-600/30 blur-3xl animate-spin" />
             <div className="absolute w-[300px] h-[300px] sm:w-[450px] sm:h-[450px] rounded-full bg-yellow-300/30 blur-2xl animate-pulse" />
+          </>
+        ) : isPurple ? (
+          <>
+            <div className="w-[500px] h-[500px] sm:w-[750px] sm:h-[750px] rounded-full bg-gradient-to-tr from-purple-600/35 via-fuchsia-600/35 to-indigo-700/35 blur-3xl animate-spin" />
+            <div className="absolute w-[320px] h-[320px] sm:w-[480px] sm:h-[480px] rounded-full bg-fuchsia-500/25 blur-2xl animate-pulse" />
           </>
         ) : (
           <>
@@ -144,6 +181,17 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
         </div>
       )}
 
+      {isPurple && phase !== 'initial' && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 left-1/5 w-1.5 h-full bg-gradient-to-b from-fuchsia-400 via-purple-500 to-transparent opacity-80 animate-pulse" />
+          <div className="absolute top-0 right-1/5 w-1.5 h-full bg-gradient-to-b from-purple-400 via-indigo-500 to-transparent opacity-80 animate-ping" />
+          <div className="absolute top-14 left-12 text-fuchsia-400 text-3xl animate-bounce">⚡</div>
+          <div className="absolute top-20 right-16 text-purple-300 text-4xl animate-pulse">🟣</div>
+          <div className="absolute bottom-24 left-20 text-violet-300 text-3xl animate-spin">✦</div>
+          <div className="absolute bottom-28 right-20 text-fuchsia-300 text-4xl animate-bounce">⚡</div>
+        </div>
+      )}
+
       {isBlack && phase !== 'initial' && (
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-16 left-12 text-purple-400 text-3xl animate-ping">⚡</div>
@@ -163,6 +211,12 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
               <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
               <span>1.8% SPECIAL LEGEND • GOLDEN</span>
               <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
+            </div>
+          ) : isPurple ? (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-900/90 via-fuchsia-900/90 to-purple-900/90 border-2 border-fuchsia-400 text-fuchsia-200 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_25px_rgba(217,70,239,0.7)]">
+              <Sparkles className="w-4 h-4 text-fuchsia-300 fill-fuchsia-300 animate-pulse" />
+              <span>8% PURPLE SPECIAL • ACTIVE SUPERSTAR</span>
+              <Sparkles className="w-4 h-4 text-fuchsia-300 fill-fuchsia-300 animate-pulse" />
             </div>
           ) : (
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/90 border-2 border-purple-500/60 text-purple-300 font-heading font-black text-xs sm:text-sm tracking-widest uppercase shadow-[0_0_20px_rgba(168,85,247,0.6)]">
@@ -188,6 +242,19 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
                 </span>
               </div>
             </div>
+          ) : isPurple ? (
+            /* PURPLE BALL SPHERE */
+            <div className="relative flex items-center justify-center">
+              <div className="absolute inset-0 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-fuchsia-600 via-purple-500 to-indigo-600 animate-spin blur-2xl opacity-90 shadow-[0_0_60px_rgba(192,38,211,0.9)]" />
+              <div className="relative w-32 h-32 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-purple-950 via-fuchsia-900 to-indigo-950 border-4 border-fuchsia-400 shadow-[inset_0_0_25px_rgba(244,114,182,0.6),0_0_45px_rgba(192,38,211,0.9)] flex flex-col items-center justify-center transform transition-transform animate-pulse">
+                <span className="text-5xl sm:text-7xl drop-shadow-[0_0_20px_rgba(232,121,249,1)] animate-spin">
+                  🟣
+                </span>
+                <span className="text-[10px] sm:text-xs font-heading font-black text-white uppercase tracking-widest bg-fuchsia-900/90 px-2.5 py-0.5 rounded-full mt-1 border border-fuchsia-400">
+                  PURPLE
+                </span>
+              </div>
+            </div>
           ) : (
             /* BLACK BALL SPHERE */
             <div className="relative flex items-center justify-center">
@@ -209,10 +276,12 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
           className={`font-heading font-black text-xl sm:text-3xl tracking-wide mb-2 ${
             isGold
               ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-100 via-yellow-200 to-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]'
+              : isPurple
+              ? 'text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-200 via-purple-300 to-indigo-200 drop-shadow-[0_0_20px_rgba(217,70,239,0.7)]'
               : 'text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-purple-300 to-indigo-200 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]'
           }`}
         >
-          {isGold ? '✨ ゴールデン演出発動！ ✨' : '⚡ 黒玉演出発動！ ⚡'}
+          {isGold ? '✨ ゴールデン演出発動！ ✨' : isPurple ? '🟣 紫演出発動！ 🟣' : '⚡ 黒玉演出発動！ ⚡'}
         </h2>
 
         {/* Real Player Showcase Card during Reveal */}
@@ -221,6 +290,8 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
             className={`w-full mt-2 p-3.5 sm:p-4 rounded-2xl border text-left transition-all animate-fade-in ${
               isGold
                 ? 'bg-slate-900/90 border-amber-400/80 shadow-xl shadow-amber-500/25'
+                : isPurple
+                ? 'bg-slate-900/90 border-fuchsia-500/80 shadow-xl shadow-fuchsia-500/30'
                 : 'bg-slate-900/90 border-purple-500/60 shadow-xl shadow-purple-500/20'
             }`}
           >
@@ -230,8 +301,14 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
                   <span className="text-xl sm:text-2xl">{player.nationalityFlag}</span>
                   <div>
                     <div className="text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1 text-amber-300">
-                      {isGold ? <Sparkles className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5 text-purple-400" />}
-                      <span>{isGold ? 'GOLDEN TARGET PLAYER' : 'BLACK BALL SUPERSTAR'}</span>
+                      {isGold ? (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      ) : isPurple ? (
+                        <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
+                      ) : (
+                        <Zap className="w-3.5 h-3.5 text-purple-400" />
+                      )}
+                      <span>{isGold ? 'GOLDEN TARGET PLAYER' : isPurple ? 'PURPLE ACTIVE SUPERSTAR' : 'BLACK BALL SUPERSTAR'}</span>
                     </div>
                     <h3 className="font-heading font-black text-lg sm:text-xl text-white">
                       {playerName}
@@ -241,7 +318,7 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
 
                 <div className="text-right">
                   <div className="text-[10px] font-mono text-slate-400 uppercase">OVR RATING</div>
-                  <div className={`text-xl sm:text-2xl font-mono font-black ${isGold ? 'text-amber-300' : 'text-purple-300'}`}>
+                  <div className={`text-xl sm:text-2xl font-mono font-black ${isGold ? 'text-amber-300' : isPurple ? 'text-fuchsia-300' : 'text-purple-300'}`}>
                     {player.rating}
                   </div>
                 </div>
@@ -252,7 +329,13 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
                   <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-mono">
                     {player.joiningYear} {clubName}
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-black">
+                  <span className={`px-2 py-0.5 rounded border text-[10px] font-mono font-black ${
+                    isGold
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : isPurple
+                      ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30'
+                      : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                  }`}>
                     {player.subPosition || player.position}
                   </span>
                 </div>
@@ -282,6 +365,8 @@ export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
           <p className="text-xs sm:text-sm text-slate-200 font-medium max-w-md">
             {isGold
               ? '【確率1.8%】選ばれし伝説の選手が登場！特別なゴールデン選手が降臨します。'
+              : isPurple
+              ? '【確率8.0%】世界最高峰の現役スーパースター（OVR 98〜101）が降臨！'
               : '【確率1.8%】超激レア黒玉が出現！最高峰のレジェンド・スーパースターが候補に加わります。'}
           </p>
         )}

@@ -326,16 +326,20 @@ export function computeWeeklyStandings(
 
   const list = Array.from(allUsersMap.values());
 
-  // Sort by:
+  // Sort by strictly deterministic tiebreaker:
   // 1. Points DESC
   // 2. Goal Difference DESC
   // 3. Goals For DESC
-  // 4. Team OVR DESC
+  // 4. Total Wins DESC
+  // 5. Team OVR DESC
+  // 6. User ID deterministic fallback
   list.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
     if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-    return b.teamOvr - a.teamOvr;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (b.teamOvr !== a.teamOvr) return b.teamOvr - a.teamOvr;
+    return a.userId.localeCompare(b.userId);
   });
 
   return list.map((entry, idx) => ({ ...entry, rank: idx + 1 }));

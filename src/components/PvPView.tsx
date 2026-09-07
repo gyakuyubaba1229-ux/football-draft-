@@ -25,7 +25,10 @@ import {
   getSeasonInfo,
   formatSeasonPeriod,
   getHistoricalSeasons,
+  isSeasonInAggregationPhase,
+  isSeasonFinalized,
 } from '../utils/seasonEngine';
+import { getStoredPastRankings, distributeWeeklyRewardsForWeek } from '../utils/rewardScoutEngine';
 import {
   initSupabasePvP,
   registerOrUpdateUserInSupabase,
@@ -39,6 +42,7 @@ import {
   fetchWeeklyStandingsFromSupabase,
   checkAndPerformV113Migration,
   migrateLocalStorageToSupabase,
+  subscribeToMatchUpdates,
 } from '../utils/supabasePvP';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
@@ -256,6 +260,33 @@ export const PvPView: React.FC<PvPViewProps> = ({
       loadStandingsData(selectedSeason, standingsFilter);
     }
   }, [activeTab, selectedSeason, standingsFilter]);
+
+  // Live Supabase Realtime synchronization and 30s periodic polling
+  useEffect(() => {
+    const unsubscribe = subscribeToMatchUpdates(() => {
+      loadStandingsData(selectedSeason, standingsFilter);
+      fetchMatchHistoryFromSupabase(userProfile.userId).then((hist) => setMatchHistory(hist));
+    });
+
+    const interval = setInterval(() => {
+      if (activeTab === 'standings') {
+        loadStandingsData(selectedSeason, standingsFilter);
+      }
+    }, 30000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [selectedSeason, standingsFilter, activeTab, userProfile.userId]);
+
+  // Check and execute automatic reward distribution when season is finalized
+  useEffect(() => {
+    const seasonInfo = getSeasonInfo(selectedSeason);
+    if (seasonInfo.phase === 'FINALIZED' && weeklyStandings.length > 0) {
+      distributeWeeklyRewardsForWeek(seasonInfo.weekId, selectedSeason, weeklyStandings);
+    }
+  }, [selectedSeason, weeklyStandings]);
 
   // Register / Save Username to Supabase
   const handleSaveUsername = async (e?: React.FormEvent) => {
@@ -1043,6 +1074,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
               const oppOvr = getTeamEffectiveOvr(preMatchOpponent.team);
               const ovrOdds = calculateOVRMatchOdds(myOvr, oppOvr);
               const isAlreadyMatched = isOpponentMatchedInPhase(preMatchOpponent.userId);
+              const isSquadIncomplete = (activePlayingSquad.players?.length || 0) < 11;
 
               return (
                 <div className="space-y-3 pt-1">
@@ -1093,8 +1125,37 @@ export const PvPView: React.FC<PvPViewProps> = ({
                     </div>
                   )}
 
+                  {/* Squad Incomplete Alert (11-player requirement) */}
+                  {isSquadIncomplete && (
+                    <div className="p-3.5 rounded-2xl bg-rose-950/60 border-2 border-rose-500/50 text-rose-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn shadow-lg">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                        <div>
+                          <div className="font-heading font-black text-rose-200">
+                            対戦不可: 11人揃っていないチームでは対戦できません
+                          </div>
+                          <div className="text-[11px] text-rose-300/90 mt-0.5">
+                            現在の使用スカッド人数: <strong className="text-white">{activePlayingSquad.players?.length || 0} / 11名</strong>。ドラフトで11人獲得してください。
+                          </div>
+                        </div>
+                      </div>
+                      {onBackToDraft && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsPreMatchOpen(false);
+                            onBackToDraft();
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-slate-950 font-heading font-black text-xs whitespace-nowrap shadow-md cursor-pointer transition-transform active:scale-95 shrink-0"
+                        >
+                          ドラフトで揃える →
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* Duplicate Match Warning in Same Phase */}
-                  {isAlreadyMatched && (
+                  {!isSquadIncomplete && isAlreadyMatched && (
                     <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2 animate-fadeIn">
                       <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
                       <span>
@@ -1107,9 +1168,9 @@ export const PvPView: React.FC<PvPViewProps> = ({
                   <div>
                     <button
                       id="btn-confirm-kickoff"
-                      disabled={isAlreadyMatched}
+                      disabled={isSquadIncomplete || isAlreadyMatched}
                       onClick={() => {
-                        if (isAlreadyMatched) return;
+                        if (isSquadIncomplete || isAlreadyMatched) return;
                         if (preMatchMode === 'OVR') {
                           startOVRMatch(preMatchOpponent, activePlayingSquad, preMatchCategory);
                         } else {
@@ -1117,12 +1178,19 @@ export const PvPView: React.FC<PvPViewProps> = ({
                         }
                       }}
                       className={`w-full py-3.5 rounded-2xl font-heading font-black text-base tracking-wider flex items-center justify-center gap-2 transition-all ${
-                        isAlreadyMatched
+                        isSquadIncomplete
+                          ? 'bg-rose-950/40 text-rose-400 border border-rose-800/60 cursor-not-allowed'
+                          : isAlreadyMatched
                           ? 'bg-slate-800/80 text-slate-500 border border-slate-700 cursor-not-allowed'
                           : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-xl shadow-emerald-500/20 transform active:scale-95 cursor-pointer'
                       }`}
                     >
-                      {isAlreadyMatched ? (
+                      {isSquadIncomplete ? (
+                        <>
+                          <AlertCircle className="w-5 h-5 text-rose-400" />
+                          <span>対戦不可 (11人揃えてください: {activePlayingSquad.players?.length || 0}/11)</span>
+                        </>
+                      ) : isAlreadyMatched ? (
                         <>
                           <CheckCircle2 className="w-5 h-5 text-slate-500" />
                           <span>今週のフェーズで対戦済み (MATCHED)</span>
@@ -1927,6 +1995,65 @@ export const PvPView: React.FC<PvPViewProps> = ({
               >
                 <RefreshCw className={`w-4 h-4 ${isLoadingStandings ? 'animate-spin' : ''}`} />
               </button>
+            </div>
+          </div>
+
+          {/* Aggregation Window Banner */}
+          {isSeasonInAggregationPhase(selectedSeason) && (
+            <div className="p-3.5 rounded-2xl bg-amber-950/60 border border-amber-500/60 text-amber-300 text-xs flex items-center gap-3 animate-pulse shadow-lg">
+              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+              <div>
+                <strong className="text-white">【ランキング集計中】(月曜 00:00〜00:59 JST)</strong>:
+                前週の対戦フェーズが終了し集計中です。月曜01:00に順位が確定し、上位3名へプレゼントBOXに確定報酬が自動配布されます。
+              </div>
+            </div>
+          )}
+
+          {/* Weekly Ranking Rewards Showcase */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-slate-950 border border-amber-400/40 space-y-1 shadow-md">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-black text-xs text-yellow-300 flex items-center gap-1">
+                  <span>🥇 1位 週間確定報酬</span>
+                </span>
+                <span className="text-[10px] font-mono text-amber-400 font-bold px-1.5 py-0.2 rounded bg-amber-400/10">1位限定</span>
+              </div>
+              <div className="text-xs font-bold text-white">
+                レジェンド確定スカウト ×1
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">
+                1位の1名のみに自動配布 (二重配布なし)
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-purple-800/25 via-fuchsia-950/15 to-slate-950 border border-purple-400/40 space-y-1 shadow-md">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-black text-xs text-purple-200 flex items-center gap-1">
+                  <span>🥈 2位 週間確定報酬</span>
+                </span>
+                <span className="text-[10px] font-mono text-purple-300 font-bold px-1.5 py-0.2 rounded bg-purple-400/10">2位限定</span>
+              </div>
+              <div className="text-xs font-bold text-white">
+                紫演出確定スカウト ×1
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">
+                2位の1名のみに自動配布 (二重配布なし)
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-700/20 via-blue-900/10 to-slate-950 border border-indigo-500/40 space-y-1 shadow-md">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-black text-xs text-indigo-300 flex items-center gap-1">
+                  <span>🥉 3位 週間確定報酬</span>
+                </span>
+                <span className="text-[10px] font-mono text-indigo-400 font-bold px-1.5 py-0.2 rounded bg-indigo-600/10">3位限定</span>
+              </div>
+              <div className="text-xs font-bold text-white">
+                レジェンド・紫50%スカウト ×1
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">
+                3位の1名のみに自動配布 (4位以下は配布対象外)
+              </div>
             </div>
           </div>
 

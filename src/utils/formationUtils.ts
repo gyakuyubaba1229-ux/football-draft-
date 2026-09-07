@@ -197,11 +197,22 @@ export function remapPlayerSlots(
     assignedPlayerIds.add(assignedPlayer.playerId);
   }
 
+  // Pass 4 (CRITICAL FALLBACK): Ensure 100% of players are assigned to a slot
+  // If there are still unassigned players, assign them to any remaining available slot
+  while (unassignedPlayers.length > 0 && availableSlots.length > 0) {
+    const assignedPlayer = unassignedPlayers.shift()!;
+    const assignedSlot = availableSlots.shift()!;
+    newSlots[assignedSlot.id] = assignedPlayer.playerId;
+    assignedPlayerIds.add(assignedPlayer.playerId);
+  }
+
   return newSlots;
 }
 
 /**
  * Assign a newly drafted player into an optimal open slot.
+ * Ensures the player is ALWAYS assigned to an available slot, even if out of position.
+ * Owned players must NEVER be dropped or omitted.
  */
 export function autoAssignSlot(
   player: Player,
@@ -238,11 +249,42 @@ export function autoAssignSlot(
     });
   }
 
+  // 3. CRITICAL EMERGENCY FIX:
+  // If NO legally allowed slot is open (e.g. only DF/GK slots left, but drafted CF/FW):
+  // WE MUST NEVER LEAVE THE PLAYER UNASSIGNED!
+  // Assign to ANY remaining open slot with priority:
+  // a) If player is NOT GK: prefer any non-GK open slot (CB, LB, RB, etc.). If none, take GK slot!
+  // b) If player is GK: prefer GK slot if open. If not, take any open slot!
+  if (!emptySlot) {
+    const openSlots = formationSlots.filter(
+      (s) => !currentSlots[s.id] || !assignedIds.has(currentSlots[s.id])
+    );
+    if (openSlots.length > 0) {
+      if (player.position !== 'GK') {
+        const nonGk = openSlots.find((s) => s.pos !== 'GK' && s.role !== 'GK');
+        emptySlot = nonGk || openSlots[0];
+      } else {
+        const gkSlot = openSlots.find((s) => s.pos === 'GK' || s.role === 'GK');
+        emptySlot = gkSlot || openSlots[0];
+      }
+    }
+  }
+
+  // 4. Absolute fail-safe: if all preset formation slots are somehow claimed, find any slot key or generate slot
   if (emptySlot) {
     return { ...currentSlots, [emptySlot.id]: player.playerId };
   }
 
-  return currentSlots;
+  // If literally every slot in formationSlots is filled:
+  const allSlotKeys = formationSlots.map((s) => s.id);
+  const unmappedSlot = allSlotKeys.find((sId) => !currentSlots[sId]);
+  if (unmappedSlot) {
+    return { ...currentSlots, [unmappedSlot]: player.playerId };
+  }
+
+  // Fallback: assign to a dynamic slot key so player is NEVER lost
+  const dynamicSlotId = `slot_extra_${Date.now()}`;
+  return { ...currentSlots, [dynamicSlotId]: player.playerId };
 }
 
 /**

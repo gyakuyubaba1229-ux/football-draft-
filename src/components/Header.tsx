@@ -2,7 +2,7 @@ import React from 'react';
 import { GameMode, Language } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
-import { Volume2, VolumeX, Settings, HelpCircle, History, Shield, Users, Home, Zap, Swords } from 'lucide-react';
+import { Volume2, VolumeX, Settings, HelpCircle, History, Shield, Users, Home, Zap, Swords, Gift, Ticket } from 'lucide-react';
 
 interface HeaderProps {
   mode: GameMode;
@@ -16,6 +16,10 @@ interface HeaderProps {
   onOpenHowToPlay: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  onOpenGiftBox?: () => void;
+  onOpenScoutModal?: () => void;
+  unclaimedGiftsCount?: number;
+  totalTicketsCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,6 +34,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHowToPlay,
   soundEnabled,
   onToggleSound,
+  onOpenGiftBox,
+  onOpenScoutModal,
+  unclaimedGiftsCount = 0,
+  totalTicketsCount = 0,
 }) => {
   const t = TRANSLATIONS[language];
 
@@ -199,8 +207,48 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Right: Sound, Language, Help, Settings */}
+        {/* Right: Sound, Language, Help, Settings, Gift Box, Scout */}
         <div className="flex items-center gap-1.5">
+          {/* Scout Tickets Button */}
+          {onOpenScoutModal && (
+            <button
+              id="header-scout-btn"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onOpenScoutModal();
+              }}
+              title="報酬専用スカウト (Reward Scout)"
+              className="relative p-2 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/80 text-indigo-300 hover:text-indigo-100 border border-indigo-500/40 transition-all flex items-center gap-1"
+            >
+              <Ticket className="w-4 h-4 text-indigo-400" />
+              {totalTicketsCount > 0 && (
+                <span className="text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-sm animate-pulse">
+                  {totalTicketsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Present Box Button */}
+          {onOpenGiftBox && (
+            <button
+              id="header-gift-box-btn"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onOpenGiftBox();
+              }}
+              title="プレゼントボックス (Present Box)"
+              className="relative p-2 rounded-lg bg-amber-950/50 hover:bg-amber-900/70 text-amber-300 hover:text-amber-100 border border-amber-500/40 transition-all flex items-center gap-1"
+            >
+              <Gift className="w-4 h-4 text-amber-400" />
+              {unclaimedGiftsCount > 0 && (
+                <span className="text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full bg-rose-500 text-white shadow-sm animate-bounce">
+                  {unclaimedGiftsCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Sound Toggle */}
           <button
             id="sound-toggle-btn"

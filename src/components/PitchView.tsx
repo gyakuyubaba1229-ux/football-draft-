@@ -22,6 +22,7 @@ import {
   normalizeRoleToEFootball,
   evaluatePlayerAtPosition,
   getTeamEffectiveOvr,
+  canPlayerPlayAtPosition,
 } from '../utils/positionEngine';
 import { PlayerDetailModal } from './PlayerDetailModal';
 import { DefenseSquadModal } from './DefenseSquadModal';
@@ -156,7 +157,8 @@ export const PitchView: React.FC<PitchViewProps> = ({
   const baseSlots = FORMATIONS[currentPresetBase]?.slots || FORMATIONS['4-3-3'].slots;
 
   // Resolve player slots: if playerSlots is empty (first load of new team), map players into slots.
-  // Once slots are established, respect empty slots (where playerSlots[slotId] is undefined or null).
+  // Once slots are established, respect empty slots, BUT strictly ensure that EVERY player in myTeam is assigned!
+  // Owned players must NEVER be dropped or omitted from the pitch.
   const resolvedPlayerSlots = useMemo(() => {
     if (!playerSlots || Object.keys(playerSlots).length === 0) {
       return remapPlayerSlots(myTeam, {}, formation);
@@ -169,17 +171,50 @@ export const PitchView: React.FC<PitchViewProps> = ({
         valid[slotId] = pId;
       }
     }
-    return valid;
-  }, [myTeam, playerSlots, formation]);
 
-  // Only sync if playerSlots was completely empty and got initialized
+    // CRITICAL RESCUE: Ensure 100% of players in myTeam have a slot on the pitch!
+    const assignedIds = new Set(Object.values(valid));
+    const unassignedPlayers = myTeam.filter((p) => !assignedIds.has(p.playerId));
+    if (unassignedPlayers.length > 0) {
+      const occupiedSlotIds = new Set(Object.keys(valid));
+      const openSlots = baseSlots.filter((s) => !occupiedSlotIds.has(s.id));
+      for (const p of unassignedPlayers) {
+        if (openSlots.length > 0) {
+          // Find best fitting open slot, or non-GK slot, or any open slot
+          let bestIdx = openSlots.findIndex((s) => {
+            const ePos = normalizeRoleToEFootball(s.role);
+            return canPlayerPlayAtPosition(p, ePos).allowed;
+          });
+          if (bestIdx === -1 && p.position !== 'GK') {
+            bestIdx = openSlots.findIndex((s) => s.pos !== 'GK' && s.role !== 'GK');
+          }
+          if (bestIdx === -1) bestIdx = 0;
+          const targetSlot = openSlots.splice(bestIdx, 1)[0];
+          valid[targetSlot.id] = p.playerId;
+          assignedIds.add(p.playerId);
+        } else {
+          // Dynamic slot ID fallback so the player is never lost
+          const dynId = `slot_auto_${p.playerId}`;
+          valid[dynId] = p.playerId;
+          assignedIds.add(p.playerId);
+        }
+      }
+    }
+
+    return valid;
+  }, [myTeam, playerSlots, formation, baseSlots]);
+
+  // Sync back to state if resolvedPlayerSlots added missing players or initialized from empty
   useEffect(() => {
-    if (myTeam.length > 0 && (!playerSlots || Object.keys(playerSlots).length === 0)) {
-      if (Object.keys(resolvedPlayerSlots).length > 0) {
+    if (myTeam.length > 0) {
+      const currentAssignedCount = Object.values(playerSlots || {}).filter(Boolean).length;
+      const resolvedAssignedCount = Object.values(resolvedPlayerSlots).filter(Boolean).length;
+      const hasUnassignedPlayer = myTeam.some((p) => !Object.values(playerSlots || {}).includes(p.playerId));
+      if (currentAssignedCount === 0 || resolvedAssignedCount > currentAssignedCount || hasUnassignedPlayer) {
         onUpdateSlotAssignment(resolvedPlayerSlots);
       }
     }
-  }, [resolvedPlayerSlots, playerSlots, onUpdateSlotAssignment, myTeam.length]);
+  }, [resolvedPlayerSlots, playerSlots, onUpdateSlotAssignment, myTeam]);
 
   // Active slots: strictly includes all 11 base slots of the formation (occupied or empty).
   // Custom positions override slot coordinates, ensuring exactly 11 slots are ever rendered.
@@ -204,6 +239,23 @@ export const PitchView: React.FC<PitchViewProps> = ({
         });
       } else {
         slotsMap.set(baseSlot.id, { ...baseSlot });
+      }
+    });
+
+    // Ensure any extra assigned slot is also rendered
+    Object.entries(resolvedPlayerSlots).forEach(([slotId, pId]) => {
+      if (pId && !slotsMap.has(slotId)) {
+        const custom = customPositions[slotId] as { x: number; y: number; role?: string } | undefined;
+        const x = custom?.x ?? 50;
+        const y = custom?.y ?? 50;
+        const dynamicRole = custom?.role || getEFootballPositionFromCoords(x, y);
+        slotsMap.set(slotId, {
+          id: slotId,
+          role: dynamicRole,
+          pos: getPositionCategory(dynamicRole),
+          x,
+          y,
+        });
       }
     });
 
