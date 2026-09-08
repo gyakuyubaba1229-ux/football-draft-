@@ -35,6 +35,7 @@ export const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 // v1.3.0 Base Season Start: 2026-09-07 00:00:00 JST (2026-09-06 15:00:00 UTC)
 export const V130_START_MS = Date.UTC(2026, 8, 6, 15, 0, 0); // 2026-09-07 00:00:00 JST
+export const SEASON_1_START_MS = V130_START_MS;
 
 export const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export const AGGREGATION_DURATION_MS = 60 * 60 * 1000; // 1 hour (00:00 - 01:00 JST)

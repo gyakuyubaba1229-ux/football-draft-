@@ -15,6 +15,7 @@ interface SlotMachineProps {
   blackBallStage?: 'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'golden-rain' | 'revealed';
   isBlackBallResult?: boolean;
   isGoldenResult?: boolean;
+  isPurpleResult?: boolean;
   hasCurrentDraft: boolean;
   skipsRemaining: number;
   onSpin: () => void;
@@ -33,6 +34,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
   blackBallStage = 'spinning-normal',
   isBlackBallResult = false,
   isGoldenResult = false,
+  isPurpleResult = false,
   hasCurrentDraft,
   skipsRemaining,
   onSpin,
@@ -56,6 +58,11 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
     blackBallSpinType === 'golden-ballon-dor' ||
     blackBallSpinType === 'golden-lightning-ballon-dor' ||
     isGoldenResult;
+
+  const isPurpleSpin =
+    blackBallSpinType === 'purple-spark' ||
+    blackBallSpinType === 'purple-neon' ||
+    Boolean(isPurpleResult);
 
   useEffect(() => {
     if (isSpinning) {
@@ -109,7 +116,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
       className={`w-full max-w-3xl mx-auto rounded-3xl p-4 sm:p-6 shadow-2xl relative overflow-hidden backdrop-blur-md transition-all duration-500 ${
         isLightningStriking || isSpecialReelActive ? 'animate-shake' : ''
       } ${
-        isGoldenSpin
+        isPurpleSpin
+          ? 'bg-gradient-to-b from-slate-950 via-purple-950/60 to-slate-950 border-2 border-fuchsia-400 shadow-[0_0_45px_rgba(217,70,239,0.5)]'
+          : isGoldenSpin
           ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-amber-950/60 border-2 border-yellow-300 shadow-[0_0_40px_rgba(250,204,21,0.4)]'
           : isSpecialReelActive || isBlackBallResult
           ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-amber-950/40 border-2 border-amber-400 shadow-amber-950/60'
@@ -119,7 +128,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
       {/* Decorative top illumination */}
       <div
         className={`absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-1 shadow-lg transition-all duration-500 ${
-          isGoldenSpin
+          isPurpleSpin
+            ? 'bg-gradient-to-r from-transparent via-fuchsia-400 to-transparent shadow-[0_0_30px_#e879f9]'
+            : isGoldenSpin
             ? 'bg-gradient-to-r from-transparent via-yellow-300 to-transparent shadow-[0_0_30px_#facc15]'
             : isSpecialReelActive || isBlackBallResult
             ? 'bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_20px_#f59e0b]'
@@ -130,7 +141,15 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
       {/* Lightning Flash Overlay when lightning strikes center */}
       {isLightningStriking && (
         <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center bg-white/50 animate-ping">
-          <div className="w-full h-full bg-gradient-to-r from-yellow-200/60 via-white to-amber-200/60 animate-pulse" />
+          <div
+            className={`w-full h-full animate-pulse ${
+              isPurpleSpin
+                ? 'bg-gradient-to-r from-fuchsia-400/70 via-white to-purple-500/70'
+                : isGoldenSpin
+                ? 'bg-gradient-to-r from-yellow-200/60 via-white to-amber-200/60'
+                : 'bg-gradient-to-r from-purple-200/60 via-white to-indigo-200/60'
+            }`}
+          />
         </div>
       )}
 
@@ -138,11 +157,29 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
       {isLightningStriking && (
         <div className="absolute inset-0 z-40 pointer-events-none flex flex-col items-center justify-center">
           <div className="relative flex flex-col items-center animate-bounce">
-            <Zap className={`w-24 h-24 sm:w-32 sm:h-32 ${isGoldenSpin ? 'text-yellow-200 fill-yellow-300' : 'text-amber-300 fill-yellow-200'} filter drop-shadow-[0_0_40px_rgba(253,224,71,1)] animate-ping`} />
-            <div className={`text-xl sm:text-3xl font-heading font-black uppercase tracking-widest px-4 py-1.5 rounded-full bg-slate-950/95 border-2 shadow-[0_0_35px_rgba(251,191,36,0.9)] mt-2 ${
-              isGoldenSpin ? 'text-yellow-300 border-yellow-300' : 'text-amber-300 border-amber-300'
-            }`}>
-              {isGoldenSpin ? '⚡ GOLDEN LIGHTNING! ⚡' : '⚡ LIGHTNING STRIKE! ⚡'}
+            <Zap
+              className={`w-24 h-24 sm:w-32 sm:h-32 ${
+                isPurpleSpin
+                  ? 'text-fuchsia-300 fill-fuchsia-400 filter drop-shadow-[0_0_40px_rgba(232,121,249,1)]'
+                  : isGoldenSpin
+                  ? 'text-yellow-200 fill-yellow-300 filter drop-shadow-[0_0_40px_rgba(253,224,71,1)]'
+                  : 'text-amber-300 fill-yellow-200 filter drop-shadow-[0_0_40px_rgba(253,224,71,1)]'
+              } animate-ping`}
+            />
+            <div
+              className={`text-xl sm:text-3xl font-heading font-black uppercase tracking-widest px-4 py-1.5 rounded-full bg-slate-950/95 border-2 mt-2 ${
+                isPurpleSpin
+                  ? 'text-fuchsia-300 border-fuchsia-400 shadow-[0_0_40px_rgba(217,70,239,0.9)]'
+                  : isGoldenSpin
+                  ? 'text-yellow-300 border-yellow-300 shadow-[0_0_35px_rgba(251,191,36,0.9)]'
+                  : 'text-amber-300 border-amber-300 shadow-[0_0_35px_rgba(251,191,36,0.9)]'
+              }`}
+            >
+              {isPurpleSpin
+                ? '🟣 紫演出発生！ PURPLE SPECIAL 🟣'
+                : isGoldenSpin
+                ? '⚡ GOLDEN LIGHTNING! ⚡'
+                : '⚡ LIGHTNING STRIKE! ⚡'}
             </div>
           </div>
         </div>
@@ -152,16 +189,20 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
       <div className="grid grid-cols-2 gap-4 mb-3 text-center">
         <div
           className={`flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-widest transition-colors ${
-            isGoldenSpin
+            isPurpleSpin
+              ? 'text-fuchsia-300'
+              : isGoldenSpin
               ? 'text-yellow-300'
               : isSpecialReelActive || isBlackBallResult
               ? 'text-amber-400'
               : 'text-emerald-400'
           }`}
         >
-          <span>{isGoldenSpin ? '🏆' : isSpecialReelActive || isBlackBallResult ? '⚫' : '📅'}</span>
+          <span>{isPurpleSpin ? '🟣' : isGoldenSpin ? '🏆' : isSpecialReelActive || isBlackBallResult ? '⚫' : '📅'}</span>
           <span>
-            {isGoldenSpin
+            {isPurpleSpin
+              ? 'PURPLE REEL'
+              : isGoldenSpin
               ? 'GOLDEN REEL'
               : isSpecialReelActive
               ? 'BLACK BALL REEL'
@@ -170,14 +211,18 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
         </div>
         <div
           className={`flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-widest transition-colors ${
-            isGoldenSpin
+            isPurpleSpin
+              ? 'text-fuchsia-300'
+              : isGoldenSpin
               ? 'text-yellow-300'
               : isSpecialReelActive || isBlackBallResult
               ? 'text-yellow-400'
               : 'text-teal-400'
           }`}
         >
-          {isGoldenSpin ? (
+          {isPurpleSpin ? (
+            <Sparkles className="w-4 h-4 text-fuchsia-300" />
+          ) : isGoldenSpin ? (
             <Crown className="w-4 h-4 text-yellow-300" />
           ) : isSpecialReelActive || isBlackBallResult ? (
             <Award className="w-4 h-4 text-amber-400" />
@@ -185,7 +230,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
             <ShieldCheck className="w-4 h-4" />
           )}
           <span>
-            {isGoldenSpin
+            {isPurpleSpin
+              ? 'ACTIVE STARS'
+              : isGoldenSpin
               ? 'GOLDEN REEL'
               : isSpecialReelActive
               ? 'BLACK BALL REEL'
@@ -200,7 +247,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
         <div
           id="year-reel"
           className={`h-36 sm:h-44 rounded-2xl border-2 flex flex-col items-center justify-center p-3 relative overflow-hidden transition-all duration-300 ${
-            isGoldenSpin
+            isPurpleSpin
+              ? 'border-fuchsia-400 bg-gradient-to-b from-slate-950 via-purple-950/60 to-slate-950 shadow-[inset_0_0_35px_rgba(217,70,239,0.6)]'
+              : isGoldenSpin
               ? 'border-yellow-300 bg-gradient-to-b from-slate-950 via-amber-950/50 to-slate-950 shadow-[inset_0_0_35px_rgba(250,204,21,0.6)]'
               : isSpecialReelActive
               ? 'border-amber-400 bg-gradient-to-b from-slate-950 via-black to-slate-950 shadow-[inset_0_0_30px_rgba(251,191,36,0.6)]'
@@ -216,8 +265,25 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
           {/* Glass glare line */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 pointer-events-none" />
 
-          {/* STATE A: GOLDEN REEL SPINNING */}
-          {isGoldenSpin && isSpinning ? (
+          {/* STATE A1: PURPLE REEL SPINNING */}
+          {isPurpleSpin && isSpinning ? (
+            <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
+              <div className="flex items-center gap-2">
+                <span className="text-3xl sm:text-4xl animate-bounce">🟣</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-fuchsia-500 via-purple-600 to-indigo-700 border-2 border-fuchsia-300 shadow-[0_0_25px_rgba(217,70,239,1)] flex items-center justify-center text-xs font-black text-white">
+                  ★
+                </div>
+                <span className="text-3xl sm:text-4xl animate-bounce">🟣</span>
+              </div>
+              <div className="text-xs sm:text-sm font-heading font-black text-fuchsia-300 tracking-widest uppercase">
+                PURPLE SPECIAL
+              </div>
+              <div className="text-[10px] font-mono text-fuchsia-200/90 font-bold">
+                8% RARE OCCURRENCE
+              </div>
+            </div>
+          ) : isGoldenSpin && isSpinning ? (
+            /* STATE A2: GOLDEN REEL SPINNING */
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
                 <span className="text-3xl sm:text-4xl animate-bounce">🏆</span>
@@ -255,20 +321,30 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
             <>
               <div
                 className={`text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase mb-1 ${
-                  isGoldenResult
+                  isPurpleResult
+                    ? 'text-fuchsia-300 font-black'
+                    : isGoldenResult
                     ? 'text-yellow-300 font-black'
                     : isBlackBallResult
                     ? 'text-amber-400 font-black'
                     : 'text-emerald-400/80'
                 }`}
               >
-                {isGoldenResult ? '👑 GOLDEN SPECIAL YEAR 👑' : isBlackBallResult ? '⭐ LEGENDARY YEAR ⭐' : 'SIGNING YEAR'}
+                {isPurpleResult
+                  ? '🟣 PURPLE SPECIAL YEAR 🟣'
+                  : isGoldenResult
+                  ? '👑 GOLDEN SPECIAL YEAR 👑'
+                  : isBlackBallResult
+                  ? '⭐ LEGENDARY YEAR ⭐'
+                  : 'SIGNING YEAR'}
               </div>
 
               <div
                 className={`font-heading font-extrabold text-4xl sm:text-6xl tracking-tight transition-transform ${
                   isSpinning
                     ? 'scale-110 blur-[0.5px] text-emerald-300'
+                    : isPurpleResult
+                    ? 'scale-100 text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-200 via-purple-300 to-indigo-200 drop-shadow-[0_0_20px_rgba(217,70,239,0.8)]'
                     : isGoldenResult
                     ? 'scale-100 text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]'
                     : isBlackBallResult
@@ -281,7 +357,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
 
               <div
                 className={`mt-2 flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] sm:text-xs font-bold ${
-                  isGoldenResult
+                  isPurpleResult
+                    ? 'bg-purple-950/70 border-fuchsia-400/80 text-fuchsia-200 shadow-md shadow-fuchsia-500/20'
+                    : isGoldenResult
                     ? 'bg-amber-900/60 border-yellow-300/80 text-yellow-200 shadow-md shadow-yellow-500/20'
                     : isBlackBallResult
                     ? 'bg-amber-950/60 border-amber-400/60 text-amber-200'
@@ -291,7 +369,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
                 <span>SEASON</span>
                 <span
                   className={`font-mono ${
-                    isGoldenResult
+                    isPurpleResult
+                      ? 'text-fuchsia-300 font-black'
+                      : isGoldenResult
                       ? 'text-yellow-300 font-black'
                       : isBlackBallResult
                       ? 'text-amber-300 font-black'
@@ -309,7 +389,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
         <div
           id="club-reel"
           className={`h-36 sm:h-44 rounded-2xl border-2 flex flex-col items-center justify-center p-3 relative overflow-hidden transition-all duration-300 ${
-            isGoldenSpin
+            isPurpleSpin
+              ? 'border-fuchsia-400 bg-gradient-to-b from-slate-950 via-purple-950/60 to-slate-950 shadow-[inset_0_0_35px_rgba(217,70,239,0.6)]'
+              : isGoldenSpin
               ? 'border-yellow-300 bg-gradient-to-b from-slate-950 via-amber-950/50 to-slate-950 shadow-[inset_0_0_35px_rgba(250,204,21,0.6)]'
               : isSpecialReelActive
               ? 'border-yellow-400 bg-gradient-to-b from-slate-950 via-black to-slate-950 shadow-[inset_0_0_30px_rgba(250,204,21,0.6)]'
@@ -322,7 +404,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               : 'border-slate-800 bg-slate-950'
           }`}
           style={{
-            borderTopColor: isGoldenResult
+            borderTopColor: isPurpleResult
+              ? '#e879f9'
+              : isGoldenResult
               ? '#fde047'
               : isBlackBallResult
               ? '#fbbf24'
@@ -332,8 +416,25 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
           {/* Glass glare line */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 pointer-events-none" />
 
-          {/* STATE A: GOLDEN REEL SPINNING */}
-          {isGoldenSpin && isSpinning ? (
+          {/* STATE A1: PURPLE REEL SPINNING */}
+          {isPurpleSpin && isSpinning ? (
+            <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
+              <div className="flex items-center gap-2">
+                <span className="text-3xl sm:text-4xl animate-bounce">🟣</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-fuchsia-500 via-purple-600 to-indigo-700 border-2 border-fuchsia-300 shadow-[0_0_25px_rgba(217,70,239,1)] flex items-center justify-center text-xs font-black text-white">
+                  ★
+                </div>
+                <span className="text-3xl sm:text-4xl animate-bounce">🟣</span>
+              </div>
+              <div className="text-xs sm:text-sm font-heading font-black text-fuchsia-300 tracking-widest uppercase">
+                ACTIVE SUPERSTARS
+              </div>
+              <div className="text-[10px] font-mono text-fuchsia-200/90 font-bold">
+                OVR 98 - 101
+              </div>
+            </div>
+          ) : isGoldenSpin && isSpinning ? (
+            /* STATE A2: GOLDEN REEL SPINNING */
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
                 <span className="text-3xl sm:text-4xl animate-bounce">🏆</span>
@@ -372,7 +473,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               {/* Club Header Badges */}
               <div
                 className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-mono font-bold tracking-wider uppercase mb-1 ${
-                  isGoldenResult
+                  isPurpleResult
+                    ? 'text-fuchsia-300 font-black'
+                    : isGoldenResult
                     ? 'text-yellow-300 font-black'
                     : isBlackBallResult
                     ? 'text-amber-300 font-black'
@@ -381,7 +484,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               >
                 <span>{displayClub.countryFlag}</span>
                 <span className="truncate max-w-[110px] sm:max-w-none">
-                  {displayClub.league}
+                  {isPurpleResult ? 'ACTIVE SUPERSTARS' : displayClub.league}
                 </span>
               </div>
 
@@ -391,21 +494,29 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
                   isSpinning ? 'scale-110 blur-[0.5px]' : 'scale-100'
                 }`}
               >
-                {displayClub.crestEmoji || '🛡️'}
+                {isPurpleResult ? '🟣' : displayClub.crestEmoji || '🛡️'}
               </div>
 
               {/* Club Localized Name */}
               <div className="text-center px-1">
                 <span
                   className={`font-heading font-extrabold text-sm sm:text-lg line-clamp-1 ${
-                    isGoldenResult
+                    isPurpleResult
+                      ? 'text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-200 via-purple-300 to-indigo-200 font-black'
+                      : isGoldenResult
                       ? 'text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-400 font-black'
                       : isBlackBallResult
                       ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 font-black'
                       : 'text-white'
                   }`}
                 >
-                  {getLocalizedClubName(displayClub, language)}
+                  {isPurpleResult
+                    ? language === 'ja'
+                      ? '現役特枠スーパースター'
+                      : language === 'es'
+                      ? 'Superestrellas Activas'
+                      : 'Active Superstars'
+                    : getLocalizedClubName(displayClub, language)}
                 </span>
               </div>
             </>
@@ -424,7 +535,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
             isTeamFull
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
               : isSpinning
-              ? isGoldenSpin
+              ? isPurpleSpin
+                ? 'bg-gradient-to-r from-purple-600 via-fuchsia-500 to-indigo-600 text-white font-black animate-pulse cursor-wait shadow-[0_0_25px_rgba(217,70,239,0.8)]'
+                : isGoldenSpin
                 ? 'bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 text-slate-950 font-black animate-pulse cursor-wait shadow-[0_0_25px_rgba(250,204,21,0.8)]'
                 : isSpecialReelActive
                 ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 font-black animate-pulse cursor-wait'
@@ -438,11 +551,13 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
             <>
               <div
                 className={`w-5 h-5 border-2 border-t-transparent rounded-full animate-spin ${
-                  isGoldenSpin || isSpecialReelActive ? 'border-slate-950' : 'border-white'
+                  isPurpleSpin ? 'border-white' : isGoldenSpin || isSpecialReelActive ? 'border-slate-950' : 'border-white'
                 }`}
               />
               <span>
-                {isGoldenSpin
+                {isPurpleSpin
+                  ? '🟣 PURPLE SPECIAL SPINNING...'
+                  : isGoldenSpin
                   ? '👑 GOLDEN SPECIAL SPINNING...'
                   : isSpecialReelActive
                   ? '⚫ BLACK BALL SPINNING...'

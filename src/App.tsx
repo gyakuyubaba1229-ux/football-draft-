@@ -25,6 +25,7 @@ import {
   getBallonDorWinner,
   getLegendPeakEra,
 } from './data/legendaryEraDatabase';
+import { findPurpleCandidates } from './data/purpleActivePlayers';
 import { TRANSLATIONS } from './utils/translations';
 import { soundManager } from './utils/audio';
 import { Header } from './components/Header';
@@ -46,6 +47,7 @@ import { ShareModal } from './components/ShareModal';
 import { UpdateNotesModal } from './components/UpdateNotesModal';
 import { GiftBoxModal } from './components/GiftBoxModal';
 import { RewardScoutModal } from './components/RewardScoutModal';
+import { OfficialTournamentModal } from './components/OfficialTournamentModal';
 import {
   getStoredUserTickets,
   getStoredPresents,
@@ -219,11 +221,13 @@ export default function App() {
   const [acquiredPlayerBanner, setAcquiredPlayerBanner] = useState<Player | null>(null);
   const [celebratingTeam, setCelebratingTeam] = useState<UserTeam | null>(null);
 
-  // Black Ball & Golden Event State (1% rare trigger)
+  // Black Ball, Golden Event & Purple Special State
   const [blackBallSpinType, setBlackBallSpinType] = useState<BlackBallSpinType>('none');
   const [blackBallStage, setBlackBallStage] = useState<'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'revealed'>('revealed');
   const [isBlackBallResult, setIsBlackBallResult] = useState<boolean>(false);
   const [isGoldenResult, setIsGoldenResult] = useState<boolean>(false);
+  const [isPurpleResult, setIsPurpleResult] = useState<boolean>(false);
+  const [isPurpleSpin, setIsPurpleSpin] = useState<boolean>(false);
 
   // Restore active draft state on boot
   useEffect(() => {
@@ -241,6 +245,7 @@ export default function App() {
           setBlackBallStage(parsed.blackBallStage || 'revealed');
           setIsBlackBallResult(parsed.isBlackBallResult || false);
           setIsGoldenResult(parsed.isGoldenResult || false);
+          setIsPurpleResult(parsed.isPurpleResult || false);
           if (parsed.activeTeamId && teams.some((tItem) => tItem.teamId === parsed.activeTeamId)) {
             setActiveTeamId(parsed.activeTeamId);
           }
@@ -267,6 +272,7 @@ export default function App() {
         blackBallStage,
         isBlackBallResult,
         isGoldenResult,
+        isPurpleResult,
       };
       localStorage.setItem(STORAGE_KEY_CURRENT_DRAFT, JSON.stringify(draftState));
     } catch (e) {
@@ -285,6 +291,7 @@ export default function App() {
     blackBallStage,
     isBlackBallResult,
     isGoldenResult,
+    isPurpleResult,
   ]);
 
   // 5. Persistent History state (never wiped on game reset)
@@ -344,6 +351,7 @@ export default function App() {
   // Modals for Gift Box and Reward Scout
   const [isGiftBoxOpen, setIsGiftBoxOpen] = useState<boolean>(false);
   const [isRewardScoutOpen, setIsRewardScoutOpen] = useState<boolean>(false);
+  const [isTournamentOpen, setIsTournamentOpen] = useState<boolean>(false);
   const [rewardTickets, setRewardTickets] = useState<UserRewardTickets>(() => getStoredUserTickets());
   const [presents, setPresents] = useState<PresentBoxItem[]>([]);
 
@@ -365,15 +373,15 @@ export default function App() {
   }, [userProfile.userId]);
 
   const handleClaimGift = (giftId: string) => {
-    const updatedPresents = claimPresentBoxItem(giftId, userProfile.userId);
-    setPresents(updatedPresents);
-    setRewardTickets(getStoredUserTickets());
+    const res = claimPresentBoxItem(giftId, userProfile.userId);
+    setPresents(res.updatedPresents || getStoredPresents(userProfile.userId));
+    setRewardTickets(res.updatedTickets || getStoredUserTickets());
   };
 
   const handleClaimAllGifts = () => {
-    const updatedPresents = claimAllPresentBoxItems(userProfile.userId);
-    setPresents(updatedPresents);
-    setRewardTickets(getStoredUserTickets());
+    const res = claimAllPresentBoxItems(userProfile.userId);
+    setPresents(res.updatedPresents || getStoredPresents(userProfile.userId));
+    setRewardTickets(res.updatedTickets || getStoredUserTickets());
   };
 
   const handleConsumeTicket = (ticketType: ScoutTicketType): boolean => {
@@ -451,6 +459,7 @@ export default function App() {
     setBlackBallStage('revealed');
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
+    setIsPurpleResult(false);
 
     setCurrentView('draft');
   };
@@ -520,6 +529,7 @@ export default function App() {
     setBlackBallStage('revealed');
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
+    setIsPurpleResult(false);
 
     try {
       localStorage.removeItem(STORAGE_KEY_CURRENT_DRAFT);
@@ -561,11 +571,84 @@ export default function App() {
     setAcquiredPlayerBanner(null);
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
+    setIsPurpleResult(false);
+    setIsPurpleSpin(false);
 
     const clubs = getClubsByMode(mode);
     const years = getAvailableYears(mode);
     const currentTeamPlayerIds = activeTeam.players.map((p) => p.playerId);
     const currentTeamPersonIds = activeTeam.players.map((p) => p.personId);
+
+    // 🟣 PRIORITY 0: PURPLE SPECIAL EVENT (8% occurrence probability)
+    // - Triggered at exactly 8% chance
+    // - Purple Special visual performance & animation
+    // - Exactly 3 candidates from the Purple Superstars pool
+    // - Strictly excluded from normal draft candidates
+    const isPurpleTrigger = Math.random() < 0.08;
+
+    if (isPurpleTrigger) {
+      const purpleCandidates = findPurpleCandidates(
+        currentTeamPlayerIds,
+        currentTeamPersonIds,
+        3
+      );
+
+      if (purpleCandidates.length > 0) {
+        setIsPurpleSpin(true);
+        setBlackBallSpinType('none');
+        setBlackBallStage('spinning-normal');
+        soundManager.playBlackBallAura();
+
+        // Staged lightning flash & electric excitement
+        setTimeout(() => {
+          setBlackBallStage('lightning-striking');
+          soundManager.playGoldenLightning();
+        }, 400);
+
+        setTimeout(() => {
+          setBlackBallStage('blackball-spinning');
+        }, 850);
+
+        setTimeout(() => {
+          const primaryPlayer = purpleCandidates[0];
+          setSelectedYear(primaryPlayer.joiningYear);
+          const matchedClub = clubs.find((c) => c.id === primaryPlayer.clubId) || {
+            id: primaryPlayer.clubId || 'special_purple',
+            name: primaryPlayer.clubName,
+            nameJa: primaryPlayer.clubName,
+            nameEn: primaryPlayer.clubName,
+            nameEs: primaryPlayer.clubName,
+            league: 'Active Superstars',
+            country: 'World',
+            countryFlag: primaryPlayer.nationalityFlag || '🌐',
+            crestEmoji: '🟣',
+            primaryColor: '#a855f7',
+            secondaryColor: '#ec4899',
+          };
+          setSelectedClub(matchedClub);
+          setIsSpinning(false);
+          setIsPurpleSpin(false);
+          setBlackBallStage('revealed');
+          setIsBlackBallResult(false);
+          setIsGoldenResult(false);
+          setIsPurpleResult(true);
+          soundManager.playSlotStop();
+          soundManager.playVictory();
+
+          // Purple / Fuchsia Confetti Burst
+          confetti({
+            particleCount: 160,
+            spread: 100,
+            origin: { y: 0.5 },
+            colors: ['#d946ef', '#a855f7', '#8b5cf6', '#ffffff', '#ec4899', '#f0abfc'],
+          });
+
+          // Set all 3 purple superstars as candidates
+          setCandidatePlayers(purpleCandidates);
+        }, 2400);
+        return;
+      }
+    }
 
     // 2.1% Rare Event trigger (approx 1.17x increase from 1.8%) for Golden Special / Peak Era staging
     const isRareTrigger = Math.random() < 0.021;
@@ -614,6 +697,7 @@ export default function App() {
           setBlackBallStage('revealed');
           setIsBlackBallResult(true);
           setIsGoldenResult(true);
+          setIsPurpleResult(false);
           soundManager.playSlotStop();
           soundManager.playGoldenFanfare();
 
@@ -664,6 +748,7 @@ export default function App() {
         setBlackBallStage('revealed');
         setIsBlackBallResult(true);
         setIsGoldenResult(false);
+        setIsPurpleResult(false);
         soundManager.playSlotStop();
         soundManager.playVictory();
 
@@ -691,6 +776,7 @@ export default function App() {
     setBlackBallSpinType('none');
     setBlackBallStage('spinning-normal');
     setIsGoldenResult(false);
+    setIsPurpleResult(false);
 
     setTimeout(() => {
       // 80% weighted selection toward populated combinations
@@ -758,6 +844,7 @@ export default function App() {
     setHasCurrentDraft(false);
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
+    setIsPurpleResult(false);
     setBlackBallSpinType('none');
   };
 
@@ -770,6 +857,7 @@ export default function App() {
     setHasCurrentDraft(false);
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
+    setIsPurpleResult(false);
     setBlackBallSpinType('none');
   };
 
@@ -852,6 +940,7 @@ export default function App() {
       setTimeout(() => {
         setAcquiredPlayerBanner(null);
         setHasCurrentDraft(false);
+        setIsPurpleResult(false);
         setCelebratingTeam(updatedTeam);
       }, 1800);
     } else {
@@ -862,6 +951,7 @@ export default function App() {
         setHasCurrentDraft(false);
         setIsBlackBallResult(false);
         setIsGoldenResult(false);
+        setIsPurpleResult(false);
         setBlackBallSpinType('none');
       }, 2000);
     }
@@ -869,11 +959,14 @@ export default function App() {
 
   const handleAcquireScoutPlayer = (player: Player) => {
     soundManager.playFanfare();
+    let targetTeam = activeTeam;
     if (activeTeam.players.length < 11) {
       handleDraftPlayer(player);
+      targetTeam = activeTeam;
     } else {
       const incompleteTeam = teams.find((t) => t.players.length < 11);
       if (incompleteTeam) {
+        targetTeam = incompleteTeam;
         setActiveTeamId(incompleteTeam.teamId);
         const newPlayers = [...incompleteTeam.players, player];
         const newSlots = autoAssignSlot(player, incompleteTeam.playerSlots, incompleteTeam.formation);
@@ -893,7 +986,36 @@ export default function App() {
         newTeam.playerSlots = autoAssignSlot(player, {}, newTeam.formation);
         setTeams((prev) => [...prev, newTeam]);
         setActiveTeamId(newTeam.teamId);
+        targetTeam = newTeam;
       }
+
+      // Record in draft history
+      const historyEntry: DraftHistoryEntry = {
+        id: `scout_history_${Date.now()}_${player.playerId}`,
+        playerId: player.playerId,
+        playerName: player.playerName,
+        nameJa: player.nameJa,
+        nameEn: player.nameEn,
+        nameEs: player.nameEs,
+        clubId: player.clubId,
+        clubName: player.clubName,
+        joiningYear: player.joiningYear,
+        position: player.position,
+        subPosition: player.subPosition,
+        nationality: player.nationality,
+        nationalityJa: player.nationalityJa,
+        nationalityEn: player.nationalityEn,
+        nationalityEs: player.nationalityEs,
+        nationalityFlag: player.nationalityFlag,
+        rating: player.rating,
+        isLegendary: !!player.isLegendary,
+        timestamp: Date.now(),
+        mode,
+        teamId: targetTeam.teamId,
+        teamNumber: targetTeam.teamNumber,
+        teamName: targetTeam.name,
+      };
+      setDraftHistory((prev) => [historyEntry, ...prev]);
     }
     setAcquiredPlayerBanner(player);
     setTimeout(() => {
@@ -920,7 +1042,7 @@ export default function App() {
         onToggleSound={handleToggleSound}
         onOpenGiftBox={() => setIsGiftBoxOpen(true)}
         onOpenScoutModal={() => setIsRewardScoutOpen(true)}
-        unclaimedGiftsCount={presents.filter((p) => !p.claimed).length}
+        unclaimedGiftsCount={presents.filter((p) => !p.isClaimed).length}
         totalTicketsCount={getTotalTicketsCount(rewardTickets)}
       />
 
@@ -937,7 +1059,8 @@ export default function App() {
             onOpenUpdateNotes={() => setIsUpdateNotesOpen(true)}
             onOpenGiftBox={() => setIsGiftBoxOpen(true)}
             onOpenScoutModal={() => setIsRewardScoutOpen(true)}
-            unclaimedGiftsCount={presents.filter((p) => !p.claimed).length}
+            onOpenTournamentModal={() => setIsTournamentOpen(true)}
+            unclaimedGiftsCount={presents.filter((p) => !p.isClaimed).length}
             totalTicketsCount={getTotalTicketsCount(rewardTickets)}
             teams={teams}
             activeTeam={activeTeam}
@@ -963,6 +1086,8 @@ export default function App() {
               blackBallStage={blackBallStage}
               isBlackBallResult={isBlackBallResult}
               isGoldenResult={isGoldenResult}
+              isPurpleResult={isPurpleResult}
+              isPurpleSpin={isPurpleSpin}
               hasCurrentDraft={hasCurrentDraft}
               skipsRemaining={skipsRemaining}
               onSpin={handleSpinDraft}
@@ -1163,22 +1288,44 @@ export default function App() {
       <GiftBoxModal
         isOpen={isGiftBoxOpen}
         onClose={() => setIsGiftBoxOpen(false)}
-        presents={presents}
-        onClaim={handleClaimGift}
+        presents={Array.isArray(presents) ? presents : []}
+        onClaimItem={handleClaimGift}
         onClaimAll={handleClaimAllGifts}
-        onGoToScout={() => {
+        onOpenScoutModal={() => {
           setIsGiftBoxOpen(false);
           setIsRewardScoutOpen(true);
         }}
+        language={language}
       />
 
       {/* Reward Scout Modal */}
       <RewardScoutModal
         isOpen={isRewardScoutOpen}
         onClose={() => setIsRewardScoutOpen(false)}
-        tickets={rewardTickets}
-        onConsumeTicket={handleConsumeTicket}
+        language={language}
+        activeTeam={activeTeam}
+        onOpenGiftBox={() => {
+          setIsRewardScoutOpen(false);
+          setIsGiftBoxOpen(true);
+        }}
         onAcquirePlayer={handleAcquireScoutPlayer}
+      />
+
+      {/* Official Tournament Modal */}
+      <OfficialTournamentModal
+        isOpen={isTournamentOpen}
+        onClose={() => setIsTournamentOpen(false)}
+        currentUserProfile={{
+          userId: userProfile.userId,
+          username: userProfile.username,
+          team: activeTeam,
+          tactics: userProfile.tactics,
+          defenseSquad: userProfile.defenseSquad,
+        }}
+        onOpenGiftBox={() => {
+          setIsTournamentOpen(false);
+          setIsGiftBoxOpen(true);
+        }}
       />
 
       {/* Mode Select Modal (Pop-up on "PLAY / SPIN DRAFT" or mode change) */}

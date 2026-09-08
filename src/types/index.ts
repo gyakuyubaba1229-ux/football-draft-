@@ -58,6 +58,8 @@ export interface Player {
   rating: number;         // 60-99 (Calculated/assigned specific to joiningYear)
   ratingByYear?: Record<number, number>; // Specific era-based OVR map
   category?: PlayerCategory; // 'YOUNG' | 'MID' | 'VETERAN' | 'STAR' | 'LEGEND' | 'NORMAL'
+  special_type?: 'purple' | 'golden' | 'black';
+  specialType?: 'purple' | 'golden' | 'black';
   isLegendary?: boolean;  // Star / Legend player
   height?: number;        // Player height in cm (e.g. 202)
   stats: PlayerStats;
@@ -591,6 +593,8 @@ export interface CurrentDraftState {
   isBlackBallResult: boolean;
   isGoldenResult?: boolean;
   isGoldResult?: boolean;
+  isPurpleResult?: boolean;
+  isPurpleSpin?: boolean;
 }
 
 export type RewardTicketType =
@@ -614,6 +618,7 @@ export interface GiftBoxItem {
   isClaimed: boolean;
   claimedAt?: number;
   createdAt: number;
+  expiresAt?: number;
   rank?: number;
 }
 
@@ -632,6 +637,8 @@ export interface PastWeeklyRankingHistory {
     rewardLabel: string;
   }[];
 }
+
+export * from './tournament';
 
 
 

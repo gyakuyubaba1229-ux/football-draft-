@@ -33,18 +33,18 @@ import {
 interface RewardScoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  language: Language;
+  language?: Language;
   onAcquirePlayer: (player: Player) => void;
-  onOpenGiftBox: () => void;
+  onOpenGiftBox?: () => void;
   activeTeam?: UserTeam | null;
 }
 
 export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
   isOpen,
   onClose,
-  language,
+  language = 'ja',
   onAcquirePlayer,
-  onOpenGiftBox,
+  onOpenGiftBox = () => {},
   activeTeam,
 }) => {
   const [selectedTicketType, setSelectedTicketType] = useState<RewardTicketType>('legend_20');
@@ -113,7 +113,7 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
 
     // 4. Start Spin Draft Animation (1.8s)
     setIsDraftSpinning(true);
-    soundManager.playSpinClick();
+    soundManager.playSpinTick();
 
     setTimeout(() => {
       setIsDraftSpinning(false);
@@ -126,7 +126,7 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
       } else {
         // Normal staging: show candidates directly
         setActiveCandidates(candidates);
-        soundManager.playSuccess();
+        soundManager.playDraftAcquired();
       }
 
       // Save candidates for reveal
@@ -138,13 +138,13 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
     setActiveStaging(null);
     const candidates = (window as any).__pendingScoutCandidates || [];
     setActiveCandidates(candidates);
-    soundManager.playSuccess();
+    soundManager.playDraftAcquired();
   };
 
   const handleConfirmAcquisition = () => {
     if (!selectedCandidate) return;
 
-    soundManager.playCelebration();
+    soundManager.playFanfare();
     // Safely add to MY TEAM and notify parent
     onAcquirePlayer(selectedCandidate);
     setAcquiredPlayer(selectedCandidate);

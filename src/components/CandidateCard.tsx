@@ -15,24 +15,29 @@ import { Sparkles, Plus, AlertCircle, Award, Shield, Zap, Sprout, Trophy, Crown,
 
 interface CandidateCardProps {
   player: Player;
-  language: Language;
-  onDraft: (player: Player) => void;
-  isDrafting: boolean;
+  language?: Language;
+  onDraft?: (player: Player) => void;
+  isDrafting?: boolean;
   disabled?: boolean;
+  onSelect?: (player: Player) => void;
+  isSelected?: boolean;
 }
 
 export const CandidateCard: React.FC<CandidateCardProps> = ({
   player,
-  language,
+  language = 'ja' as Language,
   onDraft,
-  isDrafting,
-  disabled,
+  isDrafting = false,
+  disabled = false,
+  onSelect,
+  isSelected = false,
 }) => {
-  const t = TRANSLATIONS[language];
+  const t = (language && TRANSLATIONS[language]) || TRANSLATIONS.ja;
   const ballonDor = getBallonDorWinner(player);
   const legendPeak = getLegendPeakEra(player);
   const playerHeight = getPlayerHeight(player);
   const [showPositionMap, setShowPositionMap] = useState(false);
+  const isPurple = player.special_type === 'purple' || player.specialType === 'purple';
 
   // Helper to determine effective category
   const category: PlayerCategory =
@@ -61,6 +66,15 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   };
 
   const renderCategoryBadge = () => {
+    if (isPurple) {
+      return (
+        <div className="absolute -top-3 right-4 bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 text-white font-black text-[10px] tracking-widest uppercase px-3 py-0.5 rounded-full shadow-lg shadow-purple-500/50 flex items-center gap-1.5 border border-fuchsia-300 animate-pulse">
+          <Sparkles className="w-3.5 h-3.5 text-fuchsia-200" />
+          <span>🟣 {language === 'ja' ? '紫演出特枠' : 'PURPLE SPECIAL'}</span>
+        </div>
+      );
+    }
+
     switch (category) {
       case 'LEGEND':
         return (
@@ -108,6 +122,10 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   };
 
   const getCardBorderClasses = () => {
+    if (isPurple) {
+      return 'bg-gradient-to-b from-purple-950/70 via-slate-900 to-slate-950 border-2 border-fuchsia-400 shadow-2xl shadow-purple-900/50 hover:border-fuchsia-300 hover:shadow-purple-500/40';
+    }
+
     switch (category) {
       case 'LEGEND':
         return 'bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-950 border-amber-400/60 shadow-xl shadow-amber-900/20 hover:border-amber-400 hover:shadow-amber-500/30';
@@ -139,7 +157,9 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           {/* OVR Rating Shield */}
           <div
             className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-heading font-black border shadow-inner ${
-              player.rating >= 90
+              isPurple
+                ? 'bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-700 text-white border-fuchsia-300 shadow-[0_0_15px_rgba(217,70,239,0.5)]'
+                : player.rating >= 90
                 ? 'bg-gradient-to-br from-amber-500 to-yellow-600 text-slate-950 border-amber-300'
                 : player.rating >= 84
                 ? 'bg-gradient-to-br from-purple-600 to-indigo-700 text-white border-purple-400/50'
@@ -279,11 +299,17 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         id={`btn-draft-player-${player.playerId}`}
         disabled={isDrafting || disabled}
         onClick={() => {
-          soundManager.playDraftAcquired();
-          onDraft(player);
+          if (onSelect) {
+            onSelect(player);
+          } else if (onDraft) {
+            soundManager.playDraftAcquired();
+            onDraft(player);
+          }
         }}
         className={`w-full py-2.5 px-4 rounded-xl font-heading font-black text-sm tracking-wider flex items-center justify-center gap-2 transition-all transform active:scale-95 shadow-md ${
-          category === 'LEGEND'
+          isSelected
+            ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/30'
+            : category === 'LEGEND'
             ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-amber-500/20'
             : category === 'STAR'
             ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-900/30'
@@ -291,7 +317,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         }`}
       >
         <Plus className="w-4 h-4 stroke-[3]" />
-        <span>{t.draft}</span>
+        <span>{onSelect ? (isSelected ? '✓ 選択中' : '選択する') : t.draft}</span>
       </button>
     </div>
   );

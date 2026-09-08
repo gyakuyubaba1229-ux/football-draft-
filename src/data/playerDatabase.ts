@@ -9,6 +9,9 @@ import { J1_PLAYERS_SQUAD } from './playersJ1Squad';
 import { J1_LEGENDS_EXPANDED } from './playersLegendsJ1';
 import { EUROPEAN_CLUBS, J1_CLUBS, ALL_CLUBS } from './clubs';
 import { SPECIAL_BALLON_DOR_PLAYERS } from './legendaryEraDatabase';
+import { PURPLE_ACTIVE_PLAYERS, isPurpleCard, findPurpleCandidates } from './purpleActivePlayers';
+
+export { isPurpleCard, findPurpleCandidates };
 
 // Helper to normalize and auto-assign categories if omitted
 function normalizePlayer(p: Player): Player {
@@ -30,6 +33,8 @@ function normalizePlayer(p: Player): Player {
     ...p,
     category,
     isLegendary: category === 'LEGEND' || Boolean(p.isLegendary),
+    special_type: p.special_type || (p.playerId.startsWith('purple_') ? 'purple' : undefined),
+    specialType: p.specialType || (p.playerId.startsWith('purple_') ? 'purple' : undefined),
   };
 }
 
@@ -45,6 +50,7 @@ function deduplicatePlayers(players: Player[]): Player[] {
 }
 
 export const COMBINED_EUROPEAN_PLAYERS: Player[] = deduplicatePlayers([
+  ...PURPLE_ACTIVE_PLAYERS,
   ...EUROPEAN_PLAYERS,
   ...EUROPEAN_PLAYERS_MODERN,
   ...EUROPEAN_PLAYERS_SQUAD,
@@ -159,7 +165,8 @@ export function findCandidatePlayers(
     // Normal candidate generation strict limits:
     // 1. Max OVR is strictly 99 (OVR 100+ strictly forbidden from normal presentation)
     // 2. Special Ballon d'Or edition players strictly excluded from normal roulette pool
-    if (player.rating >= 100 || player.playerId.startsWith('bd_special_')) {
+    // 3. Purple Presentation target cards STRICTLY excluded from normal roulette pool (must go through 8% purple presentation)
+    if (player.rating >= 100 || player.playerId.startsWith('bd_special_') || isPurpleCard(player)) {
       return false;
     }
 
@@ -184,14 +191,20 @@ export function getLegendaryCombination(
   const availableLegendaries = players.filter(
     (p) =>
       p.isLegendary &&
+      !isPurpleCard(p) &&
       !acquiredPlayerSet.has(p.playerId) &&
       !acquiredPersonSet.has(p.personId)
   );
 
   if (availableLegendaries.length === 0) {
-    // Fallback to highest rating available
+    // Fallback to highest rating available (excluding purple cards and OVR 100+)
     const available = players.filter(
-      (p) => !acquiredPlayerSet.has(p.playerId) && !acquiredPersonSet.has(p.personId)
+      (p) =>
+        !isPurpleCard(p) &&
+        p.rating < 100 &&
+        !p.playerId.startsWith('bd_special_') &&
+        !acquiredPlayerSet.has(p.playerId) &&
+        !acquiredPersonSet.has(p.personId)
     );
     if (available.length === 0) return null;
     available.sort((a, b) => b.rating - a.rating);

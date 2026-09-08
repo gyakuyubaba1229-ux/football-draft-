@@ -1,4 +1,4 @@
-import { Player, RewardTicketType, GiftBoxItem, PastWeeklyRankingHistory } from '../types';
+import { Player, RewardTicketType, GiftBoxItem, PastWeeklyRankingHistory, BetaStandingEntry } from '../types';
 import { PURPLE_ACTIVE_PLAYERS } from '../data/purpleActivePlayers';
 import { EUROPEAN_PLAYERS } from '../data/playersEurope';
 import { SPECIAL_BALLON_DOR_PLAYERS } from '../data/legendaryEraDatabase';
@@ -206,7 +206,7 @@ export function generateScoutCandidates(ticketType: RewardTicketType): {
 
   const legendPool = getAllLegendPool();
   const purplePool = getAllPurplePool();
-  const normalPool = EUROPEAN_PLAYERS.filter((p) => !p.isLegendary && p.rating >= 90);
+  const normalPool = ALL_PLAYERS.filter((p) => !p.isLegendary && p.rating >= 85 && !p.playerId.startsWith('purple_'));
 
   const selectedCandidates: Player[] = [];
   const selectedPersonIds = new Set<string>();
@@ -349,17 +349,20 @@ export function saveAllPresents(presents: GiftBoxItem[]): void {
   }
 }
 
+export const APOLOGY_V131_EXPIRES_AT = new Date('2026-09-30T23:59:59+09:00').getTime();
+
 /**
- * Ensure the one-time apology gift (Legend 20% Scout x1) is distributed to present box
+ * Ensure the apology gifts (Legend 20% Scout and 1.3.1 Legend Guaranteed Scout) are distributed to present box
  */
 export function ensureApologyGiftDistributed(userId: string): GiftBoxItem[] {
   try {
     const allPresentsRaw = localStorage.getItem(LOCAL_STORAGE_PRESENT_BOX);
     const allPresents: GiftBoxItem[] = allPresentsRaw ? JSON.parse(allPresentsRaw) : [];
+    let updated = false;
     
-    // Check if apology gift already exists for this user
+    // 1. Check if 1.3.0 apology gift already exists for this user
     const apologyId = `apology_gift_${userId}_legend20`;
-    const exists = allPresents.some((p) => p.id === apologyId || (p.userId === userId && p.title.includes('お詫び')));
+    const exists = allPresents.some((p) => p.id === apologyId || (p.userId === userId && p.rewardType === 'legend_20' && p.title.includes('お詫び')));
     
     if (!exists) {
       const apologyGift: GiftBoxItem = {
@@ -373,6 +376,30 @@ export function ensureApologyGiftDistributed(userId: string): GiftBoxItem[] {
         createdAt: Date.now(),
       };
       allPresents.unshift(apologyGift);
+      updated = true;
+    }
+
+    // 2. Check if 1.3.1 Legend Guaranteed apology gift exists for this user
+    const apologyV131Id = `apology_v131_legend_guaranteed_${userId}`;
+    const existsV131 = allPresents.some((p) => p.id === apologyV131Id);
+
+    if (!existsV131) {
+      const apologyV131Gift: GiftBoxItem = {
+        id: apologyV131Id,
+        userId,
+        title: '【1.3.1修正お詫び】レジェンド確定スカウト',
+        description: '1.3.1修正アップデートのお詫びとして「レジェンド確定スカウト ×1」をお送りいたします。（有効期限: 2026年9月30日 23:59 JSTまで）',
+        rewardType: 'legend_guaranteed',
+        amount: 1,
+        isClaimed: false,
+        createdAt: Date.now(),
+        expiresAt: APOLOGY_V131_EXPIRES_AT,
+      };
+      allPresents.unshift(apologyV131Gift);
+      updated = true;
+    }
+
+    if (updated) {
       saveAllPresents(allPresents);
     }
     
@@ -399,6 +426,16 @@ export function claimPresentBoxItem(presentId: string, userId: string): {
     const target = allPresents.find((p) => p.id === presentId && p.userId === userId);
 
     if (!target || target.isClaimed) {
+      return {
+        success: false,
+        updatedPresents: allPresents.filter((p) => p.userId === userId),
+        updatedTickets: getStoredUserTickets(),
+      };
+    }
+
+    // Check expiration
+    if (target.expiresAt && Date.now() > target.expiresAt) {
+      console.warn('Item is expired and cannot be claimed:', target.id);
       return {
         success: false,
         updatedPresents: allPresents.filter((p) => p.userId === userId),
@@ -447,6 +484,10 @@ export function claimAllPresentBoxItems(userId: string): {
 
     for (const item of allPresents) {
       if (item.userId === userId && !item.isClaimed) {
+        // Skip expired
+        if (item.expiresAt && now > item.expiresAt) {
+          continue;
+        }
         item.isClaimed = true;
         item.claimedAt = now;
         addTicketToUser(item.rewardType, item.amount || 1);

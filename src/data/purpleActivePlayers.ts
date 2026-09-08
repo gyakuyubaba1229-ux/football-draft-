@@ -1,10 +1,10 @@
-import { Player } from '../types';
+import { Player, MainPosition } from '../types';
 
 /**
  * Modern Purple Special active players pool (v1.3.0)
  * Grounded in real current 2024-2026 performance ratings
  */
-export const PURPLE_ACTIVE_PLAYERS: Player[] = [
+const RAW_PURPLE_ACTIVE_PLAYERS: Player[] = [
   // ── Rating 101 (World Class Superstars) ──
   {
     playerId: 'purple_mbappe_2025',
@@ -706,3 +706,112 @@ export const PURPLE_ACTIVE_PLAYERS: Player[] = [
     stats: { pace: 52, shooting: 20, passing: 76, dribbling: 40, defending: 97, physical: 94 },
   },
 ];
+
+/**
+ * Normalized Modern Purple Special active players pool (v1.3.1).
+ * Every entry explicitly carries special_type: 'purple' for unambiguous card-level identification.
+ */
+export const PURPLE_ACTIVE_PLAYERS: Player[] = RAW_PURPLE_ACTIVE_PLAYERS.map((p) => ({
+  ...p,
+  special_type: 'purple' as const,
+  specialType: 'purple' as const,
+  category: 'PURPLE_ACTIVE' as const,
+}));
+
+/**
+ * Helper to identify if a player is a Purple Presentation target card.
+ * Uses special_type, specialType, category, and playerId pattern for 100% strict verification.
+ * Does NOT rely on player name alone, so other cards of the same player (e.g. Pedri 88/96 OVR) can be drafted normally.
+ */
+export function isPurpleCard(
+  player?: { playerId?: string; special_type?: string; specialType?: string; category?: string } | null
+): boolean {
+  if (!player) return false;
+  if (player.special_type === 'purple' || player.specialType === 'purple') return true;
+  if (player.category === 'PURPLE_ACTIVE') return true;
+  if (typeof player.playerId === 'string' && player.playerId.startsWith('purple_')) return true;
+  return false;
+}
+
+/**
+ * Finds exactly 3 distinct Purple candidates for Purple Presentation:
+ * 1. Selected strictly from PURPLE_ACTIVE_PLAYERS (all exist in verified database).
+ * 2. 3 distinct positions (e.g. FW, MF, DF, GK).
+ * 3. 0 duplicate persons (personId / name), 0 duplicate cards, 0 duplicate playerIds.
+ * 4. Excludes players already in user's active team (by playerId and personId).
+ */
+export function findPurpleCandidates(
+  acquiredPlayerIds: string[] = [],
+  acquiredPersonIds: string[] = [],
+  count: number = 3
+): Player[] {
+  const acquiredPlayerSet = new Set(acquiredPlayerIds);
+  const acquiredPersonSet = new Set(acquiredPersonIds);
+
+  // 1. Available purple pool excluding already acquired on active team
+  const availablePool = PURPLE_ACTIVE_PLAYERS.filter(
+    (p) => !acquiredPlayerSet.has(p.playerId) && !acquiredPersonSet.has(p.personId)
+  );
+
+  // Group by main position
+  const byPosition: Record<MainPosition, Player[]> = {
+    FW: availablePool.filter((p) => p.position === 'FW'),
+    MF: availablePool.filter((p) => p.position === 'MF'),
+    DF: availablePool.filter((p) => p.position === 'DF'),
+    GK: availablePool.filter((p) => p.position === 'GK'),
+  };
+
+  // Find all positions that have at least 1 player available
+  const availablePositions = (['FW', 'MF', 'DF', 'GK'] as MainPosition[]).filter(
+    (pos) => byPosition[pos].length > 0
+  );
+
+  // We need 3 distinct positions. Randomly shuffle available positions.
+  const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+
+  const selectedCandidates: Player[] = [];
+  const selectedPersonIds = new Set<string>();
+  const selectedNames = new Set<string>();
+  const selectedPlayerIds = new Set<string>();
+
+  // Pick 1 candidate from each of the 3 chosen distinct positions
+  for (const pos of shuffledPositions) {
+    if (selectedCandidates.length >= 3) break;
+
+    const validInPos = byPosition[pos].filter(
+      (p) =>
+        !selectedPersonIds.has(p.personId) &&
+        !selectedNames.has(p.playerName.toLowerCase()) &&
+        !selectedPlayerIds.has(p.playerId)
+    );
+
+    if (validInPos.length > 0) {
+      const picked = validInPos[Math.floor(Math.random() * validInPos.length)];
+      selectedCandidates.push(picked);
+      selectedPersonIds.add(picked.personId);
+      selectedNames.add(picked.playerName.toLowerCase());
+      selectedPlayerIds.add(picked.playerId);
+    }
+  }
+
+  // Safeguard: if fewer than 3 positions could provide candidates, fill remaining from availablePool ensuring 0 duplicates
+  if (selectedCandidates.length < 3) {
+    const remaining = availablePool.filter(
+      (p) =>
+        !selectedPersonIds.has(p.personId) &&
+        !selectedNames.has(p.playerName.toLowerCase()) &&
+        !selectedPlayerIds.has(p.playerId)
+    );
+    while (selectedCandidates.length < 3 && remaining.length > 0) {
+      const idx = Math.floor(Math.random() * remaining.length);
+      const picked = remaining.splice(idx, 1)[0];
+      selectedCandidates.push(picked);
+      selectedPersonIds.add(picked.personId);
+      selectedNames.add(picked.playerName.toLowerCase());
+      selectedPlayerIds.add(picked.playerId);
+    }
+  }
+
+  return selectedCandidates;
+}
+

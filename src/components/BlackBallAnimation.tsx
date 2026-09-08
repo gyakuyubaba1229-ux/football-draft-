@@ -15,12 +15,12 @@ interface BlackBallAnimationProps {
 }
 
 export const BlackBallAnimation: React.FC<BlackBallAnimationProps> = ({
-  language,
+  language = 'ja',
   type = 'black',
   player = null,
   onAnimationEnd,
 }) => {
-  const t = TRANSLATIONS[language];
+  const t = (language && TRANSLATIONS[language]) || TRANSLATIONS.ja;
   const isGold = type === 'gold';
   const isPurple = type === 'purple';
   const isBlack = type === 'black';

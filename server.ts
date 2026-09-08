@@ -323,6 +323,951 @@ async function startServer() {
     });
   });
 
+  // ═════════════════════════════════════════════════════════════════════════
+  // 7. OFFICIAL TOURNAMENT (公式大会) API & SERVER LOGIC
+  // Tournament ID: FD_CUP_001 (第1回 FOOTBALL DRAFT CUP)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  interface ServerTournamentEntry {
+    tournamentId: string;
+    userId: string;
+    displayName: string;
+    entryStatus: string;
+    enteredAt: number;
+    teamSnapshot: any;
+    tacticsSnapshot: any;
+    defensiveSquadSnapshot?: any;
+    teamOvr: number;
+    tacticsModifiedCount?: number;
+  }
+
+  interface ServerTournamentMatch {
+    matchId: string;
+    tournamentId: string;
+    stage: string;
+    stageNameJa: string;
+    groupId?: string;
+    round: number;
+    homeUserId: string;
+    homeDisplayName: string;
+    awayUserId: string;
+    awayDisplayName: string;
+    homeScore: number;
+    awayScore: number;
+    homePenaltyScore?: number;
+    awayPenaltyScore?: number;
+    winnerUserId?: string;
+    homeTactics: any;
+    awayTactics: any;
+    homeTeamSnapshot: any;
+    awayTeamSnapshot: any;
+    status: 'SCHEDULED' | 'PLAYING' | 'COMPLETED';
+    createdAt: number;
+    completedAt?: number;
+    events: any[];
+    tacticalAnalysisJa?: string;
+  }
+
+  interface ServerTournamentGroup {
+    groupId: string;
+    groupNameJa: string;
+    groupNameEn: string;
+    participantUserIds: string[];
+  }
+
+  interface ServerTournamentStanding {
+    tournamentId: string;
+    groupId?: string;
+    userId: string;
+    displayName: string;
+    teamName: string;
+    teamOvr: number;
+    rank: number;
+    points: number;
+    matchesPlayed: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goalsFor: number;
+    goalsAgainst: number;
+    goalDifference: number;
+    isQualified: boolean;
+  }
+
+  // Official Tournament Schedule:
+  // Registration: 2026-09-08 00:00:00 JST to 2026-09-13 23:59:59.999 JST
+  // Match period: 2026-09-14 00:00:00 JST to 2026-09-20 23:59:59.999 JST
+  const TOURNAMENT_ID = 'FD_CUP_001';
+  const TOURNAMENT_REG_START_MS = Date.UTC(2026, 8, 7, 15, 0, 0); // 2026-09-08 00:00 JST
+  const TOURNAMENT_REG_END_MS = Date.UTC(2026, 8, 13, 14, 59, 59, 999); // 2026-09-13 23:59 JST
+  const TOURNAMENT_MATCH_START_MS = Date.UTC(2026, 8, 13, 15, 0, 0); // 2026-09-14 00:00 JST
+  const TOURNAMENT_MATCH_END_MS = Date.UTC(2026, 8, 20, 14, 59, 59, 999);
+
+  let serverTournamentStatus:
+    | 'DRAFT'
+    | 'REGISTRATION'
+    | 'LOCKED'
+    | 'GROUP_STAGE'
+    | 'KNOCKOUT'
+    | 'FINISHED'
+    | 'REWARDING'
+    | 'COMPLETED' = 'REGISTRATION';
+
+  const tournamentEntriesMap: Map<string, ServerTournamentEntry> = new Map();
+  let tournamentGroups: ServerTournamentGroup[] = [];
+  let tournamentStandings: ServerTournamentStanding[] = [];
+  let tournamentMatches: ServerTournamentMatch[] = [];
+  let tournamentKnockoutBracket: any = null;
+
+  // Evaluate Server Tournament Status dynamically based on current time
+  function getAuthoritativeTournamentStatus(): typeof serverTournamentStatus {
+    const now = Date.now();
+    // If manual stage progression (e.g. testing) moved past registration, preserve active status
+    if (['GROUP_STAGE', 'KNOCKOUT', 'FINISHED', 'REWARDING', 'COMPLETED'].includes(serverTournamentStatus)) {
+      return serverTournamentStatus;
+    }
+    if (now < TOURNAMENT_REG_START_MS) return 'DRAFT';
+    if (now <= TOURNAMENT_REG_END_MS) return 'REGISTRATION';
+    if (now < TOURNAMENT_MATCH_START_MS) return 'LOCKED';
+    if (now <= TOURNAMENT_MATCH_END_MS) return 'GROUP_STAGE';
+    return 'COMPLETED';
+  }
+
+  // 7.1 Tournament Status Endpoint
+  app.get('/api/tournament/status', (req, res) => {
+    const status = getAuthoritativeTournamentStatus();
+    const entries = Array.from(tournamentEntriesMap.values()).map((e) => ({
+      tournamentId: e.tournamentId,
+      userId: e.userId,
+      displayName: e.displayName,
+      entryStatus: e.entryStatus,
+      enteredAt: e.enteredAt,
+      teamOvr: e.teamOvr,
+      teamSnapshot: e.teamSnapshot,
+      tacticsSnapshot: e.tacticsSnapshot,
+      defensiveSquadSnapshot: e.defensiveSquadSnapshot,
+    }));
+
+    const definition = {
+      tournamentId: TOURNAMENT_ID,
+      nameJa: '第1回 FOOTBALL DRAFT CUP',
+      nameEn: '1st FOOTBALL DRAFT CUP',
+      isTrial: true,
+      edition: 1,
+      status,
+      registrationStartMs: TOURNAMENT_REG_START_MS,
+      registrationEndMs: TOURNAMENT_REG_END_MS,
+      matchStartMs: TOURNAMENT_MATCH_START_MS,
+      matchEndMs: TOURNAMENT_MATCH_END_MS,
+      format: entries.length <= 8 ? 'ROUND_ROBIN' : 'GROUP_KNOCKOUT',
+      minParticipants: 4,
+      entryCount: entries.length,
+      rewards: {
+        rank1: { type: 'legend_guaranteed', count: 2, labelJa: 'レジェンド確定スカウト ×2' },
+        rank2: { type: 'legend_guaranteed', count: 1, labelJa: 'レジェンド確定スカウト ×1' },
+        rank3: { type: 'purple_guaranteed', count: 1, labelJa: '紫確定スカウト ×1' },
+      },
+    };
+
+    res.json({
+      success: true,
+      serverTimeMs: Date.now(),
+      state: {
+        definition,
+        entries,
+        groups: tournamentGroups,
+        standings: tournamentStandings,
+        matches: tournamentMatches,
+        knockoutBracket: tournamentKnockoutBracket,
+        rewards: [],
+        currentServerTimeMs: Date.now(),
+      },
+    });
+  });
+
+  // 7.2 Tournament Entry Endpoint
+  app.post('/api/tournament/entry', (req, res) => {
+    const {
+      tournamentId = TOURNAMENT_ID,
+      userId,
+      displayName,
+      teamSnapshot,
+      tacticsSnapshot,
+      defensiveSquadSnapshot,
+    } = req.body;
+
+    if (!userId || !teamSnapshot) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    if (!teamSnapshot.players || teamSnapshot.players.length < 11) {
+      return res.status(400).json({ error: '公式大会に参加するには11人の選手を揃えてください' });
+    }
+
+    const currentStatus = getAuthoritativeTournamentStatus();
+    if (currentStatus !== 'REGISTRATION' && currentStatus !== 'DRAFT') {
+      return res.status(400).json({ error: '大会エントリー期間外です' });
+    }
+
+    if (tournamentEntriesMap.has(userId)) {
+      return res.status(400).json({ error: 'すでにエントリー済みです' });
+    }
+
+    const teamOvr = Math.round(
+      teamSnapshot.players.reduce((sum: number, p: any) => sum + (p.rating || 85), 0) / 11
+    );
+
+    const newEntry: ServerTournamentEntry = {
+      tournamentId,
+      userId,
+      displayName: displayName || 'Manager',
+      entryStatus: 'ENTERED',
+      enteredAt: Date.now(),
+      teamSnapshot,
+      tacticsSnapshot: tacticsSnapshot || {
+        attackTactic: 'POSSESSION',
+        defenseTactic: 'MID_BLOCK',
+        attackDirection: 'BALANCED',
+        pressIntensity: 'BALANCED',
+      },
+      defensiveSquadSnapshot,
+      teamOvr,
+      tacticsModifiedCount: 0,
+    };
+
+    tournamentEntriesMap.set(userId, newEntry);
+
+    res.json({
+      success: true,
+      entry: newEntry,
+      totalEntries: tournamentEntriesMap.size,
+    });
+  });
+
+  // 7.3 Tournament Tactics Update Endpoint
+  app.post('/api/tournament/tactics', (req, res) => {
+    const { userId, tactics } = req.body;
+    if (!userId || !tactics) {
+      return res.status(400).json({ error: 'Missing userId or tactics' });
+    }
+
+    const entry = tournamentEntriesMap.get(userId);
+    if (!entry) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    // Check if user is in an active match right now
+    const activeMatch = tournamentMatches.find(
+      (m) =>
+        m.status === 'PLAYING' && (m.homeUserId === userId || m.awayUserId === userId)
+    );
+    if (activeMatch) {
+      return res.status(400).json({ error: '試合進行中は戦術を変更できません' });
+    }
+
+    entry.tacticsSnapshot = tactics;
+    entry.tacticsModifiedCount = (entry.tacticsModifiedCount || 0) + 1;
+
+    res.json({
+      success: true,
+      tactics: entry.tacticsSnapshot,
+    });
+  });
+
+  // 7.4 Test Helper: Generate Realistic Participants (Requirement 35)
+  app.post('/api/tournament/test/generate-participants', (req, res) => {
+    const { count = 8, currentUserProfile } = req.body;
+
+    // Retain current user if already entered or provided
+    const preservedCurrentUser = currentUserProfile?.userId
+      ? tournamentEntriesMap.get(currentUserProfile.userId) || {
+          tournamentId: TOURNAMENT_ID,
+          userId: currentUserProfile.userId,
+          displayName: currentUserProfile.username || 'You',
+          entryStatus: 'ENTERED',
+          enteredAt: Date.now(),
+          teamSnapshot: currentUserProfile.team,
+          tacticsSnapshot: currentUserProfile.tactics,
+          teamOvr: currentUserProfile.team?.players?.length
+            ? Math.round(
+                currentUserProfile.team.players.reduce((s: number, p: any) => s + p.rating, 0) / 11
+              )
+            : 90,
+        }
+      : null;
+
+    tournamentEntriesMap.clear();
+
+    if (preservedCurrentUser && preservedCurrentUser.teamSnapshot?.players?.length === 11) {
+      tournamentEntriesMap.set(preservedCurrentUser.userId, preservedCurrentUser as any);
+    }
+
+    const mockManagers = [
+      { name: 'ペップ・タクティクス', tactic: 'TIKI_TAKA', def: 'HIGH_PRESS', formation: '4-3-3', ovr: 96 },
+      { name: 'アンチェ・カルチョ', tactic: 'COUNTER', def: 'MID_BLOCK', formation: '4-3-1-2', ovr: 94 },
+      { name: 'クロップ・ゲーゲン', tactic: 'DIRECT_PLAY', def: 'GEGENPRESSING', formation: '4-3-3', ovr: 93 },
+      { name: 'シメオネ・チョロ', tactic: 'QUICK_ATTACK', def: 'CATENACCIO', formation: '4-4-2', ovr: 91 },
+      { name: 'モウリーニョ・ロック', tactic: 'LONG_COUNTER', def: 'LOW_BLOCK', formation: '4-2-3-1', ovr: 90 },
+      { name: 'ジーコ・セレソン', tactic: 'POSSESSION', def: 'ZONE_DEFENSE', formation: '4-2-2-2', ovr: 92 },
+      { name: 'アルテタ・ポジショナル', tactic: 'OVERLOAD', def: 'SWARM_DEFENSE', formation: '4-3-3', ovr: 89 },
+      { name: 'ナーゲルスマン・ラボ', tactic: 'CROSS_GAME', def: 'CENTRAL_CONTAIN', formation: '3-4-2-1', ovr: 88 },
+      { name: 'アロンソ・バイヤー', tactic: 'FALSE_9', def: 'COUNTER_PREVENT', formation: '3-4-3', ovr: 93 },
+      { name: 'フリック・カタラン', tactic: 'HIGH_SPEED_ATTACK', def: 'OFFSIDE_TRAP', formation: '4-2-3-1', ovr: 95 },
+      { name: 'トゥヘル・タクティカル', tactic: 'BUILD_UP', def: 'BOX_CONTAIN', formation: '3-5-2', ovr: 89 },
+      { name: 'コンテ・グリント', tactic: 'CENTRAL_ATTACK', def: 'RETREAT', formation: '3-5-2', ovr: 91 },
+    ];
+
+    const needed = Math.max(1, count - tournamentEntriesMap.size);
+    for (let i = 0; i < needed && i < mockManagers.length; i++) {
+      const m = mockManagers[i];
+      const botUserId = `usr_tourney_bot_${i + 1}`;
+      tournamentEntriesMap.set(botUserId, {
+        tournamentId: TOURNAMENT_ID,
+        userId: botUserId,
+        displayName: m.name,
+        entryStatus: 'ENTERED',
+        enteredAt: Date.now() - (i + 1) * 3600000,
+        teamOvr: m.ovr,
+        tacticsSnapshot: {
+          attackTactic: m.tactic,
+          defenseTactic: m.def,
+          attackDirection: 'BALANCED',
+          pressIntensity: 'BALANCED',
+        },
+        teamSnapshot: {
+          teamId: `team_tourney_${botUserId}`,
+          name: `${m.name} XI`,
+          formation: m.formation,
+          players: Array.from({ length: 11 }, (_, pIdx) => ({
+            playerId: `bot_p_${i}_${pIdx}`,
+            nameJa: `選手 ${pIdx + 1}`,
+            playerName: `Player ${pIdx + 1}`,
+            clubName: 'Elite Club',
+            year: '2024',
+            position: pIdx === 0 ? 'GK' : pIdx <= 4 ? 'DF' : pIdx <= 8 ? 'MF' : 'FW',
+            subPosition: pIdx === 0 ? 'GK' : pIdx === 1 ? 'CB' : pIdx === 2 ? 'CB' : pIdx === 3 ? 'LB' : pIdx === 4 ? 'RB' : pIdx <= 7 ? 'CM' : 'ST',
+            rating: Math.max(80, Math.min(99, m.ovr + (Math.floor(Math.random() * 7) - 3))),
+            category: 'GOLD',
+          })),
+        },
+      });
+    }
+
+    serverTournamentStatus = 'REGISTRATION';
+    tournamentGroups = [];
+    tournamentStandings = [];
+    tournamentMatches = [];
+    tournamentKnockoutBracket = null;
+
+    res.json({
+      success: true,
+      totalEntries: tournamentEntriesMap.size,
+      state: {
+        definition: {
+          tournamentId: TOURNAMENT_ID,
+          nameJa: '第1回 FOOTBALL DRAFT CUP',
+          nameEn: '1st FOOTBALL DRAFT CUP',
+          isTrial: true,
+          edition: 1,
+          status: serverTournamentStatus,
+          registrationStartMs: TOURNAMENT_REG_START_MS,
+          registrationEndMs: TOURNAMENT_REG_END_MS,
+          matchStartMs: TOURNAMENT_MATCH_START_MS,
+          matchEndMs: TOURNAMENT_MATCH_END_MS,
+          format: tournamentEntriesMap.size <= 8 ? 'ROUND_ROBIN' : 'GROUP_KNOCKOUT',
+          minParticipants: 4,
+          entryCount: tournamentEntriesMap.size,
+          rewards: {
+            rank1: { type: 'legend_guaranteed', count: 2, labelJa: 'レジェンド確定スカウト ×2' },
+            rank2: { type: 'legend_guaranteed', count: 1, labelJa: 'レジェンド確定スカウト ×1' },
+            rank3: { type: 'purple_guaranteed', count: 1, labelJa: '紫確定スカウト ×1' },
+          },
+        },
+        entries: Array.from(tournamentEntriesMap.values()),
+        groups: tournamentGroups,
+        standings: tournamentStandings,
+        matches: tournamentMatches,
+        knockoutBracket: tournamentKnockoutBracket,
+        rewards: [],
+        currentServerTimeMs: Date.now(),
+      },
+    });
+  });
+
+  // 7.5 Test Helper: Advance Tournament Stage (Requirement 35)
+  app.post('/api/tournament/test/advance-stage', (req, res) => {
+    const entries = Array.from(tournamentEntriesMap.values());
+    if (entries.length < 4) {
+      return res.status(400).json({ error: '大会進行には最低4人のエントリーが必要です' });
+    }
+
+    // Step 1: REGISTRATION -> GROUP_STAGE (or ROUND_ROBIN)
+    if (serverTournamentStatus === 'REGISTRATION' || serverTournamentStatus === 'LOCKED') {
+      serverTournamentStatus = 'GROUP_STAGE';
+
+      if (entries.length <= 8) {
+        // Round-Robin
+        tournamentGroups = [
+          {
+            groupId: 'GROUP_ALL',
+            groupNameJa: '総当たりリーグ',
+            groupNameEn: 'Round-Robin League',
+            participantUserIds: entries.map((e) => e.userId),
+          },
+        ];
+
+        // Generate round robin matches
+        const matches: ServerTournamentMatch[] = [];
+        let r = 1;
+        for (let i = 0; i < entries.length; i++) {
+          for (let j = i + 1; j < entries.length; j++) {
+            const h = entries[i];
+            const a = entries[j];
+            const hOvr = h.teamOvr;
+            const aOvr = a.teamOvr;
+            const hScore = Math.floor(Math.random() * 3);
+            const aScore = Math.floor(Math.random() * 3);
+
+            matches.push({
+              matchId: `match_rr_${r}_${h.userId}_${a.userId}`,
+              tournamentId: TOURNAMENT_ID,
+              stage: 'ROUND_ROBIN',
+              stageNameJa: '総当たり戦',
+              groupId: 'GROUP_ALL',
+              round: r++,
+              homeUserId: h.userId,
+              homeDisplayName: h.displayName,
+              awayUserId: a.userId,
+              awayDisplayName: a.displayName,
+              homeScore: hScore,
+              awayScore: aScore,
+              homeTactics: h.tacticsSnapshot,
+              awayTactics: a.tacticsSnapshot,
+              homeTeamSnapshot: h.teamSnapshot,
+              awayTeamSnapshot: a.teamSnapshot,
+              status: 'COMPLETED',
+              createdAt: Date.now() - 3600000,
+              completedAt: Date.now(),
+              events: [
+                {
+                  minute: 1,
+                  type: 'whistle',
+                  textJa: `キックオフ！ [${h.displayName} vs ${a.displayName}]`,
+                },
+                {
+                  minute: 34,
+                  type: 'goal',
+                  scorerName: `${h.displayName}のFW`,
+                  textJa: `⚽ GOAL!! 鮮やかな連係からゴール！ (${h.displayName})`,
+                },
+                {
+                  minute: 90,
+                  type: 'whistle',
+                  textJa: `試合終了: ${hScore} - ${aScore}`,
+                },
+              ],
+              tacticalAnalysisJa: `【戦術分析】${h.displayName} (${h.tacticsSnapshot.attackTactic}) vs ${a.displayName} (${a.tacticsSnapshot.attackTactic})。\n戦術相性と個々の局面打開が勝負を分けました。`,
+            });
+          }
+        }
+        tournamentMatches = matches;
+
+        // Calculate Standings
+        const standingsMap = new Map<string, ServerTournamentStanding>();
+        entries.forEach((e) => {
+          standingsMap.set(e.userId, {
+            tournamentId: TOURNAMENT_ID,
+            groupId: 'GROUP_ALL',
+            userId: e.userId,
+            displayName: e.displayName,
+            teamName: e.teamSnapshot?.name || 'My Team',
+            teamOvr: e.teamOvr,
+            rank: 1,
+            points: 0,
+            matchesPlayed: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            goalDifference: 0,
+            isQualified: false,
+          });
+        });
+
+        matches.forEach((m) => {
+          const h = standingsMap.get(m.homeUserId);
+          const a = standingsMap.get(m.awayUserId);
+          if (h) {
+            h.matchesPlayed += 1;
+            h.goalsFor += m.homeScore;
+            h.goalsAgainst += m.awayScore;
+            h.goalDifference = h.goalsFor - h.goalsAgainst;
+            if (m.homeScore > m.awayScore) {
+              h.wins += 1;
+              h.points += 3;
+            } else if (m.homeScore === m.awayScore) {
+              h.draws += 1;
+              h.points += 1;
+            } else {
+              h.losses += 1;
+            }
+          }
+          if (a) {
+            a.matchesPlayed += 1;
+            a.goalsFor += m.awayScore;
+            a.goalsAgainst += m.homeScore;
+            a.goalDifference = a.goalsFor - a.goalsAgainst;
+            if (m.awayScore > m.homeScore) {
+              a.wins += 1;
+              a.points += 3;
+            } else if (m.awayScore === m.homeScore) {
+              a.draws += 1;
+              a.points += 1;
+            } else {
+              a.losses += 1;
+            }
+          }
+        });
+
+        tournamentStandings = Array.from(standingsMap.values());
+        tournamentStandings.sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+          if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+          return b.teamOvr - a.teamOvr;
+        });
+        tournamentStandings.forEach((s, idx) => {
+          s.rank = idx + 1;
+          s.isQualified = idx < 2;
+        });
+      } else {
+        // 9+ players: Group Stage Partitioning
+        const numGroups = entries.length >= 16 ? 4 : entries.length >= 12 ? 3 : 2;
+        const labels = ['A', 'B', 'C', 'D'];
+        tournamentGroups = Array.from({ length: numGroups }, (_, i) => ({
+          groupId: `GROUP_${labels[i]}`,
+          groupNameJa: `グループ ${labels[i]}`,
+          groupNameEn: `Group ${labels[i]}`,
+          participantUserIds: [],
+        }));
+
+        entries.forEach((e, i) => {
+          tournamentGroups[i % numGroups].participantUserIds.push(e.userId);
+        });
+
+        // Run intra-group matches
+        const matches: ServerTournamentMatch[] = [];
+        tournamentGroups.forEach((g) => {
+          const gEntries = entries.filter((e) => g.participantUserIds.includes(e.userId));
+          let r = 1;
+          for (let i = 0; i < gEntries.length; i++) {
+            for (let j = i + 1; j < gEntries.length; j++) {
+              const h = gEntries[i];
+              const a = gEntries[j];
+              const hScore = Math.floor(Math.random() * 3);
+              const aScore = Math.floor(Math.random() * 3);
+              matches.push({
+                matchId: `match_${g.groupId}_${r}_${h.userId}_${a.userId}`,
+                tournamentId: TOURNAMENT_ID,
+                stage: 'GROUP',
+                stageNameJa: 'グループステージ',
+                groupId: g.groupId,
+                round: r++,
+                homeUserId: h.userId,
+                homeDisplayName: h.displayName,
+                awayUserId: a.userId,
+                awayDisplayName: a.displayName,
+                homeScore: hScore,
+                awayScore: aScore,
+                homeTactics: h.tacticsSnapshot,
+                awayTactics: a.tacticsSnapshot,
+                homeTeamSnapshot: h.teamSnapshot,
+                awayTeamSnapshot: a.teamSnapshot,
+                status: 'COMPLETED',
+                createdAt: Date.now() - 3600000,
+                completedAt: Date.now(),
+                events: [
+                  {
+                    minute: 1,
+                    type: 'whistle',
+                    textJa: `グループステージ試合開始！ [${h.displayName} vs ${a.displayName}]`,
+                  },
+                  {
+                    minute: 40,
+                    type: 'goal',
+                    scorerName: `${h.displayName}のFW`,
+                    textJa: `⚽ GOAL!! 見事な崩しからゴール！`,
+                  },
+                  {
+                    minute: 90,
+                    type: 'whistle',
+                    textJa: `試合終了: ${hScore} - ${aScore}`,
+                  },
+                ],
+                tacticalAnalysisJa: `【戦術分析】${g.groupNameJa}: ${h.displayName} vs ${a.displayName}。\n${h.tacticsSnapshot.attackTactic} vs ${a.tacticsSnapshot.attackTactic}`,
+              });
+            }
+          }
+        });
+        tournamentMatches = matches;
+
+        // Calculate Group Standings (Top 2 advance)
+        const standingsList: ServerTournamentStanding[] = [];
+        tournamentGroups.forEach((g) => {
+          const gEntries = entries.filter((e) => g.participantUserIds.includes(e.userId));
+          const map = new Map<string, ServerTournamentStanding>();
+          gEntries.forEach((e) => {
+            map.set(e.userId, {
+              tournamentId: TOURNAMENT_ID,
+              groupId: g.groupId,
+              userId: e.userId,
+              displayName: e.displayName,
+              teamName: e.teamSnapshot?.name || 'Squad',
+              teamOvr: e.teamOvr,
+              rank: 1,
+              points: 0,
+              matchesPlayed: 0,
+              wins: 0,
+              draws: 0,
+              losses: 0,
+              goalsFor: 0,
+              goalsAgainst: 0,
+              goalDifference: 0,
+              isQualified: false,
+            });
+          });
+
+          const gMatches = matches.filter((m) => m.groupId === g.groupId);
+          gMatches.forEach((m) => {
+            const h = map.get(m.homeUserId);
+            const a = map.get(m.awayUserId);
+            if (h) {
+              h.matchesPlayed += 1;
+              h.goalsFor += m.homeScore;
+              h.goalsAgainst += m.awayScore;
+              h.goalDifference = h.goalsFor - h.goalsAgainst;
+              if (m.homeScore > m.awayScore) {
+                h.wins += 1;
+                h.points += 3;
+              } else if (m.homeScore === m.awayScore) {
+                h.draws += 1;
+                h.points += 1;
+              } else {
+                h.losses += 1;
+              }
+            }
+            if (a) {
+              a.matchesPlayed += 1;
+              a.goalsFor += m.awayScore;
+              a.goalsAgainst += m.homeScore;
+              a.goalDifference = a.goalsFor - a.goalsAgainst;
+              if (m.awayScore > m.homeScore) {
+                a.wins += 1;
+                a.points += 3;
+              } else if (m.awayScore === m.homeScore) {
+                a.draws += 1;
+                a.points += 1;
+              } else {
+                a.losses += 1;
+              }
+            }
+          });
+
+          const sorted = Array.from(map.values());
+          sorted.sort((a, b) => {
+            if (b.points !== a.points) return b.points - a.points;
+            if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+            if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+            return b.teamOvr - a.teamOvr;
+          });
+          sorted.forEach((s, idx) => {
+            s.rank = idx + 1;
+            // Requirement 17: Top 2 from each group advance
+            s.isQualified = idx < 2;
+            standingsList.push(s);
+          });
+        });
+        tournamentStandings = standingsList;
+      }
+    } else if (serverTournamentStatus === 'GROUP_STAGE') {
+      // Step 2: GROUP_STAGE -> KNOCKOUT
+      serverTournamentStatus = 'KNOCKOUT';
+
+      // Pick top 2 qualifiers from each group (or top 4 from round-robin)
+      const qualifiers = tournamentStandings
+        .filter((s) => s.isQualified)
+        .map((s) => entries.find((e) => e.userId === s.userId))
+        .filter(Boolean) as ServerTournamentEntry[];
+
+      const finalQualifiers = qualifiers.length >= 4 ? qualifiers.slice(0, 4) : entries.slice(0, 4);
+
+      // Simulate Semi-Finals
+      const sf1Home = finalQualifiers[0];
+      const sf1Away = finalQualifiers[3] || finalQualifiers[1];
+      const sf1HScore = Math.random() < 0.5 ? 2 : 1;
+      const sf1AScore = sf1HScore === 2 ? 1 : 2;
+      const sf1Winner = sf1HScore > sf1AScore ? sf1Home : sf1Away;
+      const sf1Loser = sf1HScore > sf1AScore ? sf1Away : sf1Home;
+
+      const sf2Home = finalQualifiers[1];
+      const sf2Away = finalQualifiers[2];
+      const sf2HScore = Math.random() < 0.5 ? 3 : 0;
+      const sf2AScore = sf2HScore === 3 ? 1 : 2;
+      const sf2Winner = sf2HScore > sf2AScore ? sf2Home : sf2Away;
+      const sf2Loser = sf2HScore > sf2AScore ? sf2Away : sf2Home;
+
+      // 3rd Place Match
+      const tpMatch: ServerTournamentMatch = {
+        matchId: `match_tp_${sf1Loser.userId}_${sf2Loser.userId}`,
+        tournamentId: TOURNAMENT_ID,
+        stage: 'THIRD_PLACE',
+        stageNameJa: '3位決定戦',
+        round: 1,
+        homeUserId: sf1Loser.userId,
+        homeDisplayName: sf1Loser.displayName,
+        awayUserId: sf2Loser.userId,
+        awayDisplayName: sf2Loser.displayName,
+        homeScore: 2,
+        awayScore: 1,
+        winnerUserId: sf1Loser.userId,
+        homeTactics: sf1Loser.tacticsSnapshot,
+        awayTactics: sf2Loser.tacticsSnapshot,
+        homeTeamSnapshot: sf1Loser.teamSnapshot,
+        awayTeamSnapshot: sf2Loser.teamSnapshot,
+        status: 'COMPLETED',
+        createdAt: Date.now() - 1800000,
+        completedAt: Date.now(),
+        events: [
+          { minute: 1, type: 'whistle', textJa: '3位決定戦キックオフ！' },
+          { minute: 48, type: 'goal', textJa: `⚽ GOAL!! ${sf1Loser.displayName}が先制！` },
+          { minute: 90, type: 'whistle', textJa: `試合終了！ 2-1で${sf1Loser.displayName}が3位入賞！` },
+        ],
+        tacticalAnalysisJa: '白熱の3位決定戦。決定力の差が勝敗を分けました。',
+      };
+
+      // Final Match
+      const finalMatch: ServerTournamentMatch = {
+        matchId: `match_final_${sf1Winner.userId}_${sf2Winner.userId}`,
+        tournamentId: TOURNAMENT_ID,
+        stage: 'FINAL',
+        stageNameJa: '決勝戦',
+        round: 1,
+        homeUserId: sf1Winner.userId,
+        homeDisplayName: sf1Winner.displayName,
+        awayUserId: sf2Winner.userId,
+        awayDisplayName: sf2Winner.displayName,
+        homeScore: 2,
+        awayScore: 1,
+        winnerUserId: sf1Winner.userId,
+        homeTactics: sf1Winner.tacticsSnapshot,
+        awayTactics: sf2Winner.tacticsSnapshot,
+        homeTeamSnapshot: sf1Winner.teamSnapshot,
+        awayTeamSnapshot: sf2Winner.teamSnapshot,
+        status: 'COMPLETED',
+        createdAt: Date.now() - 900000,
+        completedAt: Date.now(),
+        events: [
+          { minute: 1, type: 'whistle', textJa: '🏆 第1回 FD CUP 決勝戦キックオフ！' },
+          { minute: 38, type: 'goal', textJa: `⚽ GOAL!! 決勝の舞台で${sf1Winner.displayName}が先制！` },
+          { minute: 88, type: 'goal', textJa: `⚽ GOAL!! ${sf1Winner.displayName}が劇的な決勝ゴール！` },
+          { minute: 90, type: 'whistle', textJa: `試合終了！ ${sf1Winner.displayName}が栄冠を獲得！` },
+        ],
+        tacticalAnalysisJa: `【決勝戦評】${sf1Winner.displayName}が見事な戦術遂行力で${sf2Winner.displayName}を破り、初制覇を達成！`,
+      };
+
+      tournamentKnockoutBracket = {
+        semiFinals: [
+          {
+            matchId: `match_sf_1`,
+            tournamentId: TOURNAMENT_ID,
+            stage: 'SEMI_FINAL',
+            stageNameJa: '準決勝 1',
+            round: 1,
+            homeUserId: sf1Home.userId,
+            homeDisplayName: sf1Home.displayName,
+            awayUserId: sf1Away.userId,
+            awayDisplayName: sf1Away.displayName,
+            homeScore: sf1HScore,
+            awayScore: sf1AScore,
+            winnerUserId: sf1Winner.userId,
+            homeTactics: sf1Home.tacticsSnapshot,
+            awayTactics: sf1Away.tacticsSnapshot,
+            homeTeamSnapshot: sf1Home.teamSnapshot,
+            awayTeamSnapshot: sf1Away.teamSnapshot,
+            status: 'COMPLETED',
+            createdAt: Date.now() - 3600000,
+            completedAt: Date.now(),
+            events: [],
+          },
+          {
+            matchId: `match_sf_2`,
+            tournamentId: TOURNAMENT_ID,
+            stage: 'SEMI_FINAL',
+            stageNameJa: '準決勝 2',
+            round: 2,
+            homeUserId: sf2Home.userId,
+            homeDisplayName: sf2Home.displayName,
+            awayUserId: sf2Away.userId,
+            awayDisplayName: sf2Away.displayName,
+            homeScore: sf2HScore,
+            awayScore: sf2AScore,
+            winnerUserId: sf2Winner.userId,
+            homeTactics: sf2Home.tacticsSnapshot,
+            awayTactics: sf2Away.tacticsSnapshot,
+            homeTeamSnapshot: sf2Home.teamSnapshot,
+            awayTeamSnapshot: sf2Away.teamSnapshot,
+            status: 'COMPLETED',
+            createdAt: Date.now() - 3600000,
+            completedAt: Date.now(),
+            events: [],
+          },
+        ],
+        thirdPlaceMatch: tpMatch,
+        finalMatch,
+        champion: sf1Winner,
+        runnerUp: sf2Winner,
+        thirdPlaceWinner: sf1Loser,
+      };
+
+      serverTournamentStatus = 'FINISHED';
+
+      // ── Step 3: Automatically Distribute Rewards into Present Box (Requirement 26 & 27) ──
+      // 🥇 優勝: レジェンド確定スカウト ×2
+      const key1 = `tournament_${TOURNAMENT_ID}_rank1_${sf1Winner.userId}`;
+      if (!distributedRewardKeys.has(key1)) {
+        distributedRewardKeys.add(key1);
+        serverPresentsDatabase.set(key1, {
+          id: key1,
+          userId: sf1Winner.userId,
+          title: '【公式大会 優勝】第1回 FD CUP チャンピオン報酬！',
+          description: '第1回 FOOTBALL DRAFT CUP 優勝おめでとうございます！ 頂点に立った栄誉を称え「レジェンド確定スカウト ×2」をお贈りします。',
+          rewardType: 'legend_guaranteed',
+          amount: 2,
+          isClaimed: false,
+          createdAt: Date.now(),
+          rank: 1,
+        });
+      }
+
+      // 🥈 準優勝: レジェンド確定スカウト ×1
+      const key2 = `tournament_${TOURNAMENT_ID}_rank2_${sf2Winner.userId}`;
+      if (!distributedRewardKeys.has(key2)) {
+        distributedRewardKeys.add(key2);
+        serverPresentsDatabase.set(key2, {
+          id: key2,
+          userId: sf2Winner.userId,
+          title: '【公式大会 準優勝】第1回 FD CUP 入賞報酬！',
+          description: '第1回 FOOTBALL DRAFT CUP 準優勝おめでとうございます！ 決勝進出の快挙を称え「レジェンド確定スカウト ×1」をお贈りします。',
+          rewardType: 'legend_guaranteed',
+          amount: 1,
+          isClaimed: false,
+          createdAt: Date.now(),
+          rank: 2,
+        });
+      }
+
+      // 🥉 3位: 紫確定スカウト ×1
+      const key3 = `tournament_${TOURNAMENT_ID}_rank3_${sf1Loser.userId}`;
+      if (!distributedRewardKeys.has(key3)) {
+        distributedRewardKeys.add(key3);
+        serverPresentsDatabase.set(key3, {
+          id: key3,
+          userId: sf1Loser.userId,
+          title: '【公式大会 第3位】第1回 FD CUP 入賞報酬！',
+          description: '第1回 FOOTBALL DRAFT CUP 3位入賞おめでとうございます！ 激闘を称え「紫確定スカウト ×1」をお贈りします。',
+          rewardType: 'purple_guaranteed',
+          amount: 1,
+          isClaimed: false,
+          createdAt: Date.now(),
+          rank: 3,
+        });
+      }
+
+      serverTournamentStatus = 'COMPLETED';
+    } else {
+      // Loop back to registration for repeated testing
+      serverTournamentStatus = 'REGISTRATION';
+    }
+
+    res.json({
+      success: true,
+      newStatus: serverTournamentStatus,
+      state: {
+        definition: {
+          tournamentId: TOURNAMENT_ID,
+          nameJa: '第1回 FOOTBALL DRAFT CUP',
+          nameEn: '1st FOOTBALL DRAFT CUP',
+          isTrial: true,
+          edition: 1,
+          status: serverTournamentStatus,
+          registrationStartMs: TOURNAMENT_REG_START_MS,
+          registrationEndMs: TOURNAMENT_REG_END_MS,
+          matchStartMs: TOURNAMENT_MATCH_START_MS,
+          matchEndMs: TOURNAMENT_MATCH_END_MS,
+          format: tournamentEntriesMap.size <= 8 ? 'ROUND_ROBIN' : 'GROUP_KNOCKOUT',
+          minParticipants: 4,
+          entryCount: tournamentEntriesMap.size,
+          rewards: {
+            rank1: { type: 'legend_guaranteed', count: 2, labelJa: 'レジェンド確定スカウト ×2' },
+            rank2: { type: 'legend_guaranteed', count: 1, labelJa: 'レジェンド確定スカウト ×1' },
+            rank3: { type: 'purple_guaranteed', count: 1, labelJa: '紫確定スカウト ×1' },
+          },
+        },
+        entries: Array.from(tournamentEntriesMap.values()),
+        groups: tournamentGroups,
+        standings: tournamentStandings,
+        matches: tournamentMatches,
+        knockoutBracket: tournamentKnockoutBracket,
+        rewards: [],
+        currentServerTimeMs: Date.now(),
+      },
+    });
+  });
+
+  // 7.6 Test Helper: Reset Tournament
+  app.post('/api/tournament/test/reset', (req, res) => {
+    serverTournamentStatus = 'REGISTRATION';
+    tournamentEntriesMap.clear();
+    tournamentGroups = [];
+    tournamentStandings = [];
+    tournamentMatches = [];
+    tournamentKnockoutBracket = null;
+
+    res.json({
+      success: true,
+      state: {
+        definition: {
+          tournamentId: TOURNAMENT_ID,
+          nameJa: '第1回 FOOTBALL DRAFT CUP',
+          nameEn: '1st FOOTBALL DRAFT CUP',
+          isTrial: true,
+          edition: 1,
+          status: 'REGISTRATION',
+          registrationStartMs: TOURNAMENT_REG_START_MS,
+          registrationEndMs: TOURNAMENT_REG_END_MS,
+          matchStartMs: TOURNAMENT_MATCH_START_MS,
+          matchEndMs: TOURNAMENT_MATCH_END_MS,
+          format: 'GROUP_KNOCKOUT',
+          minParticipants: 4,
+          entryCount: 0,
+          rewards: {
+            rank1: { type: 'legend_guaranteed', count: 2, labelJa: 'レジェンド確定スカウト ×2' },
+            rank2: { type: 'legend_guaranteed', count: 1, labelJa: 'レジェンド確定スカウト ×1' },
+            rank3: { type: 'purple_guaranteed', count: 1, labelJa: '紫確定スカウト ×1' },
+          },
+        },
+        entries: [],
+        groups: [],
+        standings: [],
+        matches: [],
+        knockoutBracket: null,
+        rewards: [],
+        currentServerTimeMs: Date.now(),
+      },
+    });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

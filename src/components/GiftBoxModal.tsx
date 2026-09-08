@@ -16,29 +16,30 @@ import {
 interface GiftBoxModalProps {
   isOpen: boolean;
   onClose: () => void;
-  presents: GiftBoxItem[];
-  onClaimItem: (giftId: string) => Promise<void>;
-  onClaimAll: () => Promise<void>;
-  onOpenScoutModal: () => void;
-  language: Language;
+  presents?: GiftBoxItem[];
+  onClaimItem?: (giftId: string) => Promise<void> | void;
+  onClaimAll?: () => Promise<void> | void;
+  onOpenScoutModal?: () => void;
+  language?: Language;
 }
 
 export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
   isOpen,
   onClose,
-  presents,
+  presents = [],
   onClaimItem,
   onClaimAll,
-  onOpenScoutModal,
-  language,
+  onOpenScoutModal = () => {},
+  language = 'ja',
 }) => {
   const [filter, setFilter] = useState<'all' | 'unclaimed' | 'claimed'>('all');
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!isOpen) return null;
 
-  const unclaimedItems = presents.filter((p) => !p.isClaimed);
-  const filteredItems = presents.filter((p) => {
+  const safePresents = Array.isArray(presents) ? presents : [];
+  const unclaimedItems = safePresents.filter((p) => !p.isClaimed);
+  const filteredItems = safePresents.filter((p) => {
     if (filter === 'unclaimed') return !p.isClaimed;
     if (filter === 'claimed') return p.isClaimed;
     return true;
@@ -47,7 +48,9 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
   const handleClaim = async (giftId: string) => {
     setIsProcessing(true);
     try {
-      await onClaimItem(giftId);
+      if (onClaimItem) {
+        await onClaimItem(giftId);
+      }
       soundManager.playDraftAcquired();
     } finally {
       setIsProcessing(false);
@@ -58,7 +61,9 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
     if (unclaimedItems.length === 0) return;
     setIsProcessing(true);
     try {
-      await onClaimAll();
+      if (onClaimAll) {
+        await onClaimAll();
+      }
       soundManager.playTeamCompleted();
     } finally {
       setIsProcessing(false);
@@ -196,9 +201,17 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
                     <p className="text-xs text-slate-300 leading-relaxed">
                       {item.description}
                     </p>
-                    <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5">
-                      <Clock className="w-3 h-3 text-slate-500" />
-                      <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+                    <div className="text-[10px] text-slate-500 font-mono flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-500" />
+                        <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      {item.expiresAt && (
+                        <div className={`flex items-center gap-1 ${Date.now() > item.expiresAt ? 'text-rose-400 font-bold' : 'text-amber-400/80'}`}>
+                          <span>有効期限: 2026/09/30 23:59 JST</span>
+                          {Date.now() > item.expiresAt && <span>(期限切れ)</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -207,6 +220,10 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
                       <div className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-500 text-xs font-bold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5 text-slate-600" />
                         <span>受取完了</span>
+                      </div>
+                    ) : item.expiresAt && Date.now() > item.expiresAt ? (
+                      <div className="px-3.5 py-1.5 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-400 text-xs font-bold flex items-center gap-1">
+                        <span>期限切れ</span>
                       </div>
                     ) : (
                       <button
