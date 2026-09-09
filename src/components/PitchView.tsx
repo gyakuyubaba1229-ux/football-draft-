@@ -114,7 +114,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
   const [showUnlockConfirm, setShowUnlockConfirm] = useState(false);
   const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
   const [lockNoticeToast, setLockNoticeToast] = useState<string | null>(null);
-  const [moveNoticeToast, setMoveNoticeToast] = useState<string | null>(null);
   const [moveErrorNotice, setMoveErrorNotice] = useState<string | null>(null);
 
   // Player Detail Modal state (opened via ONE-TAP)
@@ -338,9 +337,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
       customPositionsRef.current = nextCustom;
       onUpdateCustomPositions(nextCustom);
     }
-
-    setMoveNoticeToast(`⇄ ${playerA.playerName} と ${playerB.playerName} を入れ替えました`);
-    setTimeout(() => setMoveNoticeToast(null), 3000);
   };
 
   // ---------------------------------------------------------------------------
@@ -366,10 +362,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
     onUpdateCustomPositions(nextCustom);
 
     const targetSlotObj = activeSlotsRef.current.find((s) => s.id === emptySlotId);
-    setMoveNoticeToast(
-      `📍 ${movingPlayer.playerName} を ${targetSlotObj?.role || '空きスロット'} へ移動しました（元の位置は空き枠）`
-    );
-    setTimeout(() => setMoveNoticeToast(null), 3000);
   };
 
   // Dynamic synchronization refs for event listeners
@@ -466,15 +458,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
         onUpdateCustomPositions(nextCustom);
 
         soundManager.playButtonClick();
-        const evalResult = evaluatePlayerAtPosition(movingPlayer, dynamicRole);
-        if (evalResult.ratingDelta < 0) {
-          setMoveNoticeToast(
-            `📍 ${movingPlayer.playerName} を自由移動しました (${dynamicRole} 適正外 OVR ${evalResult.ratingDelta})`
-          );
-        } else {
-          setMoveNoticeToast(`📍 ${movingPlayer.playerName} を ${dynamicRole} に自由配置しました`);
-        }
-        setTimeout(() => setMoveNoticeToast(null), 3000);
       }
     } finally {
       document.body.style.overflow = '';
@@ -574,12 +557,10 @@ export const PitchView: React.FC<PitchViewProps> = ({
       if (!selectedSwapSourceSlotId) {
         soundManager.playButtonClick();
         setSelectedSwapSourceSlotId(slotId);
-        setMoveNoticeToast(`入れ替え対象の2人目の選手をタップしてください`);
         return;
       } else if (selectedSwapSourceSlotId === slotId) {
         soundManager.playButtonClick();
         setSelectedSwapSourceSlotId(null);
-        setMoveNoticeToast(null);
         return;
       } else {
         executeSwap(selectedSwapSourceSlotId, slotId);
@@ -622,7 +603,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
       } catch (err) {}
 
       soundManager.playButtonClick();
-      setMoveNoticeToast('ドラッグしてピッチ上に自由配置、または選手に重ねて入れ替え');
     }, 260);
   };
 
@@ -720,13 +700,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
           }
         } else {
           setSelectedSwapSourceSlotId(slotId);
-          const p = myTeam.find((pl) => pl.playerId === resolvedPlayerSlots[slotId]);
-          const s = activeSlots.find((sl) => sl.id === slotId);
-          setMoveNoticeToast(
-            p
-              ? `「${p.playerName}」を選択中。入替先の選手または空き枠をタップしてください`
-              : `空き枠「${s?.role || 'ポジション'}」を選択中。移動させたい選手をタップしてください`
-          );
         }
         return;
       }
@@ -741,12 +714,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
           role: slot?.role || player.position,
           slotId,
         });
-      } else {
-        const slot = activeSlots.find((s) => s.id === slotId);
-        setMoveNoticeToast(
-          `空き枠: ${slot?.role || 'ポジション'} （選手をドラッグするか「⇄ 選手入替」モードで配置できます）`
-        );
-        setTimeout(() => setMoveNoticeToast(null), 2500);
       }
       return;
     }
@@ -855,8 +822,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
     const basePreset = newFormation === 'CUSTOM' ? '4-3-3' : newFormation;
     const newSlots = remapPlayerSlots(myTeam, playerSlots, basePreset);
     onUpdateSlotAssignment(newSlots);
-    setMoveNoticeToast(`フォーメーションを ${newFormation} に変更しました（ドラッグで自由調整可能）`);
-    setTimeout(() => setMoveNoticeToast(null), 3000);
   };
 
   const handleConfirmReset = () => {
@@ -1160,12 +1125,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
                 soundManager.playButtonClick();
                 setIsSwapMode((prev) => !prev);
                 setSelectedSwapSourceSlotId(null);
-                if (!isSwapMode) {
-                  setMoveNoticeToast('⇄ 選手入替モード: 2人の選手を順にタップして位置を入れ替えます');
-                  setTimeout(() => setMoveNoticeToast(null), 3500);
-                } else {
-                  setMoveNoticeToast(null);
-                }
               }}
               className={`py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all ${
                 isTeamLocked
@@ -1209,13 +1168,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
           <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2 animate-fadeIn">
             <Lock className="w-4 h-4 shrink-0 text-amber-400" />
             <span>{lockNoticeToast}</span>
-          </div>
-        )}
-
-        {moveNoticeToast && (
-          <div className="p-2.5 rounded-xl bg-indigo-950/60 border border-indigo-500/40 text-indigo-200 text-xs flex items-center gap-2 animate-fadeIn">
-            <Sparkles className="w-4 h-4 shrink-0 text-indigo-400" />
-            <span>{moveNoticeToast}</span>
           </div>
         )}
 

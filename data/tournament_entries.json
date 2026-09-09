@@ -1,0 +1,570 @@
+[
+  {
+    "tournamentId": "FD_CUP_001",
+    "userId": "usr_tourney_bot_1",
+    "displayName": "ペップ・タクティクス",
+    "entryStatus": "ENTERED",
+    "enteredAt": 1788935354306,
+    "teamOvr": 96,
+    "tacticsSnapshot": {
+      "attackTactic": "TIKI_TAKA",
+      "defenseTactic": "HIGH_PRESS",
+      "attackDirection": "BALANCED",
+      "pressIntensity": "BALANCED"
+    },
+    "teamSnapshot": {
+      "teamId": "team_tourney_usr_tourney_bot_1",
+      "name": "ペップ・タクティクス XI",
+      "formation": "4-3-3",
+      "players": [
+        {
+          "playerId": "bot_p_0_0",
+          "nameJa": "選手 1",
+          "playerName": "Player 1",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "GK",
+          "subPosition": "GK",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_1",
+          "nameJa": "選手 2",
+          "playerName": "Player 2",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 99,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_2",
+          "nameJa": "選手 3",
+          "playerName": "Player 3",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 95,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_3",
+          "nameJa": "選手 4",
+          "playerName": "Player 4",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "LB",
+          "rating": 97,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_4",
+          "nameJa": "選手 5",
+          "playerName": "Player 5",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "RB",
+          "rating": 96,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_5",
+          "nameJa": "選手 6",
+          "playerName": "Player 6",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 95,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_6",
+          "nameJa": "選手 7",
+          "playerName": "Player 7",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_7",
+          "nameJa": "選手 8",
+          "playerName": "Player 8",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 95,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_8",
+          "nameJa": "選手 9",
+          "playerName": "Player 9",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "ST",
+          "rating": 98,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_9",
+          "nameJa": "選手 10",
+          "playerName": "Player 10",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 95,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_0_10",
+          "nameJa": "選手 11",
+          "playerName": "Player 11",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 94,
+          "category": "GOLD"
+        }
+      ]
+    }
+  },
+  {
+    "tournamentId": "FD_CUP_001",
+    "userId": "usr_tourney_bot_2",
+    "displayName": "アンチェ・カルチョ",
+    "entryStatus": "ENTERED",
+    "enteredAt": 1788931754306,
+    "teamOvr": 94,
+    "tacticsSnapshot": {
+      "attackTactic": "COUNTER",
+      "defenseTactic": "MID_BLOCK",
+      "attackDirection": "BALANCED",
+      "pressIntensity": "BALANCED"
+    },
+    "teamSnapshot": {
+      "teamId": "team_tourney_usr_tourney_bot_2",
+      "name": "アンチェ・カルチョ XI",
+      "formation": "4-3-1-2",
+      "players": [
+        {
+          "playerId": "bot_p_1_0",
+          "nameJa": "選手 1",
+          "playerName": "Player 1",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "GK",
+          "subPosition": "GK",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_1",
+          "nameJa": "選手 2",
+          "playerName": "Player 2",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 95,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_2",
+          "nameJa": "選手 3",
+          "playerName": "Player 3",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 93,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_3",
+          "nameJa": "選手 4",
+          "playerName": "Player 4",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "LB",
+          "rating": 93,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_4",
+          "nameJa": "選手 5",
+          "playerName": "Player 5",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "RB",
+          "rating": 91,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_5",
+          "nameJa": "選手 6",
+          "playerName": "Player 6",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 97,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_6",
+          "nameJa": "選手 7",
+          "playerName": "Player 7",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 93,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_7",
+          "nameJa": "選手 8",
+          "playerName": "Player 8",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 92,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_8",
+          "nameJa": "選手 9",
+          "playerName": "Player 9",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "ST",
+          "rating": 95,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_9",
+          "nameJa": "選手 10",
+          "playerName": "Player 10",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 96,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_1_10",
+          "nameJa": "選手 11",
+          "playerName": "Player 11",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 94,
+          "category": "GOLD"
+        }
+      ]
+    }
+  },
+  {
+    "tournamentId": "FD_CUP_001",
+    "userId": "usr_tourney_bot_3",
+    "displayName": "クロップ・ゲーゲン",
+    "entryStatus": "ENTERED",
+    "enteredAt": 1788928154307,
+    "teamOvr": 93,
+    "tacticsSnapshot": {
+      "attackTactic": "DIRECT_PLAY",
+      "defenseTactic": "GEGENPRESSING",
+      "attackDirection": "BALANCED",
+      "pressIntensity": "BALANCED"
+    },
+    "teamSnapshot": {
+      "teamId": "team_tourney_usr_tourney_bot_3",
+      "name": "クロップ・ゲーゲン XI",
+      "formation": "4-3-3",
+      "players": [
+        {
+          "playerId": "bot_p_2_0",
+          "nameJa": "選手 1",
+          "playerName": "Player 1",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "GK",
+          "subPosition": "GK",
+          "rating": 90,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_1",
+          "nameJa": "選手 2",
+          "playerName": "Player 2",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 93,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_2",
+          "nameJa": "選手 3",
+          "playerName": "Player 3",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 96,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_3",
+          "nameJa": "選手 4",
+          "playerName": "Player 4",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "LB",
+          "rating": 91,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_4",
+          "nameJa": "選手 5",
+          "playerName": "Player 5",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "RB",
+          "rating": 93,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_5",
+          "nameJa": "選手 6",
+          "playerName": "Player 6",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_6",
+          "nameJa": "選手 7",
+          "playerName": "Player 7",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 95,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_7",
+          "nameJa": "選手 8",
+          "playerName": "Player 8",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_8",
+          "nameJa": "選手 9",
+          "playerName": "Player 9",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "ST",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_9",
+          "nameJa": "選手 10",
+          "playerName": "Player 10",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 91,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_2_10",
+          "nameJa": "選手 11",
+          "playerName": "Player 11",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 96,
+          "category": "GOLD"
+        }
+      ]
+    }
+  },
+  {
+    "tournamentId": "FD_CUP_001",
+    "userId": "usr_tourney_bot_4",
+    "displayName": "シメオネ・チョロ",
+    "entryStatus": "ENTERED",
+    "enteredAt": 1788924554307,
+    "teamOvr": 91,
+    "tacticsSnapshot": {
+      "attackTactic": "QUICK_ATTACK",
+      "defenseTactic": "CATENACCIO",
+      "attackDirection": "BALANCED",
+      "pressIntensity": "BALANCED"
+    },
+    "teamSnapshot": {
+      "teamId": "team_tourney_usr_tourney_bot_4",
+      "name": "シメオネ・チョロ XI",
+      "formation": "4-4-2",
+      "players": [
+        {
+          "playerId": "bot_p_3_0",
+          "nameJa": "選手 1",
+          "playerName": "Player 1",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "GK",
+          "subPosition": "GK",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_1",
+          "nameJa": "選手 2",
+          "playerName": "Player 2",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 90,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_2",
+          "nameJa": "選手 3",
+          "playerName": "Player 3",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "CB",
+          "rating": 93,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_3",
+          "nameJa": "選手 4",
+          "playerName": "Player 4",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "LB",
+          "rating": 91,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_4",
+          "nameJa": "選手 5",
+          "playerName": "Player 5",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "DF",
+          "subPosition": "RB",
+          "rating": 93,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_5",
+          "nameJa": "選手 6",
+          "playerName": "Player 6",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 92,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_6",
+          "nameJa": "選手 7",
+          "playerName": "Player 7",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 88,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_7",
+          "nameJa": "選手 8",
+          "playerName": "Player 8",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "CM",
+          "rating": 91,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_8",
+          "nameJa": "選手 9",
+          "playerName": "Player 9",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "MF",
+          "subPosition": "ST",
+          "rating": 94,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_9",
+          "nameJa": "選手 10",
+          "playerName": "Player 10",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 89,
+          "category": "GOLD"
+        },
+        {
+          "playerId": "bot_p_3_10",
+          "nameJa": "選手 11",
+          "playerName": "Player 11",
+          "clubName": "Elite Club",
+          "year": "2024",
+          "position": "FW",
+          "subPosition": "ST",
+          "rating": 93,
+          "category": "GOLD"
+        }
+      ]
+    }
+  }
+]

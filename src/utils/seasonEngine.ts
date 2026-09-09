@@ -33,9 +33,14 @@ export type SeasonPhase = 'ACTIVE' | 'AGGREGATING' | 'FINALIZED';
 // JST Offset in milliseconds: +9 hours
 export const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-// v1.3.0 Base Season Start: 2026-09-07 00:00:00 JST (2026-09-06 15:00:00 UTC)
-export const V130_START_MS = Date.UTC(2026, 8, 6, 15, 0, 0); // 2026-09-07 00:00:00 JST
-export const SEASON_1_START_MS = V130_START_MS;
+// v1.3.2 Base Season Start: 2026-09-09 00:00:00 JST (2026-09-08 15:00:00 UTC)
+export const V132_START_MS = Date.UTC(2026, 8, 8, 15, 0, 0); // 2026-09-09 00:00:00 JST
+export const V130_START_MS = V132_START_MS;
+export const SEASON_1_START_MS = V132_START_MS;
+
+// First season is from 2026-09-09 00:00:00 JST to 2026-09-13 23:59:59.999 JST (5 days)
+export const SEASON_1_END_MS = Date.UTC(2026, 8, 13, 14, 59, 59, 999);
+export const SEASON_2_START_MS = Date.UTC(2026, 8, 13, 15, 0, 0); // 2026-09-14 00:00:00 JST
 
 export const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export const AGGREGATION_DURATION_MS = 60 * 60 * 1000; // 1 hour (00:00 - 01:00 JST)
@@ -59,15 +64,18 @@ export function formatWeekId(startMs: number): string {
 }
 
 /**
- * Determine which season number a timestamp belongs to (1-indexed starting at 2026-09-07)
+ * Determine which season number a timestamp belongs to (1-indexed starting at 2026-09-09)
  */
 export function getSeasonNumberForTimestamp(timestamp: number): number {
-  if (timestamp < V130_START_MS) {
-    // Archived matches prior to v1.3.0
+  if (timestamp < SEASON_1_START_MS) {
+    // Archived matches prior to v1.3.2 2026-09-09
     return 0;
   }
-  const diff = timestamp - V130_START_MS;
-  return Math.floor(diff / ONE_WEEK_MS) + 1;
+  if (timestamp <= SEASON_1_END_MS) {
+    return 1;
+  }
+  const diff = timestamp - SEASON_2_START_MS;
+  return Math.floor(diff / ONE_WEEK_MS) + 2;
 }
 
 /**
@@ -76,10 +84,10 @@ export function getSeasonNumberForTimestamp(timestamp: number): number {
 export function getWeekIdForTimestamp(timestamp: number): string {
   const sNum = getSeasonNumberForTimestamp(timestamp);
   if (sNum <= 0) {
-    return 'legacy_pre_2026-09-07_week';
+    return 'legacy_pre_2026-09-09_week';
   }
-  const { startMs } = getSeasonRange(sNum);
-  return formatWeekId(startMs);
+  const { weekId } = getSeasonRange(sNum);
+  return weekId;
 }
 
 /**
@@ -101,14 +109,23 @@ export function getSeasonRange(seasonNum: number): {
   if (seasonNum <= 0) {
     return {
       startMs: 0,
-      endMs: V130_START_MS - 1,
-      aggregationEndMs: V130_START_MS - 1,
-      weekId: 'legacy_pre_2026-09-07_week',
+      endMs: SEASON_1_START_MS - 1,
+      aggregationEndMs: SEASON_1_START_MS - 1,
+      weekId: 'legacy_pre_2026-09-09_week',
     };
   }
 
-  const offsetWeeks = seasonNum - 1;
-  const startMs = V130_START_MS + offsetWeeks * ONE_WEEK_MS;
+  if (seasonNum === 1) {
+    return {
+      startMs: SEASON_1_START_MS,
+      endMs: SEASON_1_END_MS,
+      aggregationEndMs: SEASON_1_END_MS + AGGREGATION_DURATION_MS,
+      weekId: '2026-09-09_week',
+    };
+  }
+
+  const offsetWeeks = seasonNum - 2;
+  const startMs = SEASON_2_START_MS + offsetWeeks * ONE_WEEK_MS;
   const endMs = startMs + ONE_WEEK_MS - 1;
   const aggregationEndMs = endMs + AGGREGATION_DURATION_MS;
   const weekId = formatWeekId(startMs);

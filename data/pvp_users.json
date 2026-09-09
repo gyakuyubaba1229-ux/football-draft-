@@ -1,0 +1,74 @@
+[
+  {
+    "userId": "test_user_sync_1",
+    "username": "テスト監督",
+    "team": {
+      "teamId": "t1",
+      "formation": "4-3-3",
+      "players": [
+        {
+          "playerId": "p0",
+          "nameJa": "選手0",
+          "rating": 90
+        },
+        {
+          "playerId": "p1",
+          "nameJa": "選手1",
+          "rating": 90
+        },
+        {
+          "playerId": "p2",
+          "nameJa": "選手2",
+          "rating": 90
+        },
+        {
+          "playerId": "p3",
+          "nameJa": "選手3",
+          "rating": 90
+        },
+        {
+          "playerId": "p4",
+          "nameJa": "選手4",
+          "rating": 90
+        },
+        {
+          "playerId": "p5",
+          "nameJa": "選手5",
+          "rating": 90
+        },
+        {
+          "playerId": "p6",
+          "nameJa": "選手6",
+          "rating": 90
+        },
+        {
+          "playerId": "p7",
+          "nameJa": "選手7",
+          "rating": 90
+        },
+        {
+          "playerId": "p8",
+          "nameJa": "選手8",
+          "rating": 90
+        },
+        {
+          "playerId": "p9",
+          "nameJa": "選手9",
+          "rating": 90
+        },
+        {
+          "playerId": "p10",
+          "nameJa": "選手10",
+          "rating": 90
+        }
+      ]
+    },
+    "tactics": {
+      "attackTactic": "POSSESSION",
+      "defenseTactic": "MID_BLOCK",
+      "attackDirection": "BALANCED",
+      "pressIntensity": "BALANCED"
+    },
+    "updatedAt": 1788938947704
+  }
+]

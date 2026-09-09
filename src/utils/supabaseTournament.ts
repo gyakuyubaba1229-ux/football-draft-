@@ -114,14 +114,14 @@ export async function fetchAuthoritativeTournamentState(
     console.warn('Server API status fetch failed, checking Supabase...', e);
   }
 
-  // Supabase fallback query
+  // Supabase fallback query only if server API was unreachable
   try {
-    const { data: entriesData } = await supabase
+    const { data: entriesData, error } = await supabase
       .from('tournament_entries')
       .select('*')
       .eq('tournament_id', tournamentId);
 
-    if (entriesData && entriesData.length > 0) {
+    if (!error && entriesData && entriesData.length > 0) {
       const entries: TournamentEntry[] = entriesData.map((d: any) => ({
         tournamentId: d.tournament_id,
         userId: d.user_id,
@@ -278,13 +278,8 @@ export async function enterOfficialTournament(params: {
     };
   }
 
-  // 3. Prevent duplicate entry
-  if (isUserEntered(userId)) {
-    return {
-      success: false,
-      error: 'すでにこの大会へエントリー済みです。',
-    };
-  }
+  const existingIdx = currentTournamentState.entries.findIndex((e) => e.userId === userId);
+  const existingEntry = existingIdx >= 0 ? currentTournamentState.entries[existingIdx] : null;
 
   const teamOvr = Math.round(
     teamSnapshot.players.reduce((sum, p) => sum + p.rating, 0) / 11
@@ -293,18 +288,24 @@ export async function enterOfficialTournament(params: {
   const newEntry: TournamentEntry = {
     tournamentId,
     userId,
-    displayName: displayName || 'Manager',
+    displayName: displayName || existingEntry?.displayName || 'Manager',
     entryStatus: 'ENTERED',
-    enteredAt: Date.now(),
+    enteredAt: existingEntry?.enteredAt || Date.now(),
     teamSnapshot,
     tacticsSnapshot,
     defensiveSquadSnapshot,
     teamOvr,
-    tacticsModifiedCount: 0,
+    tacticsModifiedCount: existingEntry?.tacticsModifiedCount || 0,
   };
 
-  // Optimistic local state update
-  currentTournamentState.entries = [...currentTournamentState.entries, newEntry];
+  // Optimistic local state update (upsert)
+  if (existingIdx >= 0) {
+    const updated = [...currentTournamentState.entries];
+    updated[existingIdx] = newEntry;
+    currentTournamentState.entries = updated;
+  } else {
+    currentTournamentState.entries = [...currentTournamentState.entries, newEntry];
+  }
   currentTournamentState.definition.entryCount = currentTournamentState.entries.length;
   notifyListeners();
 
@@ -321,7 +322,7 @@ export async function enterOfficialTournament(params: {
     console.warn('Realtime entry broadcast failed', e);
   }
 
-  // Save to Server API
+  // Save to Server API (Authoritative sync)
   try {
     const res = await fetch('/api/tournament/entry', {
       method: 'POST',
@@ -335,7 +336,13 @@ export async function enterOfficialTournament(params: {
         defensiveSquadSnapshot,
       }),
     });
-    if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.entry) {
+        // Confirm with server response
+        fetchAuthoritativeTournamentState(tournamentId);
+      }
+    } else {
       const err = await res.json();
       console.warn('Server API entry warning:', err);
     }

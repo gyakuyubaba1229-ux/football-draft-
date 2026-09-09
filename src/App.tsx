@@ -60,7 +60,7 @@ import {
   UserRewardTickets,
   ScoutTicketType,
 } from './utils/rewardScoutEngine';
-import { checkAndPerformV130RankingReset } from './utils/supabasePvP';
+import { checkAndPerformV132RankingReset } from './utils/supabasePvP';
 import { getCurrentUserProfile } from './utils/pvpEngine';
 import { CURRENT_VERSION } from './data/versionConfig';
 import { DEFAULT_X_CHAR_LIMIT, STORAGE_KEY_X_CHAR_LIMIT } from './utils/shareUtils';
@@ -90,6 +90,7 @@ function createDefaultTeam(teamNumber = 1, mode: GameMode = 'europe'): UserTeam 
     playerSlots: {},
     customPositions: {},
     isCompleted: false,
+    draftSkipsRemaining: 3,
     createdAt: Date.now(),
   };
 }
@@ -240,7 +241,8 @@ export default function App() {
           setSelectedClub(parsed.selectedClub);
           setCandidatePlayers(parsed.candidatePlayers || []);
           setHasCurrentDraft(parsed.hasCurrentDraft);
-          setSkipsRemaining(parsed.skipsRemaining ?? 3);
+          const matchedTeam = parsed.activeTeamId ? teams.find((tItem) => tItem.teamId === parsed.activeTeamId) : activeTeam;
+          setSkipsRemaining(matchedTeam?.draftSkipsRemaining ?? parsed.skipsRemaining ?? 3);
           setBlackBallSpinType(parsed.blackBallSpinType || 'none');
           setBlackBallStage(parsed.blackBallStage || 'revealed');
           setIsBlackBallResult(parsed.isBlackBallResult || false);
@@ -358,10 +360,10 @@ export default function App() {
   // User Profile for persistent rewards
   const userProfile = useMemo(() => getCurrentUserProfile(activeTeam, teams), [activeTeam, teams]);
 
-  // Initial mount: v1.3.0 ranking reset & apology gift
+  // Initial mount: v1.3.2 ranking reset & apology gift
   useEffect(() => {
-    // 1. Perform v1.3.0 ranking reset (wipes only matches/rankings, strictly preserves all other data)
-    checkAndPerformV130RankingReset();
+    // 1. Perform v1.3.2 ranking reset (clears past matches and rankings, strictly preserves all other data)
+    checkAndPerformV132RankingReset();
 
     // 2. Distribute apology gift "Legend 20% Scout x1" to all users
     if (userProfile.userId) {
@@ -440,8 +442,91 @@ export default function App() {
     }
   };
 
+  // SWITCH ACTIVE TEAM (Strictly preserves each team's own skips & draft state)
+  const switchActiveTeam = (targetTeamId: string) => {
+    if (targetTeamId === activeTeamId) return;
+
+    // Snapshot current active team's draft state
+    const currentDraftStateSnapshot: CurrentDraftState = {
+      activeTeamId,
+      mode: activeTeam.mode,
+      selectedYear,
+      selectedClub,
+      candidatePlayers,
+      isSpinning,
+      hasCurrentDraft,
+      skipsRemaining,
+      blackBallSpinType,
+      blackBallStage,
+      isBlackBallResult,
+      isGoldenResult,
+      isPurpleResult,
+    };
+
+    // Save snapshot to current active team
+    setTeams((prev) =>
+      prev.map((t) => {
+        if (t.teamId === activeTeamId) {
+          return {
+            ...t,
+            draftSkipsRemaining: skipsRemaining,
+            draftState: currentDraftStateSnapshot,
+          };
+        }
+        return t;
+      })
+    );
+
+    // Find and switch to target team
+    const targetTeam = teams.find((t) => t.teamId === targetTeamId);
+    if (targetTeam) {
+      setActiveTeamId(targetTeamId);
+
+      if (targetTeam.draftState && !targetTeam.isCompleted) {
+        const ds = targetTeam.draftState;
+        setSelectedYear(ds.selectedYear);
+        setSelectedClub(ds.selectedClub);
+        setCandidatePlayers(ds.candidatePlayers || []);
+        setIsSpinning(false);
+        setHasCurrentDraft(ds.hasCurrentDraft || false);
+        setSkipsRemaining(targetTeam.draftSkipsRemaining ?? ds.skipsRemaining ?? 3);
+        setBlackBallSpinType(ds.blackBallSpinType || 'none');
+        setBlackBallStage(ds.blackBallStage || 'revealed');
+        setIsBlackBallResult(ds.isBlackBallResult || false);
+        setIsGoldenResult(ds.isGoldenResult || false);
+        setIsPurpleResult(ds.isPurpleResult || false);
+      } else {
+        setSelectedYear(null);
+        setSelectedClub(null);
+        setCandidatePlayers([]);
+        setIsSpinning(false);
+        setHasCurrentDraft(false);
+        // Use team's recorded skips or initial 3
+        setSkipsRemaining(targetTeam.draftSkipsRemaining ?? 3);
+        setBlackBallSpinType('none');
+        setBlackBallStage('revealed');
+        setIsBlackBallResult(false);
+        setIsGoldenResult(false);
+        setIsPurpleResult(false);
+      }
+    }
+  };
+
   // CREATE NEW TEAM (Team 2, Team 3, etc.)
   const handleCreateNewTeam = () => {
+    // Save current active team state before switching
+    setTeams((prev) =>
+      prev.map((t) => {
+        if (t.teamId === activeTeamId) {
+          return {
+            ...t,
+            draftSkipsRemaining: skipsRemaining,
+          };
+        }
+        return t;
+      })
+    );
+
     const nextTeamNumber = teams.length + 1;
     const newTeam = createDefaultTeam(nextTeamNumber, mode);
     setTeams((prev) => [...prev, newTeam]);
@@ -482,12 +567,12 @@ export default function App() {
 
   // SELECT ACTIVE TEAM
   const handleSelectTeam = (teamId: string) => {
-    setActiveTeamId(teamId);
+    switchActiveTeam(teamId);
   };
 
   // CONTINUE DRAFT FOR A SPECIFIC TEAM
   const handleContinueDraft = (teamId: string) => {
-    setActiveTeamId(teamId);
+    switchActiveTeam(teamId);
     setCurrentView('draft');
   };
 
@@ -837,7 +922,12 @@ export default function App() {
   const handleSkip = () => {
     if (skipsRemaining <= 0 || isSpinning) return;
     soundManager.playSkip();
-    setSkipsRemaining((prev) => Math.max(0, prev - 1));
+    const nextSkips = Math.max(0, skipsRemaining - 1);
+    setSkipsRemaining(nextSkips);
+    updateActiveTeam((prev) => ({
+      ...prev,
+      draftSkipsRemaining: nextSkips,
+    }));
     setCandidatePlayers([]);
     setSelectedYear(null);
     setSelectedClub(null);
@@ -889,6 +979,7 @@ export default function App() {
       playerSlots: newSlots,
       isCompleted,
       completedAt: isCompleted ? Date.now() : activeTeam.completedAt,
+      draftSkipsRemaining: skipsRemaining,
     };
 
     updateActiveTeam(() => updatedTeam);

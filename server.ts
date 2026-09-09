@@ -1,6 +1,92 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+
+// Server-side persistent file storage
+const DATA_DIR = path.join(process.cwd(), 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch (e) {
+    console.error('Failed to create data dir', e);
+  }
+}
+
+// ── SERVER-SIDE PVP & RANKING PERSISTENCE ──
+export interface ServerPvPUser {
+  userId: string;
+  username: string;
+  team: any;
+  tactics: any;
+  defenseSquadId?: string;
+  tacticalDefenseSquad?: any;
+  ovrDefenseSquad?: any;
+  updatedAt: number;
+}
+
+export interface ServerPvPMatch {
+  id: string;
+  matchId?: string;
+  weekId: string;
+  seasonNumber: number;
+  challengerUserId: string;
+  challengerUsername: string;
+  challengerScore: number;
+  opponentUserId: string;
+  opponentUsername: string;
+  opponentScore: number;
+  result: 'WIN' | 'DRAW' | 'LOSE';
+  matchType: string;
+  timestamp: number;
+  challengerTeam?: any;
+  opponentTeam?: any;
+  stats?: any;
+}
+
+const PVP_USERS_FILE = path.join(DATA_DIR, 'pvp_users.json');
+const PVP_MATCHES_FILE = path.join(DATA_DIR, 'pvp_matches.json');
+
+const serverPvPUsersMap: Map<string, ServerPvPUser> = new Map();
+const serverPvPMatchesList: ServerPvPMatch[] = [];
+
+// Load initial data from disk
+try {
+  if (fs.existsSync(PVP_USERS_FILE)) {
+    const raw = fs.readFileSync(PVP_USERS_FILE, 'utf-8');
+    const list: ServerPvPUser[] = JSON.parse(raw);
+    list.forEach((u) => serverPvPUsersMap.set(u.userId, u));
+  }
+} catch (e) {
+  console.error('Failed to read pvp_users.json', e);
+}
+
+try {
+  if (fs.existsSync(PVP_MATCHES_FILE)) {
+    const raw = fs.readFileSync(PVP_MATCHES_FILE, 'utf-8');
+    const list: ServerPvPMatch[] = JSON.parse(raw);
+    serverPvPMatchesList.push(...list);
+  }
+} catch (e) {
+  console.error('Failed to read pvp_matches.json', e);
+}
+
+function savePvPUsersToDisk() {
+  try {
+    const list = Array.from(serverPvPUsersMap.values());
+    fs.writeFileSync(PVP_USERS_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write pvp_users.json', e);
+  }
+}
+
+function savePvPMatchesToDisk() {
+  try {
+    fs.writeFileSync(PVP_MATCHES_FILE, JSON.stringify(serverPvPMatchesList, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write pvp_matches.json', e);
+  }
+}
 
 // Server-side database / storage in memory with persistence simulation
 interface ServerPresentItem {
@@ -21,15 +107,74 @@ const serverPresentsDatabase: Map<string, ServerPresentItem> = new Map();
 const distributedRewardKeys: Set<string> = new Set();
 const userTicketsDatabase: Map<string, Record<string, number>> = new Map();
 
-// Weekly Season Timing Helpers (JST UTC+9)
+const PRESENTS_FILE = path.join(DATA_DIR, 'presents.json');
+const USER_TICKETS_FILE = path.join(DATA_DIR, 'user_tickets.json');
+
+// Load presents from disk
+try {
+  if (fs.existsSync(PRESENTS_FILE)) {
+    const raw = fs.readFileSync(PRESENTS_FILE, 'utf-8');
+    const list: ServerPresentItem[] = JSON.parse(raw);
+    list.forEach((p) => {
+      serverPresentsDatabase.set(p.id, p);
+      distributedRewardKeys.add(p.id);
+    });
+  }
+} catch (e) {
+  console.error('Failed to read presents.json', e);
+}
+
+// Load user tickets from disk
+try {
+  if (fs.existsSync(USER_TICKETS_FILE)) {
+    const raw = fs.readFileSync(USER_TICKETS_FILE, 'utf-8');
+    const obj: Record<string, Record<string, number>> = JSON.parse(raw);
+    Object.entries(obj).forEach(([userId, tickets]) => {
+      userTicketsDatabase.set(userId, tickets);
+    });
+  }
+} catch (e) {
+  console.error('Failed to read user_tickets.json', e);
+}
+
+function savePresentsToDisk() {
+  try {
+    const list = Array.from(serverPresentsDatabase.values());
+    fs.writeFileSync(PRESENTS_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write presents.json', e);
+  }
+}
+
+function saveUserTicketsToDisk() {
+  try {
+    const obj: Record<string, Record<string, number>> = {};
+    userTicketsDatabase.forEach((val, key) => {
+      obj[key] = val;
+    });
+    fs.writeFileSync(USER_TICKETS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write user_tickets.json', e);
+  }
+}
+
+// Weekly Season Timing Helpers (JST UTC+9) - v1.3.2 Release
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const AGGREGATION_DURATION_MS = 60 * 60 * 1000; // 1 hour (00:00 - 01:00 JST)
 
-// Season 1 special window (2026-09-06 00:00:00 JST to 2026-09-12 23:59:59.999 JST)
-const SEASON_1_START_MS = Date.UTC(2026, 8, 5, 15, 0, 0);
-const SEASON_1_END_MS = Date.UTC(2026, 8, 12, 14, 59, 59, 999);
-const SEASON_2_START_MS = SEASON_1_END_MS + 1; // 2026-09-13 00:00:00 JST
-const SEASON_2_END_MS = Date.UTC(2026, 8, 20, 14, 59, 59, 999);
+// Season 1 special window (2026-09-09 00:00:00 JST to 2026-09-13 23:59:59.999 JST)
+const SEASON_1_START_MS = Date.UTC(2026, 8, 8, 15, 0, 0); // 2026-09-09 00:00:00 JST
+const SEASON_1_END_MS = Date.UTC(2026, 8, 13, 14, 59, 59, 999); // 2026-09-13 23:59:59.999 JST
+const SEASON_2_START_MS = Date.UTC(2026, 8, 13, 15, 0, 0); // 2026-09-14 00:00:00 JST
+
+function formatWeekId(startMs: number): string {
+  const d = new Date(startMs + JST_OFFSET_MS);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const date = String(d.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${date}_week`;
+}
 
 function getCurrentJSTDate(nowMs: number = Date.now()): Date {
   return new Date(nowMs + JST_OFFSET_MS);
@@ -54,21 +199,17 @@ function getWeekSeasonInfo(timestamp: number = Date.now()): {
     seasonNum = 1;
     startMs = SEASON_1_START_MS;
     endMs = SEASON_1_END_MS;
-  } else if (timestamp <= SEASON_2_END_MS) {
-    seasonNum = 2;
-    startMs = SEASON_2_START_MS;
-    endMs = SEASON_2_END_MS;
   } else {
-    const diff = timestamp - (SEASON_2_END_MS + 1);
+    const diff = timestamp - SEASON_2_START_MS;
     const weeksAfter = Math.floor(diff / ONE_WEEK_MS);
-    seasonNum = 3 + weeksAfter;
-    startMs = (SEASON_2_END_MS + 1) + weeksAfter * ONE_WEEK_MS;
+    seasonNum = 2 + weeksAfter;
+    startMs = SEASON_2_START_MS + weeksAfter * ONE_WEEK_MS;
     endMs = startMs + ONE_WEEK_MS - 1;
   }
 
   // Aggregation window: exactly 1 hour following phase end (24:00〜25:00 JST = 00:00〜01:00 JST next day)
-  const aggregationEndMs = endMs + 60 * 60 * 1000;
-  const weekId = `WEEK_${seasonNum}`;
+  const aggregationEndMs = endMs + AGGREGATION_DURATION_MS;
+  const weekId = seasonNum === 1 ? '2026-09-09_week' : formatWeekId(startMs);
 
   let phase: 'ACTIVE' | 'AGGREGATING' | 'FINALIZED' = 'ACTIVE';
   let phaseTextJa = '対戦受付中';
@@ -108,7 +249,7 @@ async function startServer() {
 
   // 1. Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', version: '1.3.0', timestamp: Date.now() });
+    res.json({ status: 'ok', version: '1.3.2', timestamp: Date.now() });
   });
 
   // 2. Ranking Phase & Schedule Status (Server Authority)
@@ -204,6 +345,10 @@ async function startServer() {
         }
       }
 
+      if (rewardsDistributed.length > 0) {
+        savePresentsToDisk();
+      }
+
       res.json({
         success: true,
         weekId,
@@ -235,6 +380,7 @@ async function startServer() {
         isClaimed: false,
         createdAt: Date.now(),
       });
+      savePresentsToDisk();
     }
 
     const presents: ServerPresentItem[] = [];
@@ -283,6 +429,8 @@ async function startServer() {
     };
     userTickets[item.rewardType] = (userTickets[item.rewardType] || 0) + item.amount;
     userTicketsDatabase.set(userId, userTickets);
+    savePresentsToDisk();
+    saveUserTicketsToDisk();
 
     res.json({
       success: true,
@@ -314,6 +462,7 @@ async function startServer() {
     // Safely decrement ticket
     userTickets[ticketType] -= 1;
     userTicketsDatabase.set(userId, userTickets);
+    saveUserTicketsToDisk();
 
     res.json({
       success: true,
@@ -321,6 +470,210 @@ async function startServer() {
       remainingTickets: userTickets[ticketType],
       userTickets,
     });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // 6.5 PVP & RANKING ONLINE SYNCHRONIZATION API (Server Authority)
+  // Ensures ALL users share genuine persistent online PvP match & ranking data
+  // ═════════════════════════════════════════════════════════════════════════
+
+  // 6.5.1 Sync user profile & Best XI to server
+  app.post('/api/pvp/sync-profile', (req, res) => {
+    try {
+      const { userId, username, team, tactics, defenseSquadId, tacticalDefenseSquad, ovrDefenseSquad } = req.body;
+      if (!userId || !username) {
+        return res.status(400).json({ error: 'userId and username required' });
+      }
+      const profile: ServerPvPUser = {
+        userId,
+        username,
+        team: team || null,
+        tactics: tactics || null,
+        defenseSquadId,
+        tacticalDefenseSquad,
+        ovrDefenseSquad,
+        updatedAt: Date.now(),
+      };
+      serverPvPUsersMap.set(userId, profile);
+      savePvPUsersToDisk();
+      res.json({ success: true, profile });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Server error' });
+    }
+  });
+
+  // 6.5.2 Get all registered PvP users
+  app.get('/api/pvp/users', (req, res) => {
+    const list = Array.from(serverPvPUsersMap.values());
+    res.json({ success: true, users: list });
+  });
+
+  // 6.5.3 Record match result (shared across all users)
+  app.post('/api/pvp/record-match', (req, res) => {
+    try {
+      const match = req.body;
+      if (!match || !match.id || !match.challengerUserId || !match.opponentUserId) {
+        return res.status(400).json({ error: 'Invalid match record' });
+      }
+      const existingIdx = serverPvPMatchesList.findIndex((m) => m.id === match.id);
+      if (existingIdx >= 0) {
+        serverPvPMatchesList[existingIdx] = match;
+      } else {
+        serverPvPMatchesList.unshift(match);
+      }
+      savePvPMatchesToDisk();
+      res.json({ success: true, matchId: match.id, totalMatches: serverPvPMatchesList.length });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Server error' });
+    }
+  });
+
+  // 6.5.4 Get all matches (filtered by season or weekId)
+  app.get('/api/pvp/matches', (req, res) => {
+    const { weekId, seasonNumber, matchType } = req.query;
+    const currentWeekInfo = getWeekSeasonInfo(Date.now());
+    const targetSeason = seasonNumber ? parseInt(String(seasonNumber), 10) : currentWeekInfo.seasonNumber;
+    
+    let filtered = serverPvPMatchesList;
+    if (targetSeason === 1) {
+      filtered = filtered.filter((m) => 
+        m.seasonNumber === 1 ||
+        m.weekId === '2026-09-09_week' ||
+        m.weekId === 'WEEK_1' ||
+        (m.timestamp >= SEASON_1_START_MS && m.timestamp <= SEASON_1_END_MS)
+      );
+    } else if (weekId) {
+      filtered = filtered.filter((m) => m.weekId === weekId);
+    } else if (seasonNumber) {
+      filtered = filtered.filter((m) => m.seasonNumber === targetSeason);
+    }
+    
+    if (matchType && matchType !== 'ALL') {
+      filtered = filtered.filter((m) => m.matchType === matchType);
+    }
+    res.json({ success: true, matches: filtered });
+  });
+
+  // 6.5.5 Get authoritative weekly standings computed from all users' matches
+  app.get('/api/pvp/standings', (req, res) => {
+    const { weekId, seasonNumber, matchType } = req.query;
+    const currentWeekInfo = getWeekSeasonInfo(Date.now());
+    const targetSeason = seasonNumber ? parseInt(String(seasonNumber), 10) : currentWeekInfo.seasonNumber;
+    const resolvedWeekId = weekId ? String(weekId) : currentWeekInfo.weekId;
+
+    let seasonMatches = serverPvPMatchesList;
+    if (targetSeason === 1) {
+      seasonMatches = seasonMatches.filter((m) =>
+        m.seasonNumber === 1 ||
+        m.weekId === '2026-09-09_week' ||
+        m.weekId === 'WEEK_1' ||
+        (m.timestamp >= SEASON_1_START_MS && m.timestamp <= SEASON_1_END_MS)
+      );
+    } else if (weekId) {
+      seasonMatches = seasonMatches.filter((m) => m.weekId === weekId);
+    } else if (seasonNumber) {
+      seasonMatches = seasonMatches.filter((m) => m.seasonNumber === targetSeason);
+    }
+
+    if (matchType && matchType !== 'ALL') {
+      seasonMatches = seasonMatches.filter((m) => m.matchType === matchType);
+    }
+
+    const statsMap = new Map<string, {
+      userId: string;
+      username: string;
+      teamName: string;
+      points: number;
+      played: number;
+      wins: number;
+      draws: number;
+      losses: number;
+      goalsFor: number;
+      goalsAgainst: number;
+      goalDifference: number;
+      recentForm: ('W' | 'D' | 'L')[];
+      lastMatchTimestamp: number;
+      teamOvr?: number;
+    }>();
+
+    // Register known users with initial 0
+    serverPvPUsersMap.forEach((u) => {
+      statsMap.set(u.userId, {
+        userId: u.userId,
+        username: u.username,
+        teamName: u.team?.name || 'Best XI',
+        points: 0,
+        played: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        goalDifference: 0,
+        recentForm: [],
+        lastMatchTimestamp: 0,
+        teamOvr: u.team?.ovr || 85,
+      });
+    });
+
+    const sortedMatches = [...seasonMatches].sort((a, b) => a.timestamp - b.timestamp);
+    sortedMatches.forEach((m) => {
+      if (!statsMap.has(m.challengerUserId)) {
+        statsMap.set(m.challengerUserId, {
+          userId: m.challengerUserId,
+          username: m.challengerUsername,
+          teamName: m.challengerTeam?.teamName || 'Best XI',
+          points: 0,
+          played: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          recentForm: [],
+          lastMatchTimestamp: 0,
+          teamOvr: m.challengerOvr || 85,
+        });
+      }
+      const c = statsMap.get(m.challengerUserId)!;
+      c.played += 1;
+      c.goalsFor += m.challengerScore;
+      c.goalsAgainst += m.opponentScore;
+      c.goalDifference = c.goalsFor - c.goalsAgainst;
+      c.lastMatchTimestamp = Math.max(c.lastMatchTimestamp, m.timestamp);
+
+      if (m.result === 'WIN') {
+        c.wins += 1;
+        c.points += 3;
+        c.recentForm.push('W');
+      } else if (m.result === 'DRAW') {
+        c.draws += 1;
+        c.points += 1;
+        c.recentForm.push('D');
+      } else {
+        c.losses += 1;
+        c.recentForm.push('L');
+      }
+      if (c.recentForm.length > 5) c.recentForm.shift();
+    });
+
+    const standings = Array.from(statsMap.values()).sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+      if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return a.lastMatchTimestamp - b.lastMatchTimestamp;
+    });
+
+    const rankedStandings = standings.map((item, idx) => ({
+      ...item,
+      rank: idx + 1,
+      season: targetSeason,
+      weekId: resolvedWeekId,
+    }));
+
+    res.json({ success: true, standings: rankedStandings, totalMatches: seasonMatches.length });
   });
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -395,13 +748,16 @@ async function startServer() {
   }
 
   // Official Tournament Schedule:
-  // Registration: 2026-09-08 00:00:00 JST to 2026-09-13 23:59:59.999 JST
+  // Registration: 2026-09-09 00:00:00 JST to 2026-09-13 23:59:59.999 JST
   // Match period: 2026-09-14 00:00:00 JST to 2026-09-20 23:59:59.999 JST
   const TOURNAMENT_ID = 'FD_CUP_001';
-  const TOURNAMENT_REG_START_MS = Date.UTC(2026, 8, 7, 15, 0, 0); // 2026-09-08 00:00 JST
+  const TOURNAMENT_REG_START_MS = Date.UTC(2026, 8, 8, 15, 0, 0); // 2026-09-09 00:00 JST
   const TOURNAMENT_REG_END_MS = Date.UTC(2026, 8, 13, 14, 59, 59, 999); // 2026-09-13 23:59 JST
   const TOURNAMENT_MATCH_START_MS = Date.UTC(2026, 8, 13, 15, 0, 0); // 2026-09-14 00:00 JST
   const TOURNAMENT_MATCH_END_MS = Date.UTC(2026, 8, 20, 14, 59, 59, 999);
+
+  const TOURNAMENT_ENTRIES_FILE = path.join(DATA_DIR, 'tournament_entries.json');
+  const TOURNAMENT_STATE_FILE = path.join(DATA_DIR, 'tournament_state.json');
 
   let serverTournamentStatus:
     | 'DRAFT'
@@ -418,6 +774,108 @@ async function startServer() {
   let tournamentStandings: ServerTournamentStanding[] = [];
   let tournamentMatches: ServerTournamentMatch[] = [];
   let tournamentKnockoutBracket: any = null;
+
+  // Load tournament entries from disk
+  try {
+    if (fs.existsSync(TOURNAMENT_ENTRIES_FILE)) {
+      const raw = fs.readFileSync(TOURNAMENT_ENTRIES_FILE, 'utf-8');
+      const list: ServerTournamentEntry[] = JSON.parse(raw);
+      list.forEach((e) => tournamentEntriesMap.set(e.userId, e));
+    }
+  } catch (e) {
+    console.error('Failed to read tournament_entries.json', e);
+  }
+
+  // If tournament entries are empty on boot, seed default participants so the community is active
+  if (tournamentEntriesMap.size === 0) {
+    const seedManagers = [
+      { name: 'ペップ・タクティクス', tactic: 'TIKI_TAKA', def: 'HIGH_PRESS', formation: '4-3-3', ovr: 96 },
+      { name: 'アンチェ・カルチョ', tactic: 'COUNTER', def: 'MID_BLOCK', formation: '4-3-1-2', ovr: 94 },
+      { name: 'クロップ・ゲーゲン', tactic: 'DIRECT_PLAY', def: 'GEGENPRESSING', formation: '4-3-3', ovr: 93 },
+      { name: 'シメオネ・チョロ', tactic: 'QUICK_ATTACK', def: 'CATENACCIO', formation: '4-4-2', ovr: 91 },
+    ];
+    seedManagers.forEach((m, i) => {
+      const botUserId = `usr_tourney_bot_${i + 1}`;
+      tournamentEntriesMap.set(botUserId, {
+        tournamentId: TOURNAMENT_ID,
+        userId: botUserId,
+        displayName: m.name,
+        entryStatus: 'ENTERED',
+        enteredAt: Date.now() - (i + 1) * 3600000,
+        teamOvr: m.ovr,
+        tacticsSnapshot: {
+          attackTactic: m.tactic,
+          defenseTactic: m.def,
+          attackDirection: 'BALANCED',
+          pressIntensity: 'BALANCED',
+        },
+        teamSnapshot: {
+          teamId: `team_tourney_${botUserId}`,
+          name: `${m.name} XI`,
+          formation: m.formation,
+          players: Array.from({ length: 11 }, (_, pIdx) => ({
+            playerId: `bot_p_${i}_${pIdx}`,
+            nameJa: `選手 ${pIdx + 1}`,
+            playerName: `Player ${pIdx + 1}`,
+            clubName: 'Elite Club',
+            year: '2024',
+            position: pIdx === 0 ? 'GK' : pIdx <= 4 ? 'DF' : pIdx <= 8 ? 'MF' : 'FW',
+            subPosition: pIdx === 0 ? 'GK' : pIdx === 1 ? 'CB' : pIdx === 2 ? 'CB' : pIdx === 3 ? 'LB' : pIdx === 4 ? 'RB' : pIdx <= 7 ? 'CM' : 'ST',
+            rating: Math.max(80, Math.min(99, m.ovr + (Math.floor(Math.random() * 7) - 3))),
+            category: 'GOLD',
+          })),
+        },
+      });
+    });
+    try {
+      const list = Array.from(tournamentEntriesMap.values());
+      fs.writeFileSync(TOURNAMENT_ENTRIES_FILE, JSON.stringify(list, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to write seeded tournament entries', e);
+    }
+  }
+
+  // Load tournament state from disk
+  try {
+    if (fs.existsSync(TOURNAMENT_STATE_FILE)) {
+      const raw = fs.readFileSync(TOURNAMENT_STATE_FILE, 'utf-8');
+      const stateObj = JSON.parse(raw);
+      if (stateObj) {
+        if (stateObj.status) serverTournamentStatus = stateObj.status;
+        if (Array.isArray(stateObj.groups)) tournamentGroups = stateObj.groups;
+        if (Array.isArray(stateObj.standings)) tournamentStandings = stateObj.standings;
+        if (Array.isArray(stateObj.matches)) tournamentMatches = stateObj.matches;
+        if (stateObj.knockoutBracket) tournamentKnockoutBracket = stateObj.knockoutBracket;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to read tournament_state.json', e);
+  }
+
+  function saveTournamentEntriesToDisk() {
+    try {
+      const list = Array.from(tournamentEntriesMap.values());
+      fs.writeFileSync(TOURNAMENT_ENTRIES_FILE, JSON.stringify(list, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to write tournament_entries.json', e);
+    }
+  }
+
+  function saveTournamentStateToDisk() {
+    try {
+      const stateObj = {
+        status: serverTournamentStatus,
+        groups: tournamentGroups,
+        standings: tournamentStandings,
+        matches: tournamentMatches,
+        knockoutBracket: tournamentKnockoutBracket,
+        updatedAt: Date.now(),
+      };
+      fs.writeFileSync(TOURNAMENT_STATE_FILE, JSON.stringify(stateObj, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('Failed to write tournament_state.json', e);
+    }
+  }
 
   // Evaluate Server Tournament Status dynamically based on current time
   function getAuthoritativeTournamentStatus(): typeof serverTournamentStatus {
@@ -485,7 +943,17 @@ async function startServer() {
     });
   });
 
-  // 7.2 Tournament Entry Endpoint
+  // 7.1.1 Quick Entries List Endpoint
+  app.get('/api/tournament/entries', (req, res) => {
+    const entries = Array.from(tournamentEntriesMap.values());
+    res.json({
+      success: true,
+      entries,
+      totalEntries: entries.length,
+    });
+  });
+
+  // 7.2 Tournament Entry Endpoint (Supports initial entry AND squad updates/synchronization)
   app.post('/api/tournament/entry', (req, res) => {
     const {
       tournamentId = TOURNAMENT_ID,
@@ -509,9 +977,8 @@ async function startServer() {
       return res.status(400).json({ error: '大会エントリー期間外です' });
     }
 
-    if (tournamentEntriesMap.has(userId)) {
-      return res.status(400).json({ error: 'すでにエントリー済みです' });
-    }
+    const existingEntry = tournamentEntriesMap.get(userId);
+    const isUpdate = Boolean(existingEntry);
 
     const teamOvr = Math.round(
       teamSnapshot.players.reduce((sum: number, p: any) => sum + (p.rating || 85), 0) / 11
@@ -520,25 +987,39 @@ async function startServer() {
     const newEntry: ServerTournamentEntry = {
       tournamentId,
       userId,
-      displayName: displayName || 'Manager',
+      displayName: displayName || existingEntry?.displayName || 'Manager',
       entryStatus: 'ENTERED',
-      enteredAt: Date.now(),
+      enteredAt: existingEntry?.enteredAt || Date.now(),
       teamSnapshot,
-      tacticsSnapshot: tacticsSnapshot || {
+      tacticsSnapshot: tacticsSnapshot || existingEntry?.tacticsSnapshot || {
         attackTactic: 'POSSESSION',
         defenseTactic: 'MID_BLOCK',
         attackDirection: 'BALANCED',
         pressIntensity: 'BALANCED',
       },
-      defensiveSquadSnapshot,
+      defensiveSquadSnapshot: defensiveSquadSnapshot || existingEntry?.defensiveSquadSnapshot,
       teamOvr,
-      tacticsModifiedCount: 0,
+      tacticsModifiedCount: existingEntry?.tacticsModifiedCount || 0,
     };
 
     tournamentEntriesMap.set(userId, newEntry);
+    saveTournamentEntriesToDisk();
+
+    // Also synchronize into serverPvPUsersMap so they are discoverable in online PvP
+    if (!serverPvPUsersMap.has(userId) || serverPvPUsersMap.get(userId)?.team?.players?.length !== 11) {
+      serverPvPUsersMap.set(userId, {
+        userId,
+        username: newEntry.displayName,
+        team: newEntry.teamSnapshot,
+        tactics: newEntry.tacticsSnapshot,
+        updatedAt: Date.now(),
+      });
+      savePvPUsersToDisk();
+    }
 
     res.json({
       success: true,
+      isUpdate,
       entry: newEntry,
       totalEntries: tournamentEntriesMap.size,
     });
@@ -567,6 +1048,7 @@ async function startServer() {
 
     entry.tacticsSnapshot = tactics;
     entry.tacticsModifiedCount = (entry.tacticsModifiedCount || 0) + 1;
+    saveTournamentEntriesToDisk();
 
     res.json({
       success: true,
@@ -658,6 +1140,9 @@ async function startServer() {
     tournamentStandings = [];
     tournamentMatches = [];
     tournamentKnockoutBracket = null;
+
+    saveTournamentEntriesToDisk();
+    saveTournamentStateToDisk();
 
     res.json({
       success: true,
@@ -1190,6 +1675,10 @@ async function startServer() {
       serverTournamentStatus = 'REGISTRATION';
     }
 
+    saveTournamentEntriesToDisk();
+    saveTournamentStateToDisk();
+    savePresentsToDisk();
+
     res.json({
       success: true,
       newStatus: serverTournamentStatus,
@@ -1233,6 +1722,9 @@ async function startServer() {
     tournamentStandings = [];
     tournamentMatches = [];
     tournamentKnockoutBracket = null;
+
+    saveTournamentEntriesToDisk();
+    saveTournamentStateToDisk();
 
     res.json({
       success: true,

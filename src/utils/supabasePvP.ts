@@ -29,8 +29,96 @@ let onOnlineUsersCallback: ((users: BetaUserProfile[]) => void) | null = null;
 let onMatchInviteCallback: ((invite: any) => void) | null = null;
 
 /**
+ * Synchronize profile to server-side authority
+ */
+export async function syncProfileToServer(profile: BetaUserProfile): Promise<void> {
+  try {
+    await fetch('/api/pvp/sync-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: profile.userId,
+        username: profile.username,
+        team: profile.team,
+        tactics: profile.tactics,
+        defenseSquadId: profile.defenseSquadId,
+        tacticalDefenseSquad: profile.tacticalDefenseSquad,
+        ovrDefenseSquad: profile.ovrDefenseSquad,
+      }),
+    });
+  } catch (e) {
+    console.warn('Server sync-profile note:', e);
+  }
+}
+
+/**
+ * Record completed match to server-side authority
+ */
+export async function recordMatchToServer(record: BetaMatchRecord): Promise<void> {
+  try {
+    await fetch('/api/pvp/record-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
+  } catch (e) {
+    console.warn('Server record-match note:', e);
+  }
+}
+
+/**
+ * Fetch all registered users from server authority
+ */
+export async function fetchServerUsers(): Promise<BetaUserProfile[]> {
+  try {
+    const res = await fetch('/api/pvp/users');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        return data.users.map((u: any) => ({
+          userId: u.userId,
+          username: u.username,
+          team: u.team || null,
+          tactics: u.tactics || DEFAULT_TACTICS,
+          defenseSquadId: u.defenseSquadId,
+          updatedAt: u.updatedAt || Date.now(),
+          isOnline: true,
+          lastSeen: u.updatedAt || Date.now(),
+        }));
+      }
+    }
+  } catch (e) {
+    console.warn('Server fetch users note:', e);
+  }
+  return [];
+}
+
+/**
+ * Fetch all season matches from server authority
+ */
+export async function fetchServerMatches(seasonNumber?: number, weekId?: string): Promise<BetaMatchRecord[]> {
+  try {
+    const params = new URLSearchParams();
+    if (seasonNumber !== undefined) params.append('seasonNumber', String(seasonNumber));
+    if (weekId) params.append('weekId', weekId);
+    const res = await fetch(`/api/pvp/matches?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.matches)) {
+        return data.matches;
+      }
+    }
+  } catch (e) {
+    console.warn('Server fetch matches note:', e);
+  }
+  return [];
+}
+
+/**
  * Perform one-time match history cleanup for v1.1.3 release
  */
+export const LOCAL_STORAGE_V132_RANKING_RESET = 'FOOTBALL_DRAFT_V132_RANKING_RESET_DONE';
+
 export function checkAndPerformV113Migration(): void {
   try {
     const alreadyMigrated = localStorage.getItem(LOCAL_STORAGE_V113_CLEARED);
@@ -46,26 +134,40 @@ export function checkAndPerformV113Migration(): void {
 }
 
 /**
+ * v1.3.2 Weekly Ranking Reset (2026/09/09 Start):
+ * Completely resets all local past match records and rankings,
+ * while strictly protecting owned players, formations, MY TEAM, draft history, etc.
+ */
+export function checkAndPerformV132RankingReset(): void {
+  try {
+    const alreadyReset = localStorage.getItem(LOCAL_STORAGE_V132_RANKING_RESET);
+    if (!alreadyReset) {
+      localStorage.removeItem(LOCAL_STORAGE_SAVED_MATCHES);
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_SAVED_MATCHES_V1');
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_HISTORY_v110');
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_HISTORY_v113');
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_MATCHES');
+      localStorage.removeItem('FOOTBALL_DRAFT_V130_RANKING_RESET_DONE');
+      localStorage.setItem(LOCAL_STORAGE_V132_RANKING_RESET, 'true');
+      console.log('v1.3.2 Ranking data and match history reset performed cleanly.');
+    }
+  } catch (e) {
+    console.warn('v1.3.2 Ranking reset cleanup error:', e);
+  }
+}
+
+/**
  * v1.3.0 Weekly Ranking Reset:
  * Resets weekly match ranking records to start fresh as requested,
  * while strictly protecting owned players, formations, MY TEAM, draft history, etc.
  */
 export function checkAndPerformV130RankingReset(): void {
-  try {
-    const alreadyReset = localStorage.getItem(LOCAL_STORAGE_V130_RANKING_RESET);
-    if (!alreadyReset) {
-      localStorage.removeItem(LOCAL_STORAGE_SAVED_MATCHES);
-      localStorage.setItem(LOCAL_STORAGE_V130_RANKING_RESET, 'true');
-      console.log('v1.3.0 Ranking data reset performed cleanly (squad and player data preserved).');
-    }
-  } catch (e) {
-    console.warn('v1.3.0 ranking reset error:', e);
-  }
+  checkAndPerformV132RankingReset();
 }
 
 // Run migrations immediately on module load
 checkAndPerformV113Migration();
-checkAndPerformV130RankingReset();
+checkAndPerformV132RankingReset();
 
 /**
  * Get or create a persistent user ID for this browser
@@ -462,6 +564,9 @@ export async function registerOrUpdateUserInSupabase(
     console.warn('Supabase DB insert warning:', e);
   }
 
+  // 5. Always persist to server-side authority
+  await syncProfileToServer(updatedProfile);
+
   return { success: true };
 }
 
@@ -537,6 +642,9 @@ export async function saveBestXIToSupabase(
   } catch (e) {
     console.warn('Supabase DB best_xi upsert note:', e);
   }
+
+  // Always persist to server-side authority
+  await syncProfileToServer(updatedProfile);
 
   return { success: true };
 }
@@ -883,6 +991,19 @@ export async function fetchAllRegisteredUsersFromSupabase(
     console.warn('Fetch all registered users DB note:', e);
   }
 
+  // 3.5 Query server authority for registered online PvP users
+  try {
+    const serverUsers = await fetchServerUsers();
+    serverUsers.forEach((su) => {
+      if (su.userId !== currentUserId && su.username) {
+        usersMap.set(su.userId, su);
+        updateCachedUser(su);
+      }
+    });
+  } catch (e) {
+    console.warn('Fetch server users note:', e);
+  }
+
   // 4. Always provide Default Community Challenge Opponents
   const defaults = getDefaultCommunityOpponents();
   defaults.forEach((def) => {
@@ -1082,6 +1203,9 @@ export async function saveMatchRecordToSupabase(
   } catch (e) {
     console.warn('Supabase DB matches insert note:', e);
   }
+
+  // 4. Save to server authority (shared persistent DB across all users)
+  await recordMatchToServer(updatedRecord);
 }
 
 /**
@@ -1166,6 +1290,21 @@ export async function fetchMatchHistoryFromSupabase(
     console.warn('Fetch match history DB note:', e);
   }
 
+  // 2.5 Query server authority for matches involving current user
+  try {
+    const serverMatches = await fetchServerMatches();
+    serverMatches.forEach((m) => {
+      if (m.challengerUserId === currentUserId || m.opponentUserId === currentUserId) {
+        matchesMap.set(m.id, {
+          ...m,
+          season: m.season || getSeasonNumberForTimestamp(m.timestamp),
+        });
+      }
+    });
+  } catch (e) {
+    console.warn('Fetch server match history note:', e);
+  }
+
   const list = Array.from(matchesMap.values());
   list.sort((a, b) => b.timestamp - a.timestamp);
   return list;
@@ -1203,17 +1342,77 @@ export async function fetchWeeklyStandingsFromSupabase(
   const profile = currentUser || getCurrentUserProfile();
   const seasonInfo = getSeasonInfo(seasonNumber);
   const targetWeekId = seasonInfo.weekId;
+
+  // 1. Authoritative Server-First query: Always fetch all-users standings computed by server!
+  try {
+    const params = new URLSearchParams();
+    params.append('seasonNumber', String(seasonNumber));
+    params.append('weekId', targetWeekId);
+    if (matchType !== 'ALL') {
+      params.append('matchType', matchType);
+    }
+    const res = await fetch(`/api/pvp/standings?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.standings)) {
+        const serverStandings: BetaStandingEntry[] = data.standings.map((s: any, idx: number) => ({
+          rank: s.rank || idx + 1,
+          userId: s.userId,
+          username: s.username,
+          teamName: s.teamName || 'Best XI',
+          teamOvr: s.teamOvr || 85,
+          points: s.points ?? 0,
+          played: s.played ?? 0,
+          wins: s.wins ?? 0,
+          draws: s.draws ?? 0,
+          losses: s.losses ?? 0,
+          goalsFor: s.goalsFor ?? 0,
+          goalsAgainst: s.goalsAgainst ?? 0,
+          goalDifference: s.goalDifference ?? 0,
+          recentForm: s.recentForm || [],
+          isCurrentUser: s.userId === profile.userId,
+          season: seasonNumber,
+          weekId: targetWeekId,
+        }));
+
+        if (!serverStandings.some((entry) => entry.userId === profile.userId)) {
+          serverStandings.push({
+            rank: serverStandings.length + 1,
+            userId: profile.userId,
+            username: profile.username,
+            teamName: profile.team?.name || 'Best XI',
+            teamOvr: profile.team?.ovr || 85,
+            points: 0,
+            played: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            goalDifference: 0,
+            recentForm: [],
+            isCurrentUser: true,
+            season: seasonNumber,
+            weekId: targetWeekId,
+          });
+        }
+        return serverStandings;
+      }
+    }
+  } catch (e) {
+    console.warn('Server standings query note:', e);
+  }
+
   const startTimeIso = new Date(seasonInfo.startDateMs).toISOString();
   const endTimeIso = new Date(seasonInfo.endDateMs).toISOString();
 
-  // 1. Fetch all registered users
+  // Fallback: Fetch all registered users
   const registeredUsers = await fetchAllRegisteredUsersFromSupabase(profile.userId);
   const allUsers = [...registeredUsers];
   if (!allUsers.some((u) => u.userId === profile.userId)) {
     allUsers.push(profile);
   }
 
-  // 2. Collect local matches for this season, strictly isolated by week_id & time
   const seasonMatchesMap = new Map<string, BetaMatchRecord>();
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_MATCHES);
@@ -1301,6 +1500,23 @@ export async function fetchWeeklyStandingsFromSupabase(
     }
   } catch (e) {
     console.warn('Supabase standings matches query note:', e);
+  }
+
+  // 3.5 Query all matches from server authority (shared across all users)
+  try {
+    const serverMatches = await fetchServerMatches(seasonNumber, targetWeekId);
+    serverMatches.forEach((sm) => {
+      const matchesType = matchType === 'ALL' || sm.matchType === matchType;
+      if (matchesType) {
+        seasonMatchesMap.set(sm.id, {
+          ...sm,
+          weekId: targetWeekId,
+          season: seasonNumber,
+        });
+      }
+    });
+  } catch (e) {
+    console.warn('Fetch server matches standing note:', e);
   }
 
   const allSeasonMatches = Array.from(seasonMatchesMap.values());

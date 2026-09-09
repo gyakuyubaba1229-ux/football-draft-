@@ -436,6 +436,8 @@ export interface UserTeam {
   customPositions: Record<string, CustomPlayerPosition>;
   isCompleted: boolean;
   isLocked?: boolean; // v1.2.0 Team Lock feature to protect squad edits
+  draftSkipsRemaining?: number; // v1.3.3: Strict per-team skip count to eliminate skip reset bug
+  draftState?: CurrentDraftState; // v1.3.3: Per-team draft progress state
   createdAt: number;
   completedAt?: number;
 }

@@ -29,13 +29,45 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = '1.3.1';
+export const CURRENT_VERSION = '1.3.2';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
+    version: '1.3.2',
+    releaseDate: '2026.09.09',
+    isLatest: true,
+    titleJa: '1.3.2 サーバー完全同期＆新シーズン開幕',
+    titleEn: '1.3.2 Full Server Synchronization & New Season Update',
+    titleEs: '1.3.2 Sincronización Total del Servidor y Nueva Temporada',
+    notesJa: [
+      '【新シーズン開始】今日2026/09/09より週間ランキング新シーズン（Season 1）を開始しました',
+      '【対戦履歴・ランキングリセット】全ユーザーの過去対戦履歴とランキングポイントを公式リセットしました',
+      '【完全同期対応】ランキング取得元をサーバー権威APIに完全一本化し、端末間での表示不整合を根本修正しました',
+      '【公式大会同期修正】FD CUPの登録データ・スカッド同期処理および再同期（スカッド更新）の同期不具合を修正しました',
+      '【大会日程整合】第1回大会のエントリー日程を2026/09/09開始へ整合しました',
+      '【安定性向上】対戦記録・大会エントリーの永続化と整合性を強化しました',
+    ],
+    notesEn: [
+      'Started new weekly ranking season beginning 2026/09/09',
+      'Cleanly reset match history and ranking standings for all users',
+      'Unified leaderboard source to server-authoritative API for complete synchronization across all devices',
+      'Resolved tournament entry squad synchronization and re-sync issues',
+      'Aligned official tournament schedule to start registration from 2026/09/09',
+      'Enhanced persistence and data integrity for all online PvP matches and tournaments',
+    ],
+    notesEs: [
+      'Inicio de la nueva temporada de ranking semanal a partir del 09/09/2026',
+      'Reinicio completo del historial de combates y ranking para todos los usuarios',
+      'Sincronización total mediante la API autoritativa del servidor para todos los dispositivos',
+      'Corrección de sincronización de escuadras e inscripciones en el torneo oficial',
+      'Alineación del cronograma del torneo oficial a partir del 09/09/2026',
+      'Mejora de la persistencia e integridad de datos en línea',
+    ],
+  },
+  {
     version: '1.3.1',
     releaseDate: '2026.09',
-    isLatest: true,
+    isLatest: false,
     titleJa: '1.3.1 修正アップデート',
     titleEn: '1.3.1 Fix & Polish Update',
     titleEs: '1.3.1 Actualización de Corrección',
