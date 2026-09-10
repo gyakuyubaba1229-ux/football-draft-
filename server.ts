@@ -633,7 +633,7 @@ async function startServer() {
           goalDifference: 0,
           recentForm: [],
           lastMatchTimestamp: 0,
-          teamOvr: m.challengerOvr || 85,
+          teamOvr: m.challengerTeam?.ovr || m.challengerTeam?.teamOvr || 85,
         });
       }
       const c = statsMap.get(m.challengerUserId)!;

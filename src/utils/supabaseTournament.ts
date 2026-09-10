@@ -42,6 +42,10 @@ let currentTournamentState: TournamentState = {
   currentServerTimeMs: Date.now(),
 };
 
+export function getCurrentTournamentState(): TournamentState {
+  return currentTournamentState;
+}
+
 /**
  * Load cached state from storage
  */
@@ -190,12 +194,18 @@ export function initTournamentRealtime(
         })
         .on('broadcast', { event: 'TOURNAMENT_ENTRY_UPDATE' }, ({ payload }: any) => {
           if (payload && payload.entry) {
-            const exists = currentTournamentState.entries.some((e) => e.userId === payload.entry.userId);
-            if (!exists) {
+            const idx = currentTournamentState.entries.findIndex((e) => e.userId === payload.entry.userId);
+            if (idx >= 0) {
+              const updated = [...currentTournamentState.entries];
+              updated[idx] = payload.entry;
+              currentTournamentState.entries = updated;
+            } else {
               currentTournamentState.entries = [...currentTournamentState.entries, payload.entry];
-              currentTournamentState.definition.entryCount = currentTournamentState.entries.length;
-              notifyListeners();
             }
+            currentTournamentState.definition.entryCount = currentTournamentState.entries.length;
+            notifyListeners();
+            // Also confirm from server authority
+            fetchAuthoritativeTournamentState();
           }
         })
         .subscribe((status: string) => {
@@ -208,11 +218,11 @@ export function initTournamentRealtime(
     }
   }
 
-  // Periodic Polling Fallback (Every 12 seconds)
+  // Fast Periodic Polling Fallback (Every 3.5 seconds during active modal)
   if (!pollingInterval) {
     pollingInterval = setInterval(() => {
       fetchAuthoritativeTournamentState();
-    }, 12000);
+    }, 3500);
   }
 
   return () => {

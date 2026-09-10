@@ -8,6 +8,7 @@ import {
   Player,
 } from '../types';
 import { DEFAULT_TACTICS, computeWeeklyStandings, getCurrentUserProfile } from './pvpEngine';
+import { getTeamEffectiveOvr } from './positionEngine';
 import { getSeasonNumberForTimestamp, getSeasonInfo, SEASON_1_START_MS, getWeekIdForTimestamp, getSeasonRange, V130_START_MS, getCurrentWeekId } from './seasonEngine';
 import { EUROPEAN_PLAYERS } from '../data/playersEurope';
 
@@ -1362,38 +1363,35 @@ export async function fetchWeeklyStandingsFromSupabase(
           teamName: s.teamName || 'Best XI',
           teamOvr: s.teamOvr || 85,
           points: s.points ?? 0,
-          played: s.played ?? 0,
+          matchesCount: s.played ?? s.matchesCount ?? 0,
           wins: s.wins ?? 0,
           draws: s.draws ?? 0,
           losses: s.losses ?? 0,
           goalsFor: s.goalsFor ?? 0,
           goalsAgainst: s.goalsAgainst ?? 0,
           goalDifference: s.goalDifference ?? 0,
-          recentForm: s.recentForm || [],
-          isCurrentUser: s.userId === profile.userId,
+          recent10Matches: [],
           season: seasonNumber,
-          weekId: targetWeekId,
         }));
 
         if (!serverStandings.some((entry) => entry.userId === profile.userId)) {
+          const userOvr = profile.team ? getTeamEffectiveOvr(profile.team) : 85;
           serverStandings.push({
             rank: serverStandings.length + 1,
             userId: profile.userId,
             username: profile.username,
             teamName: profile.team?.name || 'Best XI',
-            teamOvr: profile.team?.ovr || 85,
+            teamOvr: userOvr,
             points: 0,
-            played: 0,
+            matchesCount: 0,
             wins: 0,
             draws: 0,
             losses: 0,
             goalsFor: 0,
             goalsAgainst: 0,
             goalDifference: 0,
-            recentForm: [],
-            isCurrentUser: true,
+            recent10Matches: [],
             season: seasonNumber,
-            weekId: targetWeekId,
           });
         }
         return serverStandings;

@@ -40,6 +40,7 @@ import {
   testPopulateParticipants,
   testAdvanceTournamentStage,
   testResetTournament,
+  getCurrentTournamentState,
 } from '../utils/supabaseTournament';
 import {
   getSavedTournamentTactics,
@@ -71,7 +72,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
   onOpenGiftBox,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [tournamentState, setTournamentState] = useState<TournamentState | null>(null);
+  const [tournamentState, setTournamentState] = useState<TournamentState>(() => getCurrentTournamentState());
   const [selectedMatch, setSelectedMatch] = useState<TournamentMatch | null>(null);
   const [isSubmittingEntry, setIsSubmittingEntry] = useState(false);
   const [entryError, setEntryError] = useState<string | null>(null);
@@ -190,6 +191,9 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
       if (res.success) {
         soundManager.playVictory();
         setEntrySuccess('🎉 公式大会へのエントリーが完了しました！');
+        fetchAuthoritativeTournamentState().then((s) => {
+          if (s) setTournamentState(s);
+        });
       } else {
         setEntryError(res.error || 'エントリーに失敗しました。');
       }
@@ -375,9 +379,9 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
           >
             <Swords className="w-3.5 h-3.5" />
             <span>試合結果</span>
-            {(tournamentState?.matches.length || 0) > 0 && (
+            {(tournamentState?.matches?.length || 0) > 0 && (
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-mono">
-                {tournamentState?.matches.length}
+                {tournamentState?.matches?.length}
               </span>
             )}
           </button>
@@ -741,7 +745,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
           {/* TAB 3: GROUPS / ROUND ROBIN */}
           {activeTab === 'groups' && (
             <div className="space-y-6">
-              {(tournamentState?.standings.length || 0) === 0 ? (
+              {(tournamentState?.standings?.length || 0) === 0 ? (
                 <div className="p-8 text-center rounded-2xl bg-slate-900/50 border border-slate-800 text-slate-400 space-y-2">
                   <Shield className="w-8 h-8 text-slate-500 mx-auto" />
                   <div className="text-sm font-bold text-white">まだ対戦表は生成されていません</div>
@@ -774,7 +778,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60 font-sans">
-                        {tournamentState?.standings.map((st) => (
+                        {tournamentState?.standings?.map((st) => (
                           <tr
                             key={st.userId}
                             className={`${
@@ -842,7 +846,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
               ) : (
                 <div className="space-y-6">
                   {/* Champion Podium Card */}
-                  {tournamentState.knockoutBracket.champion && (
+                  {tournamentState?.knockoutBracket?.champion && (
                     <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/60 border border-amber-500/50 shadow-xl text-center space-y-2">
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-xs font-black shadow-md">
                         <Trophy className="w-3.5 h-3.5" />
@@ -860,7 +864,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
                   {/* Knockout Matches Tree */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Final */}
-                    {tournamentState.knockoutBracket.finalMatch && (
+                    {tournamentState?.knockoutBracket?.finalMatch && (
                       <div className="p-4 rounded-2xl bg-slate-900/90 border border-amber-500/40 space-y-3 shadow-lg">
                         <div className="flex items-center justify-between text-xs font-bold text-amber-400">
                           <span>🏆 決勝戦 (FINAL)</span>
@@ -888,7 +892,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
                     )}
 
                     {/* 3rd Place Match */}
-                    {tournamentState.knockoutBracket.thirdPlaceMatch && (
+                    {tournamentState?.knockoutBracket?.thirdPlaceMatch && (
                       <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
                         <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                           <span>🥉 3位決定戦</span>
@@ -923,13 +927,13 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
           {/* TAB 5: MATCHES & RESULTS */}
           {activeTab === 'matches' && (
             <div className="space-y-4">
-              {(tournamentState?.matches.length || 0) === 0 ? (
+              {(tournamentState?.matches?.length || 0) === 0 ? (
                 <div className="p-8 text-center rounded-2xl bg-slate-900/50 border border-slate-800 text-slate-400">
                   まだ試合は行われていません。
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {tournamentState?.matches.map((m) => (
+                  {tournamentState?.matches?.map((m) => (
                     <div
                       key={m.matchId}
                       onClick={() => setSelectedMatch(m)}

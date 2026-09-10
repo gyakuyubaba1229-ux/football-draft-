@@ -272,7 +272,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
       if (activeTab === 'standings') {
         loadStandingsData(selectedSeason, standingsFilter);
       }
-    }, 30000);
+    }, 5000);
 
     return () => {
       unsubscribe();
