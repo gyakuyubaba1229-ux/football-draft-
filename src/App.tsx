@@ -48,6 +48,7 @@ import { UpdateNotesModal } from './components/UpdateNotesModal';
 import { GiftBoxModal } from './components/GiftBoxModal';
 import { RewardScoutModal } from './components/RewardScoutModal';
 import { OfficialTournamentModal } from './components/OfficialTournamentModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   getStoredUserTickets,
   getStoredPresents,
@@ -1403,21 +1404,26 @@ export default function App() {
       />
 
       {/* Official Tournament Modal */}
-      <OfficialTournamentModal
-        isOpen={isTournamentOpen}
-        onClose={() => setIsTournamentOpen(false)}
-        currentUserProfile={{
-          userId: userProfile.userId,
-          username: userProfile.username,
-          team: activeTeam,
-          tactics: userProfile.tactics,
-          defenseSquad: userProfile.defenseSquad,
-        }}
-        onOpenGiftBox={() => {
-          setIsTournamentOpen(false);
-          setIsGiftBoxOpen(true);
-        }}
-      />
+      <ErrorBoundary
+        fallbackTitle="公式大会画面の読み込み中にエラーが発生しました"
+        onReset={() => setIsTournamentOpen(false)}
+      >
+        <OfficialTournamentModal
+          isOpen={isTournamentOpen}
+          onClose={() => setIsTournamentOpen(false)}
+          currentUserProfile={{
+            userId: userProfile.userId,
+            username: userProfile.username,
+            team: activeTeam,
+            tactics: userProfile.tactics,
+            defenseSquad: userProfile.defenseSquad,
+          }}
+          onOpenGiftBox={() => {
+            setIsTournamentOpen(false);
+            setIsGiftBoxOpen(true);
+          }}
+        />
+      </ErrorBoundary>
 
       {/* Mode Select Modal (Pop-up on "PLAY / SPIN DRAFT" or mode change) */}
       <ModeSelectModal

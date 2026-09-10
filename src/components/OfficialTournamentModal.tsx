@@ -46,6 +46,7 @@ import {
   getSavedTournamentTactics,
   saveTournamentTactics,
   getStageNameJa,
+  INITIAL_TOURNAMENT_FD_CUP_001,
 } from '../utils/tournamentEngine';
 import { getPlayerHeight } from '../data/playerHeights';
 import { soundManager } from '../utils/audio';
@@ -120,26 +121,27 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
 
   // Sync tactics when opened or entry found
   useEffect(() => {
-    if (!tournamentState || !currentUserProfile?.userId) return;
-    const myEntry = tournamentState.entries.find((e) => e.userId === currentUserProfile.userId);
+    if (!isOpen || !tournamentState || !currentUserProfile?.userId) return;
+    const entriesList = Array.isArray(tournamentState?.entries) ? tournamentState.entries : [];
+    const myEntry = entriesList.find((e) => e?.userId === currentUserProfile.userId);
     if (myEntry && myEntry.tacticsSnapshot) {
       setTactics(myEntry.tacticsSnapshot);
     }
-  }, [tournamentState, currentUserProfile?.userId]);
+  }, [isOpen, tournamentState, currentUserProfile?.userId]);
 
   if (!isOpen) return null;
 
-  const currentDef = tournamentState?.definition;
-  const entries = tournamentState?.entries || [];
-  const myEntry = entries.find((e) => e.userId === currentUserProfile?.userId);
+  const currentDef = tournamentState?.definition || INITIAL_TOURNAMENT_FD_CUP_001;
+  const entries = Array.isArray(tournamentState?.entries) ? tournamentState.entries : [];
+  const myEntry = entries.find((e) => e?.userId === currentUserProfile?.userId);
   const isEntered = Boolean(myEntry);
 
-  const squadPlayers = currentUserProfile?.team?.players || [];
+  const squadPlayers = Array.isArray(currentUserProfile?.team?.players) ? currentUserProfile.team.players : [];
   const hasElevenPlayers = squadPlayers.length === 11;
 
   const currentTeamOvr = useMemo(() => {
     if (!squadPlayers.length) return 85;
-    return Math.round(squadPlayers.reduce((s, p) => s + (p.rating || 85), 0) / squadPlayers.length);
+    return Math.round(squadPlayers.reduce((s, p) => s + (p?.rating || 85), 0) / squadPlayers.length);
   }, [squadPlayers]);
 
   // Formatting date string in JST
@@ -164,6 +166,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
       case 'FINISHED':
       case 'REWARDING':
       case 'COMPLETED':
+      default:
         return <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-xs font-black">大会終了</span>;
     }
   };
@@ -265,7 +268,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
       id="modal-official-tournament"
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
     >
-      <div className="relative w-full max-w-4xl max-h-[92vh] bg-slate-950 border border-amber-500/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-4xl h-[90vh] min-h-[520px] max-h-[92vh] bg-slate-950 border border-amber-500/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
         {/* Modal Top Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-800/80 bg-gradient-to-r from-amber-950/40 via-slate-900 to-indigo-950/30 shrink-0">
           <div className="flex items-center gap-3">
@@ -287,16 +290,28 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
               </p>
             </div>
           </div>
-          <button
-            id="btn-tournament-close"
-            onClick={() => {
-              soundManager.playButtonClick();
-              onClose();
-            }}
-            className="w-9 h-9 rounded-full bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white flex items-center justify-center hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              id="btn-tournament-refresh"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="p-2 px-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-amber-400 transition-colors flex items-center gap-1.5 text-xs font-bold"
+              title="大会情報・エントリー者を最新状態に同期"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
+              <span className="hidden sm:inline">{isRefreshing ? '同期中...' : '最新化'}</span>
+            </button>
+            <button
+              id="btn-tournament-close"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onClose();
+              }}
+              className="w-9 h-9 rounded-full bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white flex items-center justify-center hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -853,10 +868,10 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
                         <span>🏆 第1回 FD CUP チャンピオン決定！</span>
                       </div>
                       <h3 className="text-xl sm:text-2xl font-heading font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400">
-                        {tournamentState.knockoutBracket.champion.displayName}
+                        {tournamentState.knockoutBracket.champion.displayName || 'Champion'}
                       </h3>
                       <p className="text-xs text-slate-300">
-                        戦術: {tournamentState.knockoutBracket.champion.tacticsSnapshot?.attackTactic} / チームOVR {tournamentState.knockoutBracket.champion.teamOvr}
+                        戦術: {tournamentState.knockoutBracket.champion.tacticsSnapshot?.attackTactic || 'BALANCED'} / チームOVR {tournamentState.knockoutBracket.champion.teamOvr || 85}
                       </p>
                     </div>
                   )}
@@ -873,18 +888,18 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800">
                             <span className="text-xs font-bold text-white">
-                              {tournamentState.knockoutBracket.finalMatch.homeDisplayName}
+                              {tournamentState.knockoutBracket.finalMatch.homeDisplayName || 'チームA'}
                             </span>
                             <span className="text-sm font-mono font-black text-amber-400">
-                              {tournamentState.knockoutBracket.finalMatch.homeScore}
+                              {tournamentState.knockoutBracket.finalMatch.homeScore ?? 0}
                             </span>
                           </div>
                           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800">
                             <span className="text-xs font-bold text-white">
-                              {tournamentState.knockoutBracket.finalMatch.awayDisplayName}
+                              {tournamentState.knockoutBracket.finalMatch.awayDisplayName || 'チームB'}
                             </span>
                             <span className="text-sm font-mono font-black text-amber-400">
-                              {tournamentState.knockoutBracket.finalMatch.awayScore}
+                              {tournamentState.knockoutBracket.finalMatch.awayScore ?? 0}
                             </span>
                           </div>
                         </div>
@@ -901,18 +916,18 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800">
                             <span className="text-xs font-bold text-white">
-                              {tournamentState.knockoutBracket.thirdPlaceMatch.homeDisplayName}
+                              {tournamentState.knockoutBracket.thirdPlaceMatch.homeDisplayName || 'チームC'}
                             </span>
                             <span className="text-sm font-mono font-bold text-slate-200">
-                              {tournamentState.knockoutBracket.thirdPlaceMatch.homeScore}
+                              {tournamentState.knockoutBracket.thirdPlaceMatch.homeScore ?? 0}
                             </span>
                           </div>
                           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800">
                             <span className="text-xs font-bold text-white">
-                              {tournamentState.knockoutBracket.thirdPlaceMatch.awayDisplayName}
+                              {tournamentState.knockoutBracket.thirdPlaceMatch.awayDisplayName || 'チームD'}
                             </span>
                             <span className="text-sm font-mono font-bold text-slate-200">
-                              {tournamentState.knockoutBracket.thirdPlaceMatch.awayScore}
+                              {tournamentState.knockoutBracket.thirdPlaceMatch.awayScore ?? 0}
                             </span>
                           </div>
                         </div>
@@ -994,7 +1009,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
                     <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                       <h5 className="text-[11px] font-bold text-slate-300">タイムライン & ゴール詳細</h5>
                       <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                        {selectedMatch.events.map((ev, i) => (
+                        {(selectedMatch.events || []).map((ev, i) => (
                           <div key={i} className="text-xs flex items-start gap-2 text-slate-300">
                             <span className="text-[10px] font-mono font-bold text-slate-500 shrink-0 w-8">
                               {ev.minute}'

@@ -30,6 +30,36 @@ let tournamentChannel: any = null;
 let pollingInterval: any = null;
 const stateChangeListeners = new Set<(state: TournamentState) => void>();
 
+export function sanitizeTournamentState(raw: any): TournamentState {
+  const baseDef = { ...INITIAL_TOURNAMENT_FD_CUP_001 };
+  if (!raw || typeof raw !== 'object') {
+    return {
+      definition: baseDef,
+      entries: [],
+      groups: [],
+      standings: [],
+      matches: [],
+      knockoutBracket: undefined,
+      rewards: [],
+      currentServerTimeMs: Date.now(),
+    };
+  }
+
+  return {
+    definition: {
+      ...baseDef,
+      ...(raw.definition || {}),
+    },
+    entries: Array.isArray(raw.entries) ? raw.entries : [],
+    groups: Array.isArray(raw.groups) ? raw.groups : [],
+    standings: Array.isArray(raw.standings) ? raw.standings : [],
+    matches: Array.isArray(raw.matches) ? raw.matches : [],
+    knockoutBracket: raw.knockoutBracket || undefined,
+    rewards: Array.isArray(raw.rewards) ? raw.rewards : [],
+    currentServerTimeMs: typeof raw.currentServerTimeMs === 'number' ? raw.currentServerTimeMs : Date.now(),
+  };
+}
+
 // In-memory runtime state for fast client UI responsiveness
 let currentTournamentState: TournamentState = {
   definition: { ...INITIAL_TOURNAMENT_FD_CUP_001 },
@@ -54,15 +84,8 @@ export function loadCachedTournamentState(): TournamentState {
     const raw = localStorage.getItem(STORAGE_KEY_TOURNAMENT_STATE_CACHE);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.definition) {
-        currentTournamentState = {
-          ...currentTournamentState,
-          ...parsed,
-          definition: {
-            ...INITIAL_TOURNAMENT_FD_CUP_001,
-            ...parsed.definition,
-          },
-        };
+      if (parsed) {
+        currentTournamentState = sanitizeTournamentState(parsed);
       }
     }
   } catch (e) {
@@ -83,7 +106,8 @@ export function saveCachedTournamentState(state: TournamentState): void {
  * Notify all subscribed React listeners of state updates
  */
 function notifyListeners(): void {
-  const cloned = { ...currentTournamentState };
+  const cloned = sanitizeTournamentState(currentTournamentState);
+  currentTournamentState = cloned;
   saveCachedTournamentState(cloned);
   stateChangeListeners.forEach((listener) => {
     try {
@@ -105,10 +129,10 @@ export async function fetchAuthoritativeTournamentState(
     if (res.ok) {
       const data = await res.json();
       if (data && data.success && data.state) {
-        currentTournamentState = {
+        currentTournamentState = sanitizeTournamentState({
           ...data.state,
           currentServerTimeMs: data.serverTimeMs || Date.now(),
-        };
+        });
         notifyListeners();
         return currentTournamentState;
       }
@@ -461,7 +485,7 @@ export async function testPopulateParticipants(
     if (res.ok) {
       const data = await res.json();
       if (data && data.state) {
-        currentTournamentState = data.state;
+        currentTournamentState = sanitizeTournamentState(data.state);
         notifyListeners();
         return currentTournamentState;
       }
@@ -486,7 +510,7 @@ export async function testAdvanceTournamentStage(): Promise<TournamentState> {
     if (res.ok) {
       const data = await res.json();
       if (data && data.state) {
-        currentTournamentState = data.state;
+        currentTournamentState = sanitizeTournamentState(data.state);
         notifyListeners();
         return currentTournamentState;
       }
@@ -509,7 +533,7 @@ export async function testResetTournament(): Promise<TournamentState> {
     if (res.ok) {
       const data = await res.json();
       if (data && data.state) {
-        currentTournamentState = data.state;
+        currentTournamentState = sanitizeTournamentState(data.state);
         notifyListeners();
         return currentTournamentState;
       }

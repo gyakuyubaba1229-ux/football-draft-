@@ -29,13 +29,42 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = '1.3.2';
+export const CURRENT_VERSION = '1.3.3';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
-    version: '1.3.2',
+    version: '1.3.3',
     releaseDate: '2026.09.09',
     isLatest: true,
+    titleJa: '1.3.3 公式大会画面表示の完全復旧＆エントリー者リアルタイム同期',
+    titleEn: '1.3.3 Official Tournament Screen Fix & Live Entrants Sync',
+    titleEs: '1.3.3 Reparación de la Pantalla del Torneo y Sincronización en Vivo',
+    notesJa: [
+      '【大会画面の表示不具合を完全修復】公式大会画面を開いた際に画面が真っ暗になる問題を根本解決しました。あらゆるデータ状態（キャッシュ破損・nullデータ・通信遅延）でも確実にクラッシュせず即座に正常表示されます',
+      '【エントリー者のリアルタイム同期】大会エントリー者の登録・更新がサーバーおよび全ユーザー間で即座にリアルタイム同期されるようになりました',
+      '【最新化（手動更新）機能の追加】大会ヘッダーに「最新化」ボタンを追加し、ワンタップで即座に最新のエントリー者・対戦ステータスを取得可能にしました',
+      '【エラー境界（ErrorBoundary）導入】予期せぬエラー発生時にも画面全体が暗転・白化せず、安全に再読み込みや復帰ができる機構を配備しました',
+      '【データ正規化（サニタイズ）強化】大会状態やキャッシュの取得時に配列・プロパティを完全防御し、端末間での安定性を大幅に強化しました',
+    ],
+    notesEn: [
+      'Fully resolved the tournament screen black-screen crash issue with robust multi-layer defensive rendering and state sanitization',
+      'Enabled seamless, authoritative real-time synchronization of tournament entrants across all connected players',
+      'Added instant Manual Sync / Refresh button in the tournament modal header to easily fetch latest participants',
+      'Introduced ErrorBoundary protection to eliminate complete screen blackouts or whiteouts on unexpected exceptions',
+      'Hardened tournament data sanitization and caching logic across storage and realtime listeners',
+    ],
+    notesEs: [
+      'Se solucionó por completo el problema de pantalla negra al abrir el torneo con sanitización defensiva de datos',
+      'Sincronización en tiempo real de los participantes del torneo entre todos los usuarios',
+      'Botón de sincronización manual agregado en el encabezado del torneo',
+      'Protección con ErrorBoundary para evitar pantallas negras',
+      'Mayor estabilidad y validación de datos en caché y servidor',
+    ],
+  },
+  {
+    version: '1.3.2',
+    releaseDate: '2026.09.09',
+    isLatest: false,
     titleJa: '1.3.2 サーバー完全同期＆新シーズン開幕',
     titleEn: '1.3.2 Full Server Synchronization & New Season Update',
     titleEs: '1.3.2 Sincronización Total del Servidor y Nueva Temporada',
