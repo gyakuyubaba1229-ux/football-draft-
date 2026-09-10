@@ -29,13 +29,39 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = '1.3.3';
+export const CURRENT_VERSION = '1.3.4';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
+    version: '1.3.4',
+    releaseDate: '2026.09.10',
+    isLatest: true,
+    titleJa: '1.3.4 週間ランキング完全リセット＆リアルタイム同期・大会画面エラー徹底解消',
+    titleEn: '1.3.4 Weekly Ranking Reset & Real-Time Sync & Tournament Error Fix',
+    titleEs: '1.3.4 Reinicio de Clasificación Semanal y Sincronización en Tiempo Real',
+    notesJa: [
+      '【週間ランキングのリセット＆新同期】週間ランキングの勝点・対戦履歴を完全に初期化できるリセット機能（「ランキング初期化」ボタン）を追加しました。これ以降の全対戦記録がサーバー・全端末間でリアルタイムに漏れなく正確に同期されます',
+      '【大会画面の徹底修正＆エラーゼロ化】公式大会モーダルにおけるすべての未定義参照・サニタイズ処理を強化し、大会画面が真っ暗になる・エラーが出る不具合の原因を徹底特定して完全修復しました',
+      '【エントリー者の完全同期】大会エントリー時のチーム・戦術スナップショットおよびOVR計算の例外処理を強化し、全エントリー者が即座に全ユーザーの画面に同期されるようになりました',
+      '【対戦結果の即時集計】PvP対戦完了時にサーバー永続化の完了を厳密に待機してから順位表を再集計するフローに改善し、勝点・順位のズレを解消しました',
+    ],
+    notesEn: [
+      'Added Weekly Ranking Reset function and real-time authoritative sync across all users for all new matches',
+      'Thoroughly identified and fixed all root causes of tournament screen black-screen and errors with deep defensive sanitization',
+      'Enhanced tournament entrant registration and real-time synchronization of team snapshots and OVR ratings',
+      'Guaranteed instant standings recalculation and zero score discrepancy after match completion',
+    ],
+    notesEs: [
+      'Función de reinicio de clasificación semanal y sincronización autoritativa en tiempo real de partidos',
+      'Corrección definitiva de errores y pantalla negra en la pantalla del torneo oficial',
+      'Sincronización total de participantes del torneo y estadísticas de escuadras',
+      'Cálculo inmediato y preciso de puntos y posiciones de la liga semanal',
+    ],
+  },
+  {
     version: '1.3.3',
     releaseDate: '2026.09.09',
-    isLatest: true,
+    isLatest: false,
     titleJa: '1.3.3 公式大会画面表示の完全復旧＆エントリー者リアルタイム同期',
     titleEn: '1.3.3 Official Tournament Screen Fix & Live Entrants Sync',
     titleEs: '1.3.3 Reparación de la Pantalla del Torneo y Sincronización en Vivo',

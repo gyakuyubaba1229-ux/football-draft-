@@ -30,6 +30,31 @@ let tournamentChannel: any = null;
 let pollingInterval: any = null;
 const stateChangeListeners = new Set<(state: TournamentState) => void>();
 
+export function sanitizeTournamentEntry(raw: any): TournamentEntry {
+  return {
+    tournamentId: raw?.tournamentId || 'FD_CUP_001',
+    userId: raw?.userId || 'unknown_user',
+    displayName: raw?.displayName || 'Manager',
+    entryStatus: raw?.entryStatus || 'ENTERED',
+    enteredAt: typeof raw?.enteredAt === 'number' ? raw.enteredAt : (typeof raw?.joinedAt === 'number' ? raw.joinedAt : Date.now()),
+    teamSnapshot: raw?.teamSnapshot || {
+      teamId: `team_${raw?.userId || 'default'}`,
+      name: raw?.displayName ? `${raw.displayName} FC` : 'Tournament Squad',
+      formation: '4-3-3',
+      players: [],
+    },
+    tacticsSnapshot: {
+      attackTactic: raw?.tacticsSnapshot?.attackTactic || 'POSSESSION',
+      defenseTactic: raw?.tacticsSnapshot?.defenseTactic || 'MID_BLOCK',
+      attackDirection: raw?.tacticsSnapshot?.attackDirection || 'BALANCED',
+      pressIntensity: raw?.tacticsSnapshot?.pressIntensity || 'BALANCED',
+    },
+    defensiveSquadSnapshot: raw?.defensiveSquadSnapshot,
+    teamOvr: typeof raw?.teamOvr === 'number' && !isNaN(raw.teamOvr) ? raw.teamOvr : 85,
+    tacticsModifiedCount: typeof raw?.tacticsModifiedCount === 'number' ? raw.tacticsModifiedCount : 0,
+  };
+}
+
 export function sanitizeTournamentState(raw: any): TournamentState {
   const baseDef = { ...INITIAL_TOURNAMENT_FD_CUP_001 };
   if (!raw || typeof raw !== 'object') {
@@ -45,17 +70,50 @@ export function sanitizeTournamentState(raw: any): TournamentState {
     };
   }
 
+  const rawEntries = Array.isArray(raw.entries) ? raw.entries : [];
+  const cleanEntries = rawEntries.filter(Boolean).map(sanitizeTournamentEntry);
+
+  const rawStandings = Array.isArray(raw.standings) ? raw.standings : [];
+  const cleanStandings = rawStandings.filter(Boolean).map((st: any, idx: number) => ({
+    userId: st?.userId || `st_${idx}`,
+    displayName: st?.displayName || 'Manager',
+    teamOvr: typeof st?.teamOvr === 'number' ? st.teamOvr : 85,
+    matchesPlayed: st?.matchesPlayed ?? 0,
+    wins: st?.wins ?? 0,
+    draws: st?.draws ?? 0,
+    losses: st?.losses ?? 0,
+    goalsFor: st?.goalsFor ?? 0,
+    goalsAgainst: st?.goalsAgainst ?? 0,
+    goalDifference: typeof st?.goalDifference === 'number' ? st.goalDifference : ((st?.goalsFor ?? 0) - (st?.goalsAgainst ?? 0)),
+    points: st?.points ?? 0,
+    rank: st?.rank ?? idx + 1,
+    isQualified: Boolean(st?.isQualified),
+  }));
+
+  const rawMatches = Array.isArray(raw.matches) ? raw.matches : [];
+  const cleanMatches = rawMatches.filter(Boolean).map((m: any) => ({
+    ...m,
+    matchId: m?.matchId || `mat_${Math.random().toString(36).substring(2, 8)}`,
+    homeDisplayName: m?.homeDisplayName || 'Home',
+    awayDisplayName: m?.awayDisplayName || 'Away',
+    homeScore: typeof m?.homeScore === 'number' ? m.homeScore : 0,
+    awayScore: typeof m?.awayScore === 'number' ? m.awayScore : 0,
+    events: Array.isArray(m?.events) ? m.events.filter(Boolean) : [],
+    stageNameJa: m?.stageNameJa || '公式戦',
+  }));
+
   return {
     definition: {
       ...baseDef,
       ...(raw.definition || {}),
+      entryCount: cleanEntries.length,
     },
-    entries: Array.isArray(raw.entries) ? raw.entries : [],
-    groups: Array.isArray(raw.groups) ? raw.groups : [],
-    standings: Array.isArray(raw.standings) ? raw.standings : [],
-    matches: Array.isArray(raw.matches) ? raw.matches : [],
+    entries: cleanEntries,
+    groups: Array.isArray(raw.groups) ? raw.groups.filter(Boolean) : [],
+    standings: cleanStandings,
+    matches: cleanMatches,
     knockoutBracket: raw.knockoutBracket || undefined,
-    rewards: Array.isArray(raw.rewards) ? raw.rewards : [],
+    rewards: Array.isArray(raw.rewards) ? raw.rewards.filter(Boolean) : [],
     currentServerTimeMs: typeof raw.currentServerTimeMs === 'number' ? raw.currentServerTimeMs : Date.now(),
   };
 }
@@ -315,9 +373,10 @@ export async function enterOfficialTournament(params: {
   const existingIdx = currentTournamentState.entries.findIndex((e) => e.userId === userId);
   const existingEntry = existingIdx >= 0 ? currentTournamentState.entries[existingIdx] : null;
 
-  const teamOvr = Math.round(
-    teamSnapshot.players.reduce((sum, p) => sum + p.rating, 0) / 11
-  );
+  const players = Array.isArray(teamSnapshot?.players) ? teamSnapshot.players.filter(Boolean) : [];
+  const teamOvr = players.length > 0
+    ? Math.round(players.reduce((sum, p) => sum + (typeof p?.rating === 'number' ? p.rating : 85), 0) / players.length)
+    : 85;
 
   const newEntry: TournamentEntry = {
     tournamentId,
@@ -326,7 +385,12 @@ export async function enterOfficialTournament(params: {
     entryStatus: 'ENTERED',
     enteredAt: existingEntry?.enteredAt || Date.now(),
     teamSnapshot,
-    tacticsSnapshot,
+    tacticsSnapshot: {
+      attackTactic: tacticsSnapshot?.attackTactic || 'POSSESSION',
+      defenseTactic: tacticsSnapshot?.defenseTactic || 'MID_BLOCK',
+      attackDirection: tacticsSnapshot?.attackDirection || 'BALANCED',
+      pressIntensity: tacticsSnapshot?.pressIntensity || 'BALANCED',
+    },
     defensiveSquadSnapshot,
     teamOvr,
     tacticsModifiedCount: existingEntry?.tacticsModifiedCount || 0,

@@ -528,6 +528,23 @@ async function startServer() {
     }
   });
 
+  // 6.5.3.5 Reset weekly standings and match history (authoritative reset)
+  app.post('/api/pvp/reset-standings', (req, res) => {
+    try {
+      serverPvPMatchesList.length = 0;
+      savePvPMatchesToDisk();
+      console.log('Authoritative weekly standings and matches successfully reset to 0.');
+      res.json({
+        success: true,
+        message: '週間ランキングおよび対戦履歴を完全にリセットしました。今からの対戦がリアルタイム集計されます。',
+        totalMatches: 0,
+        timestamp: Date.now(),
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to reset standings' });
+    }
+  });
+
   // 6.5.4 Get all matches (filtered by season or weekId)
   app.get('/api/pvp/matches', (req, res) => {
     const { weekId, seasonNumber, matchType } = req.query;
@@ -618,11 +635,12 @@ async function startServer() {
 
     const sortedMatches = [...seasonMatches].sort((a, b) => a.timestamp - b.timestamp);
     sortedMatches.forEach((m) => {
+      // 1. Challenger stats
       if (!statsMap.has(m.challengerUserId)) {
         statsMap.set(m.challengerUserId, {
           userId: m.challengerUserId,
-          username: m.challengerUsername,
-          teamName: m.challengerTeam?.teamName || 'Best XI',
+          username: m.challengerUsername || 'Challenger',
+          teamName: m.challengerTeam?.teamName || m.challengerTeam?.name || 'Best XI',
           points: 0,
           played: 0,
           wins: 0,
@@ -638,24 +656,62 @@ async function startServer() {
       }
       const c = statsMap.get(m.challengerUserId)!;
       c.played += 1;
-      c.goalsFor += m.challengerScore;
-      c.goalsAgainst += m.opponentScore;
+      c.goalsFor += (m.challengerScore ?? 0);
+      c.goalsAgainst += (m.opponentScore ?? 0);
       c.goalDifference = c.goalsFor - c.goalsAgainst;
-      c.lastMatchTimestamp = Math.max(c.lastMatchTimestamp, m.timestamp);
+      c.lastMatchTimestamp = Math.max(c.lastMatchTimestamp, m.timestamp || 0);
 
-      if (m.result === 'WIN') {
+      // 2. Opponent stats
+      if (!statsMap.has(m.opponentUserId)) {
+        statsMap.set(m.opponentUserId, {
+          userId: m.opponentUserId,
+          username: m.opponentUsername || 'Opponent',
+          teamName: m.opponentTeam?.teamName || m.opponentTeam?.name || 'Opponent XI',
+          points: 0,
+          played: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          recentForm: [],
+          lastMatchTimestamp: 0,
+          teamOvr: m.opponentTeam?.ovr || m.opponentTeam?.teamOvr || 85,
+        });
+      }
+      const o = statsMap.get(m.opponentUserId)!;
+      o.played += 1;
+      o.goalsFor += (m.opponentScore ?? 0);
+      o.goalsAgainst += (m.challengerScore ?? 0);
+      o.goalDifference = o.goalsFor - o.goalsAgainst;
+      o.lastMatchTimestamp = Math.max(o.lastMatchTimestamp, m.timestamp || 0);
+
+      const cScore = m.challengerScore ?? 0;
+      const oScore = m.opponentScore ?? 0;
+
+      if (cScore > oScore || m.result === 'WIN') {
         c.wins += 1;
         c.points += 3;
         c.recentForm.push('W');
-      } else if (m.result === 'DRAW') {
+        o.losses += 1;
+        o.recentForm.push('L');
+      } else if (cScore === oScore || m.result === 'DRAW') {
         c.draws += 1;
         c.points += 1;
         c.recentForm.push('D');
+        o.draws += 1;
+        o.points += 1;
+        o.recentForm.push('D');
       } else {
         c.losses += 1;
         c.recentForm.push('L');
+        o.wins += 1;
+        o.points += 3;
+        o.recentForm.push('W');
       }
       if (c.recentForm.length > 5) c.recentForm.shift();
+      if (o.recentForm.length > 5) o.recentForm.shift();
     });
 
     const standings = Array.from(statsMap.values()).sort((a, b) => {

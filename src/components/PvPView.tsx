@@ -43,6 +43,7 @@ import {
   checkAndPerformV113Migration,
   migrateLocalStorageToSupabase,
   subscribeToMatchUpdates,
+  resetWeeklyStandings,
 } from '../utils/supabasePvP';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
@@ -176,6 +177,31 @@ export const PvPView: React.FC<PvPViewProps> = ({
   const [standingsFilter, setStandingsFilter] = useState<'ALL' | 'OVR' | 'TACTICAL'>('ALL');
   const [weeklyStandings, setWeeklyStandings] = useState<BetaStandingEntry[]>([]);
   const [isLoadingStandings, setIsLoadingStandings] = useState<boolean>(false);
+  const [isResettingStandings, setIsResettingStandings] = useState(false);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+  const [standingsNotice, setStandingsNotice] = useState<string | null>(null);
+
+  const handleResetWeeklyStandings = async () => {
+    setIsResettingStandings(true);
+    soundManager.playButtonClick();
+    try {
+      const res = await resetWeeklyStandings();
+      if (res.success) {
+        setWeeklyStandings([]);
+        setMatchHistory([]);
+        await loadStandingsData(selectedSeason, standingsFilter);
+        setStandingsNotice('週間ランキングと全対戦履歴をリセットしました。今からの対戦がリアルタイム反映されます。');
+        setShowResetConfirmModal(false);
+      } else {
+        setStandingsNotice(res.message || 'リセットに失敗しました');
+      }
+    } catch (e: any) {
+      setStandingsNotice('リセット中にエラーが発生しました');
+    } finally {
+      setIsResettingStandings(false);
+      setTimeout(() => setStandingsNotice(null), 4000);
+    }
+  };
 
   // Helper: check if opponent already played against in the current phase/season
   const isOpponentMatchedInPhase = (oppUserId: string) => {
@@ -444,7 +470,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
   };
 
   // Instant Skip to OVR Match Results
-  const skipToOVRMatchResult = (recordOverride?: BetaMatchRecord) => {
+  const skipToOVRMatchResult = async (recordOverride?: BetaMatchRecord) => {
     if (simulationIntervalRef.current) {
       clearInterval(simulationIntervalRef.current);
       simulationIntervalRef.current = null;
@@ -458,13 +484,18 @@ export const PvPView: React.FC<PvPViewProps> = ({
     setCurrentScore([rec.challengerScore, rec.opponentScore]);
     setLiveEvents(rec.events);
 
-    // Save to Supabase and update state
-    saveMatchRecordToSupabase(rec);
     setMatchHistory((prev) => {
       if (prev.some((m) => m.id === rec.id)) return prev;
       return [rec, ...prev];
     });
-    loadStandingsData(selectedSeason, standingsFilter);
+
+    // Save to Supabase & server, then immediately reload standings
+    try {
+      await saveMatchRecordToSupabase(rec);
+    } catch (e) {
+      console.warn('Save match note:', e);
+    }
+    await loadStandingsData(selectedSeason, standingsFilter);
 
     if (rec.result === 'WIN') {
       soundManager.playTeamCompleted();
@@ -673,9 +704,10 @@ export const PvPView: React.FC<PvPViewProps> = ({
         };
 
         setFinalMatchRecord(record);
-        saveMatchRecordToSupabase(record);
         setMatchHistory((prev) => [record, ...prev]);
-        loadStandingsData(selectedSeason, standingsFilter);
+        saveMatchRecordToSupabase(record).finally(() => {
+          loadStandingsData(selectedSeason, standingsFilter);
+        });
 
         if (res === 'WIN') {
           soundManager.playTeamCompleted();
@@ -1990,13 +2022,77 @@ export const PvPView: React.FC<PvPViewProps> = ({
 
               <button
                 onClick={() => loadStandingsData(selectedSeason, standingsFilter)}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                title="ランキングを再取得"
+                className="p-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors flex items-center gap-1.5 text-xs font-bold"
+                title="ランキングを再取得して同期"
               >
-                <RefreshCw className={`w-4 h-4 ${isLoadingStandings ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${isLoadingStandings ? 'animate-spin text-amber-400' : ''}`} />
+                <span className="hidden sm:inline">再同期</span>
+              </button>
+
+              <button
+                id="btn-reset-weekly-standings"
+                onClick={() => setShowResetConfirmModal(true)}
+                disabled={isResettingStandings}
+                className="px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 transition-colors flex items-center gap-1.5 text-xs font-bold disabled:opacity-50"
+                title="週間ランキングと対戦履歴をリセット"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isResettingStandings ? 'animate-spin' : ''}`} />
+                <span>{isResettingStandings ? 'リセット中...' : 'ランキング初期化'}</span>
               </button>
             </div>
           </div>
+
+          {/* Standings Feedback Notice */}
+          {standingsNotice && (
+            <div className="p-3 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs flex items-center justify-between animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{standingsNotice}</span>
+              </div>
+              <button
+                onClick={() => setStandingsNotice(null)}
+                className="text-emerald-400 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Reset Confirmation Modal */}
+          {showResetConfirmModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+              <div className="bg-slate-900 border border-rose-500/50 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-scaleIn">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 mx-auto">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h4 className="text-base font-bold text-white">週間ランキングをリセットしますか？</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    サーバーおよび端末内の対戦履歴と勝点集計をすべて0に初期化します。
+                    初期化完了後の新規対戦はリアルタイムに自動集計・同期されます。
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    onClick={() => setShowResetConfirmModal(false)}
+                    disabled={isResettingStandings}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    id="btn-confirm-reset-standings"
+                    onClick={handleResetWeeklyStandings}
+                    disabled={isResettingStandings}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold shadow-lg transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isResettingStandings ? 'animate-spin' : ''}`} />
+                    <span>{isResettingStandings ? 'リセット中...' : 'リセットを実行'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Aggregation Window Banner */}
           {isSeasonInAggregationPhase(selectedSeason) && (

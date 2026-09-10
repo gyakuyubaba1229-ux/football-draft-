@@ -387,6 +387,17 @@ export function initSupabasePvP(
           notifyMatchUpdates();
         }
       })
+      .on('broadcast', { event: 'STANDINGS_RESET' }, () => {
+        try {
+          localStorage.removeItem(LOCAL_STORAGE_SAVED_MATCHES);
+          localStorage.removeItem('fd_beta_pvp_matches');
+          localStorage.removeItem('FOOTBALL_DRAFT_PVP_HISTORY_v113');
+          localStorage.removeItem('FOOTBALL_DRAFT_PVP_SAVED_MATCHES_V1');
+        } catch (e) {
+          console.warn('Local wipe warning on broadcast:', e);
+        }
+        notifyMatchUpdates();
+      })
       .subscribe();
 
     // 3. Start Heartbeat Timer (every 25 seconds)
@@ -1589,6 +1600,61 @@ export async function migrateLocalStorageToSupabase(
       syncedMatchesCount,
       syncedTeamsCount,
       message: `移行中にエラーが発生しました: ${err?.message || '不明なエラー'}`,
+    };
+  }
+}
+
+/**
+ * Reset weekly standings and match history both server-authoritatively and locally
+ */
+export async function resetWeeklyStandings(): Promise<{ success: boolean; message: string }> {
+  try {
+    // 1. Wipe local match history
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_SAVED_MATCHES);
+      localStorage.removeItem('fd_beta_pvp_matches');
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_HISTORY_v113');
+      localStorage.removeItem('FOOTBALL_DRAFT_PVP_SAVED_MATCHES_V1');
+    } catch (e) {
+      console.warn('Local storage wipe warning:', e);
+    }
+
+    // 2. Call server reset endpoint
+    const res = await fetch('/api/pvp/reset-standings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      // 3. Broadcast to all clients in realtime
+      if (syncChannel) {
+        try {
+          syncChannel.send({
+            type: 'broadcast',
+            event: 'STANDINGS_RESET',
+            payload: { timestamp: Date.now() },
+          });
+        } catch (e) {
+          console.warn('Broadcast STANDINGS_RESET error:', e);
+        }
+      }
+      notifyMatchUpdates();
+      return {
+        success: true,
+        message: data.message || '週間ランキングと対戦履歴を完全にリセットしました。',
+      };
+    } else {
+      return {
+        success: false,
+        message: 'サーバーでのリセット処理に失敗しました。',
+      };
+    }
+  } catch (err: any) {
+    console.error('Reset weekly standings error:', err);
+    return {
+      success: false,
+      message: err?.message || '通信エラーが発生しました。',
     };
   }
 }

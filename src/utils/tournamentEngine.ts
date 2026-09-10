@@ -73,20 +73,29 @@ export function determineTournamentStatus(
  * Kept strictly isolated from normal PvP tactics.
  */
 export function getSavedTournamentTactics(): TeamTactics {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_TOURNAMENT_TACTICS);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (e) {
-    console.warn('Failed to load tournament tactics cache', e);
-  }
-  return {
+  const fallback: TeamTactics = {
     attackTactic: 'POSSESSION',
     defenseTactic: 'MID_BLOCK',
     attackDirection: 'BALANCED',
     pressIntensity: 'BALANCED',
   };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TOURNAMENT_TACTICS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          attackTactic: parsed.attackTactic || fallback.attackTactic,
+          defenseTactic: parsed.defenseTactic || fallback.defenseTactic,
+          attackDirection: parsed.attackDirection || fallback.attackDirection,
+          pressIntensity: parsed.pressIntensity || fallback.pressIntensity,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load tournament tactics cache', e);
+  }
+  return fallback;
 }
 
 /**
@@ -94,7 +103,13 @@ export function getSavedTournamentTactics(): TeamTactics {
  */
 export function saveTournamentTactics(tactics: TeamTactics): void {
   try {
-    localStorage.setItem(STORAGE_KEY_TOURNAMENT_TACTICS, JSON.stringify(tactics));
+    const safe: TeamTactics = {
+      attackTactic: tactics?.attackTactic || 'POSSESSION',
+      defenseTactic: tactics?.defenseTactic || 'MID_BLOCK',
+      attackDirection: tactics?.attackDirection || 'BALANCED',
+      pressIntensity: tactics?.pressIntensity || 'BALANCED',
+    };
+    localStorage.setItem(STORAGE_KEY_TOURNAMENT_TACTICS, JSON.stringify(safe));
   } catch (e) {
     console.warn('Failed to save tournament tactics', e);
   }
