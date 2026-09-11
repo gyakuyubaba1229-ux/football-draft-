@@ -221,8 +221,15 @@ export function computeWeeklyStandings(
     combinedUsers.push(currentUser);
   }
 
-  // Filter matches for the specific season and match type
+  // Filter matches for the specific season and match type, with strict unique match ID deduplication
+  const seenMatchIds = new Set<string>();
   const seasonMatches = allSeasonMatches.filter((m) => {
+    if (!m) return false;
+    const matchKey = m.id;
+    if (matchKey) {
+      if (seenMatchIds.has(matchKey)) return false;
+      seenMatchIds.add(matchKey);
+    }
     const sNum = m.season || getSeasonNumberForTimestamp(m.timestamp);
     const matchesSeason = sNum === targetSeason;
     const matchesType = matchTypeFilter === 'ALL' || m.matchType === matchTypeFilter;

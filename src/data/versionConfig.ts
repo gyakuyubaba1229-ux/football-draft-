@@ -29,13 +29,71 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = '1.3.4';
+export const CURRENT_VERSION = '1.4.0';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
+    version: '1.4.0',
+    releaseDate: '2026.09.11',
+    isLatest: true,
+    titleJa: '1.4.0 同期中型アップデート',
+    titleEn: '1.4.0 Periodic Online Synchronization Mid-Size Update',
+    titleEs: '1.4.0 Actualización Mediana de Sincronización Periódica Online',
+    notesJa: [
+      '【オンラインランキングの同期安定化】Supabase Realtime＋10分ごとの定時再取得（毎時00分・10分・20分・30分・40分・50分）による二重同期構成を確立し、全端末間でランキングを確実に同期',
+      '【対戦履歴の同期安定化】対戦完了時の即時保存と10分ごとの全端末データ再同期により、対戦履歴の保存・復元・整合性を強化',
+      '【二重計上の完全防止】match_idの一意判定により、10分同期やRealtime再接続、ページ再読み込み時にも同一試合が重複加算されないよう厳格に保護',
+      '【公式大会の読み込みエラー修正】公式大会データの取得・キャッシュ・フェイルセーフ処理を刷新し、通信状況に関わらず安全に大会画面を表示',
+      '【既存データの完全保護】MY TEAM・選手データ・獲得状況・ドラフト履歴・HISTORY・対戦履歴・ランキング・カスタムフォーメーション・守備スカッド・チームロック・公式大会の全データを完全維持',
+      '【ランキング初期化ボタンの削除】ユーザー様のご要望に基づき、ランキング初期化ボタンを撤去しました',
+    ],
+    notesEn: [
+      'Established dual-sync architecture combining Supabase Realtime with 10-minute periodic polling (:00, :10, :20, :30, :40, :50) for solid online ranking stability',
+      'Stabilized online match history synchronization across all devices and sessions',
+      'Enforced strict unique match_id deduplication preventing any double counting across sync intervals or reconnections',
+      'Resolved official tournament loading errors with robust error fallbacks and periodic background re-sync',
+      'Strictly preserved all existing user data including MY TEAM, rosters, draft history, formations, team locks, and tournament entries',
+      'Removed the ranking reset button as requested',
+    ],
+    notesEs: [
+      'Arquitectura de sincronización dual con Supabase Realtime y sondeo periódico cada 10 minutos para la clasificación online',
+      'Estabilización completa del historial de partidos online en todos los dispositivos',
+      'Prevención estricta de doble conteo de partidos mediante identificador único match_id',
+      'Corrección de errores de carga en el torneo oficial con protección contra fallos de red',
+      'Conservación total de todos los datos existentes (MY TEAM, plantilla, historial, tácticas y torneo)',
+      'Eliminado el botón de reinicio de clasificación',
+    ],
+  },
+  {
+    version: '1.3.5',
+    releaseDate: '2026.09.10',
+    isLatest: false,
+    titleJa: '1.3.5 週間オンラインランキング15分定時完全同期システム稼働',
+    titleEn: '1.3.5 15-Minute Scheduled Online Ranking Synchronization System',
+    titleEs: '1.3.5 Sistema de Sincronización Programada de Clasificación Online cada 15 Minutos',
+    notesJa: [
+      '【15分定時オンライン同期の稼働】週間ランキングを15分間隔（毎時00分・15分・30分・45分）で全端末・サーバー間で完全に集約・確定同期するシステムを実装しました',
+      '【カウントダウン＆ステータス表示】ランキング画面上に「15分定時オンライン同期中」バッジおよび「次回自動集計まで: ○分○秒」のリアルタイムカウントダウン表示を追加しました',
+      '【端末間対戦の完全同期保証】対戦終了時および画面読み込み時に、端末内の未送信対戦履歴をサーバー側へ自動プッシュ＆サーバー集計結果を完全反映する2重同期機構を確立しました',
+      '【今すぐ手動同期ボタン】15分の定時更新を待たずに、いつでもワンタップで最新の全ユーザー対戦データを集計・取得できる「今すぐ手動同期」ボタンを配備しました',
+    ],
+    notesEn: [
+      'Implemented 15-minute scheduled authoritative online ranking synchronization across all users and devices',
+      'Added live countdown timer to the next 15-minute cycle update with sync status badge',
+      'Established dual-sync mechanism ensuring local match records are guaranteed to be uploaded and tallied in server standings',
+      'Added instant manual sync button to immediately fetch latest consolidated rankings on demand',
+    ],
+    notesEs: [
+      'Implementado el sistema de sincronización programada cada 15 minutos para la clasificación online',
+      'Añadido temporizador con cuenta regresiva en vivo hasta la siguiente sincronización de 15 minutos',
+      'Garantizada la sincronización autoritativa total de partidos entre todos los dispositivos',
+      'Botón de sincronización manual inmediata disponible en todo momento',
+    ],
+  },
+  {
     version: '1.3.4',
     releaseDate: '2026.09.10',
-    isLatest: true,
+    isLatest: false,
     titleJa: '1.3.4 週間ランキング完全リセット＆リアルタイム同期・大会画面エラー徹底解消',
     titleEn: '1.3.4 Weekly Ranking Reset & Real-Time Sync & Tournament Error Fix',
     titleEs: '1.3.4 Reinicio de Clasificación Semanal y Sincronización en Tiempo Real',

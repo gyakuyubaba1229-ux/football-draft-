@@ -63,6 +63,7 @@ import {
 } from './utils/rewardScoutEngine';
 import { checkAndPerformV132RankingReset } from './utils/supabasePvP';
 import { getCurrentUserProfile } from './utils/pvpEngine';
+import { initOnlineSyncManager } from './utils/onlineSyncManager';
 import { CURRENT_VERSION } from './data/versionConfig';
 import { DEFAULT_X_CHAR_LIMIT, STORAGE_KEY_X_CHAR_LIMIT } from './utils/shareUtils';
 import { autoAssignSlot, remapPlayerSlots } from './utils/formationUtils';
@@ -374,6 +375,12 @@ export default function App() {
     }
     setRewardTickets(getStoredUserTickets());
   }, [userProfile.userId]);
+
+  // Version 1.4.0 Online Sync Heartbeat & Automatic 10-Minute Periodic Sync
+  useEffect(() => {
+    const cleanup = initOnlineSyncManager();
+    return cleanup;
+  }, []);
 
   const handleClaimGift = (giftId: string) => {
     const res = claimPresentBoxItem(giftId, userProfile.userId);

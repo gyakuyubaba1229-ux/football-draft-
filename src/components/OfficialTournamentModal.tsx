@@ -42,6 +42,7 @@ import {
   testResetTournament,
   getCurrentTournamentState,
 } from '../utils/supabaseTournament';
+import { subscribeToSyncStatus } from '../utils/onlineSyncManager';
 import {
   getSavedTournamentTactics,
   saveTournamentTactics,
@@ -88,7 +89,7 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
   const [testNotice, setTestNotice] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Realtime subscription + immediate authoritative sync
+  // Realtime subscription + immediate authoritative sync + 10-minute periodic sync
   useEffect(() => {
     if (!isOpen) return;
 
@@ -97,12 +98,21 @@ export const OfficialTournamentModal: React.FC<OfficialTournamentModalProps> = (
       if (state) setTournamentState(state);
     });
 
-    const unsubscribe = initTournamentRealtime((state) => {
+    const unsubscribeRealtime = initTournamentRealtime((state) => {
       setTournamentState(state);
     });
 
+    const unsubscribePeriodic = subscribeToSyncStatus((status) => {
+      if (status.state === 'SUCCESS') {
+        fetchAuthoritativeTournamentState().then((state) => {
+          if (state) setTournamentState(state);
+        });
+      }
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeRealtime();
+      unsubscribePeriodic();
     };
   }, [isOpen]);
 

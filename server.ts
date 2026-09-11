@@ -30,6 +30,7 @@ export interface ServerPvPMatch {
   matchId?: string;
   weekId: string;
   seasonNumber: number;
+  season?: number;
   challengerUserId: string;
   challengerUsername: string;
   challengerScore: number;
@@ -554,15 +555,17 @@ async function startServer() {
     let filtered = serverPvPMatchesList;
     if (targetSeason === 1) {
       filtered = filtered.filter((m) => 
+        m.season === 1 ||
         m.seasonNumber === 1 ||
         m.weekId === '2026-09-09_week' ||
         m.weekId === 'WEEK_1' ||
+        !m.season ||
         (m.timestamp >= SEASON_1_START_MS && m.timestamp <= SEASON_1_END_MS)
       );
     } else if (weekId) {
-      filtered = filtered.filter((m) => m.weekId === weekId);
+      filtered = filtered.filter((m) => m.weekId === weekId || m.season === targetSeason || m.seasonNumber === targetSeason);
     } else if (seasonNumber) {
-      filtered = filtered.filter((m) => m.seasonNumber === targetSeason);
+      filtered = filtered.filter((m) => m.seasonNumber === targetSeason || m.season === targetSeason);
     }
     
     if (matchType && matchType !== 'ALL') {
@@ -581,20 +584,38 @@ async function startServer() {
     let seasonMatches = serverPvPMatchesList;
     if (targetSeason === 1) {
       seasonMatches = seasonMatches.filter((m) =>
+        m.season === 1 ||
         m.seasonNumber === 1 ||
         m.weekId === '2026-09-09_week' ||
         m.weekId === 'WEEK_1' ||
+        !m.season ||
         (m.timestamp >= SEASON_1_START_MS && m.timestamp <= SEASON_1_END_MS)
       );
     } else if (weekId) {
-      seasonMatches = seasonMatches.filter((m) => m.weekId === weekId);
+      seasonMatches = seasonMatches.filter((m) => m.weekId === weekId || m.season === targetSeason || m.seasonNumber === targetSeason);
     } else if (seasonNumber) {
-      seasonMatches = seasonMatches.filter((m) => m.seasonNumber === targetSeason);
+      seasonMatches = seasonMatches.filter((m) => m.seasonNumber === targetSeason || m.season === targetSeason);
     }
 
     if (matchType && matchType !== 'ALL') {
       seasonMatches = seasonMatches.filter((m) => m.matchType === matchType);
     }
+
+    // Strict match deduplication by unique ID to prevent double counting across sync cycles
+    const seenMatchKeys = new Set<string>();
+    const deduplicatedSeasonMatches: ServerPvPMatch[] = [];
+    for (const m of seasonMatches) {
+      const matchKey = m.id || m.matchId;
+      if (matchKey) {
+        if (!seenMatchKeys.has(matchKey)) {
+          seenMatchKeys.add(matchKey);
+          deduplicatedSeasonMatches.push(m);
+        }
+      } else {
+        deduplicatedSeasonMatches.push(m);
+      }
+    }
+    seasonMatches = deduplicatedSeasonMatches;
 
     const statsMap = new Map<string, {
       userId: string;
@@ -729,7 +750,20 @@ async function startServer() {
       weekId: resolvedWeekId,
     }));
 
-    res.json({ success: true, standings: rankedStandings, totalMatches: seasonMatches.length });
+    const now = Date.now();
+    const TEN_MINUTES_MS = 10 * 60 * 1000;
+    const current10MinWindow = Math.floor(now / TEN_MINUTES_MS) * TEN_MINUTES_MS;
+    const next10MinWindow = current10MinWindow + TEN_MINUTES_MS;
+
+    res.json({
+      success: true,
+      standings: rankedStandings,
+      totalMatches: seasonMatches.length,
+      serverTimeMs: now,
+      lastSyncTimestamp: current10MinWindow,
+      nextScheduledUpdateTimestamp: next10MinWindow,
+      updateIntervalMinutes: 10,
+    });
   });
 
   // ═════════════════════════════════════════════════════════════════════════

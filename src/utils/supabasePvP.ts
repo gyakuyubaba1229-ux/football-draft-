@@ -1342,6 +1342,130 @@ export function notifyMatchUpdates(): void {
   });
 }
 
+export interface StandingsSyncInfo {
+  standings: BetaStandingEntry[];
+  totalMatches: number;
+  serverTimeMs: number;
+  lastSyncTimestamp: number;
+  nextScheduledUpdateTimestamp: number;
+  updateIntervalMinutes: number;
+}
+
+/**
+ * Synchronize any local pending match records to server authority
+ */
+export async function syncPendingLocalMatchesToServer(): Promise<number> {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_MATCHES);
+    if (!raw) return 0;
+    const list: BetaMatchRecord[] = JSON.parse(raw);
+    if (!Array.isArray(list) || list.length === 0) return 0;
+
+    let synced = 0;
+    for (const m of list) {
+      if (m && m.id && m.challengerUserId && m.opponentUserId) {
+        await recordMatchToServer(m);
+        synced++;
+      }
+    }
+    return synced;
+  } catch (e) {
+    console.warn('Error syncing pending local matches to server:', e);
+    return 0;
+  }
+}
+
+/**
+ * Fetch weekly standings with 10-minute cycle sync metadata
+ */
+export async function fetchWeeklyStandingsWithSyncInfo(
+  seasonNumber: number,
+  matchType: 'ALL' | 'OVR' | 'TACTICAL' = 'ALL',
+  currentUser?: BetaUserProfile
+): Promise<StandingsSyncInfo> {
+  const profile = currentUser || getCurrentUserProfile();
+  const seasonInfo = getSeasonInfo(seasonNumber);
+  const targetWeekId = seasonInfo.weekId;
+  const now = Date.now();
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
+  const fallbackLastSync = Math.floor(now / TEN_MINUTES_MS) * TEN_MINUTES_MS;
+  const fallbackNextSync = fallbackLastSync + TEN_MINUTES_MS;
+
+  try {
+    const params = new URLSearchParams();
+    params.append('seasonNumber', String(seasonNumber));
+    params.append('weekId', targetWeekId);
+    if (matchType !== 'ALL') {
+      params.append('matchType', matchType);
+    }
+    const res = await fetch(`/api/pvp/standings?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.standings)) {
+        const serverStandings: BetaStandingEntry[] = data.standings.map((s: any, idx: number) => ({
+          rank: s.rank || idx + 1,
+          userId: s.userId,
+          username: s.username,
+          teamName: s.teamName || 'Best XI',
+          teamOvr: s.teamOvr || 85,
+          points: s.points ?? 0,
+          matchesCount: s.played ?? s.matchesCount ?? 0,
+          wins: s.wins ?? 0,
+          draws: s.draws ?? 0,
+          losses: s.losses ?? 0,
+          goalsFor: s.goalsFor ?? 0,
+          goalsAgainst: s.goalsAgainst ?? 0,
+          goalDifference: s.goalDifference ?? 0,
+          recent10Matches: [],
+          season: seasonNumber,
+        }));
+
+        if (!serverStandings.some((entry) => entry.userId === profile.userId)) {
+          const userOvr = profile.team ? getTeamEffectiveOvr(profile.team) : 85;
+          serverStandings.push({
+            rank: serverStandings.length + 1,
+            userId: profile.userId,
+            username: profile.username,
+            teamName: profile.team?.name || 'Best XI',
+            teamOvr: userOvr,
+            points: 0,
+            matchesCount: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            goalDifference: 0,
+            recent10Matches: [],
+            season: seasonNumber,
+          });
+        }
+
+        return {
+          standings: serverStandings,
+          totalMatches: data.totalMatches || 0,
+          serverTimeMs: data.serverTimeMs || now,
+          lastSyncTimestamp: data.lastSyncTimestamp || fallbackLastSync,
+          nextScheduledUpdateTimestamp: data.nextScheduledUpdateTimestamp || fallbackNextSync,
+          updateIntervalMinutes: data.updateIntervalMinutes || 10,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Server standings query note:', e);
+  }
+
+  const fallbackStandings = await fetchWeeklyStandingsFromSupabase(seasonNumber, matchType, profile);
+  return {
+    standings: fallbackStandings,
+    totalMatches: 0,
+    serverTimeMs: now,
+    lastSyncTimestamp: fallbackLastSync,
+    nextScheduledUpdateTimestamp: fallbackNextSync,
+    updateIntervalMinutes: 10,
+  };
+}
+
 /**
  * Fetch weekly standings for a specific season and match type from Supabase
  * Strict week_id isolation ensures 2026-09-07_week does not mix with old data.

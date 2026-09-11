@@ -40,11 +40,19 @@ import {
   saveMatchRecordToSupabase,
   fetchMatchHistoryFromSupabase,
   fetchWeeklyStandingsFromSupabase,
+  fetchWeeklyStandingsWithSyncInfo,
+  syncPendingLocalMatchesToServer,
+  StandingsSyncInfo,
   checkAndPerformV113Migration,
   migrateLocalStorageToSupabase,
   subscribeToMatchUpdates,
-  resetWeeklyStandings,
 } from '../utils/supabasePvP';
+import {
+  subscribeToSyncStatus,
+  performFullOnlineSync,
+  getSyncManagerStatus,
+  SyncManagerStatus,
+} from '../utils/onlineSyncManager';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import {
@@ -177,31 +185,22 @@ export const PvPView: React.FC<PvPViewProps> = ({
   const [standingsFilter, setStandingsFilter] = useState<'ALL' | 'OVR' | 'TACTICAL'>('ALL');
   const [weeklyStandings, setWeeklyStandings] = useState<BetaStandingEntry[]>([]);
   const [isLoadingStandings, setIsLoadingStandings] = useState<boolean>(false);
-  const [isResettingStandings, setIsResettingStandings] = useState(false);
-  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [standingsNotice, setStandingsNotice] = useState<string | null>(null);
 
-  const handleResetWeeklyStandings = async () => {
-    setIsResettingStandings(true);
-    soundManager.playButtonClick();
-    try {
-      const res = await resetWeeklyStandings();
-      if (res.success) {
-        setWeeklyStandings([]);
-        setMatchHistory([]);
-        await loadStandingsData(selectedSeason, standingsFilter);
-        setStandingsNotice('週間ランキングと全対戦履歴をリセットしました。今からの対戦がリアルタイム反映されます。');
-        setShowResetConfirmModal(false);
-      } else {
-        setStandingsNotice(res.message || 'リセットに失敗しました');
+  // 10-minute periodic online synchronization state manager
+  const [syncStatus, setSyncStatus] = useState<SyncManagerStatus>(getSyncManagerStatus());
+  const [syncMetadata, setSyncMetadata] = useState<StandingsSyncInfo | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeToSyncStatus((status) => {
+      setSyncStatus(status);
+      if (status.state === 'SUCCESS') {
+        loadStandingsData(selectedSeason, standingsFilter);
+        fetchMatchHistoryFromSupabase(userProfile.userId).then((hist) => setMatchHistory(hist));
       }
-    } catch (e: any) {
-      setStandingsNotice('リセット中にエラーが発生しました');
-    } finally {
-      setIsResettingStandings(false);
-      setTimeout(() => setStandingsNotice(null), 4000);
-    }
-  };
+    });
+    return unsub;
+  }, [selectedSeason, standingsFilter, userProfile.userId]);
 
   // Helper: check if opponent already played against in the current phase/season
   const isOpponentMatchedInPhase = (oppUserId: string) => {
@@ -255,7 +254,7 @@ export const PvPView: React.FC<PvPViewProps> = ({
     }
   };
 
-  // Load Weekly Standings from Supabase with smart fallback
+  // Load Weekly Standings from Supabase / Server with 15-minute sync cycle
   const loadStandingsData = async (
     season: number,
     filter: 'ALL' | 'OVR' | 'TACTICAL',
@@ -264,9 +263,14 @@ export const PvPView: React.FC<PvPViewProps> = ({
   ) => {
     setIsLoadingStandings(true);
     try {
-      const realStandings = await fetchWeeklyStandingsFromSupabase(season, filter, userProfile);
-      if (realStandings && realStandings.length > 0) {
-        setWeeklyStandings(realStandings);
+      // 1. Ensure any locally cached matches are pushed to server authority first
+      await syncPendingLocalMatchesToServer();
+
+      // 2. Fetch authoritative rankings along with 10-minute cycle metadata
+      const info = await fetchWeeklyStandingsWithSyncInfo(season, filter, userProfile);
+      if (info && info.standings && info.standings.length > 0) {
+        setWeeklyStandings(info.standings);
+        setSyncMetadata(info);
       } else {
         const fallback = computeWeeklyStandings(knownUsers, userProfile, knownHistory, season, filter);
         setWeeklyStandings(fallback);
@@ -287,24 +291,17 @@ export const PvPView: React.FC<PvPViewProps> = ({
     }
   }, [activeTab, selectedSeason, standingsFilter]);
 
-  // Live Supabase Realtime synchronization and 30s periodic polling
+  // Live Supabase Realtime synchronization and event notifications
   useEffect(() => {
     const unsubscribe = subscribeToMatchUpdates(() => {
       loadStandingsData(selectedSeason, standingsFilter);
       fetchMatchHistoryFromSupabase(userProfile.userId).then((hist) => setMatchHistory(hist));
     });
 
-    const interval = setInterval(() => {
-      if (activeTab === 'standings') {
-        loadStandingsData(selectedSeason, standingsFilter);
-      }
-    }, 5000);
-
     return () => {
       unsubscribe();
-      clearInterval(interval);
     };
-  }, [selectedSeason, standingsFilter, activeTab, userProfile.userId]);
+  }, [selectedSeason, standingsFilter, userProfile.userId]);
 
   // Check and execute automatic reward distribution when season is finalized
   useEffect(() => {
@@ -2021,25 +2018,78 @@ export const PvPView: React.FC<PvPViewProps> = ({
               </div>
 
               <button
-                onClick={() => loadStandingsData(selectedSeason, standingsFilter)}
+                onClick={async () => {
+                  soundManager.playButtonClick();
+                  await performFullOnlineSync(true);
+                  await loadStandingsData(selectedSeason, standingsFilter);
+                  setStandingsNotice('全端末の最新ランキングを即座に集計・同期完了しました！');
+                  setTimeout(() => setStandingsNotice(null), 3000);
+                }}
+                disabled={isLoadingStandings || syncStatus.state === 'SYNCING'}
                 className="p-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors flex items-center gap-1.5 text-xs font-bold"
                 title="ランキングを再取得して同期"
               >
-                <RefreshCw className={`w-4 h-4 ${isLoadingStandings ? 'animate-spin text-amber-400' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${(isLoadingStandings || syncStatus.state === 'SYNCING') ? 'animate-spin text-amber-400' : ''}`} />
                 <span className="hidden sm:inline">再同期</span>
               </button>
-
-              <button
-                id="btn-reset-weekly-standings"
-                onClick={() => setShowResetConfirmModal(true)}
-                disabled={isResettingStandings}
-                className="px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 transition-colors flex items-center gap-1.5 text-xs font-bold disabled:opacity-50"
-                title="週間ランキングと対戦履歴をリセット"
-              >
-                <RotateCcw className={`w-3.5 h-3.5 ${isResettingStandings ? 'animate-spin' : ''}`} />
-                <span>{isResettingStandings ? 'リセット中...' : 'ランキング初期化'}</span>
-              </button>
             </div>
+          </div>
+
+          {/* 10-Minute Online Ranking Synchronization Status Bar */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/70 via-slate-900 to-slate-950 border border-indigo-500/40 flex flex-wrap items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-2 bg-indigo-900/60 px-2.5 py-1 rounded-xl border border-indigo-400/40 text-[11px] font-bold text-indigo-200">
+                {syncStatus.state === 'SYNCING' ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 text-amber-400 animate-spin" />
+                    <span className="text-amber-300">オンライン同期中...</span>
+                  </>
+                ) : syncStatus.state === 'ERROR' ? (
+                  <>
+                    <AlertCircle className="w-3 h-3 text-rose-400" />
+                    <span className="text-rose-300">一時的通信待機</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>10分定時オンライン同期中</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-300 font-mono">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-slate-400">次回自動同期まで:</span>
+                <span className="font-bold text-amber-300 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-700">
+                  {Math.floor(syncStatus.secondsRemaining / 60)}分{String(syncStatus.secondsRemaining % 60).padStart(2, '0')}秒
+                </span>
+              </div>
+              {syncStatus.lastSyncTimeString && (
+                <div className="text-[11px] text-slate-400 font-mono hidden sm:flex items-center gap-1.5">
+                  <span>(最終同期: {syncStatus.lastSyncTimeString})</span>
+                  {syncMetadata && (
+                    <span className="text-emerald-400 font-semibold">
+                      • 全{syncMetadata.totalMatches}試合集計済
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={async () => {
+                soundManager.playButtonClick();
+                await performFullOnlineSync(true);
+                await loadStandingsData(selectedSeason, standingsFilter);
+                setStandingsNotice('全端末の最新ランキングを即座に集計・同期完了しました！');
+                setTimeout(() => setStandingsNotice(null), 3000);
+              }}
+              disabled={isLoadingStandings || syncStatus.state === 'SYNCING'}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/40 text-indigo-200 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow"
+              title="今すぐ最新データを取得して同期"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${(isLoadingStandings || syncStatus.state === 'SYNCING') ? 'animate-spin text-amber-400' : ''}`} />
+              <span>今すぐ手動同期</span>
+            </button>
           </div>
 
           {/* Standings Feedback Notice */}
@@ -2055,42 +2105,6 @@ export const PvPView: React.FC<PvPViewProps> = ({
               >
                 ✕
               </button>
-            </div>
-          )}
-
-          {/* Reset Confirmation Modal */}
-          {showResetConfirmModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-              <div className="bg-slate-900 border border-rose-500/50 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-scaleIn">
-                <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 mx-auto">
-                  <AlertCircle className="w-6 h-6" />
-                </div>
-                <div className="text-center space-y-1">
-                  <h4 className="text-base font-bold text-white">週間ランキングをリセットしますか？</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    サーバーおよび端末内の対戦履歴と勝点集計をすべて0に初期化します。
-                    初期化完了後の新規対戦はリアルタイムに自動集計・同期されます。
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    onClick={() => setShowResetConfirmModal(false)}
-                    disabled={isResettingStandings}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    id="btn-confirm-reset-standings"
-                    onClick={handleResetWeeklyStandings}
-                    disabled={isResettingStandings}
-                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold shadow-lg transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <RotateCcw className={`w-3.5 h-3.5 ${isResettingStandings ? 'animate-spin' : ''}`} />
-                    <span>{isResettingStandings ? 'リセット中...' : 'リセットを実行'}</span>
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
