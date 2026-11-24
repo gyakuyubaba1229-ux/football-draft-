@@ -1,27 +1,52 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Club, GameMode, Language, BlackBallSpinType } from '../types';
+import { Club, GameMode, Language, BlackBallSpinType, NationalDecade, NationalTeam, Manager } from '../types';
 import { getClubsByMode, getAvailableYears } from '../data/playerDatabase';
+import {
+  NATIONAL_DECADES,
+  NATIONAL_TEAMS,
+  getDecadeLabel,
+  getNationalTeamById,
+  getLocalizedNationalTeamName,
+} from '../data/nationalEraDatabase';
+import { getLocalizedManagerName } from '../data/managersDatabase';
 import { TRANSLATIONS, getLocalizedClubName } from '../utils/translations';
 import { soundManager } from '../utils/audio';
-import { Sparkles, RotateCcw, AlertTriangle, ShieldCheck, Zap, Award, Trophy, Crown } from 'lucide-react';
+import {
+  Sparkles,
+  RotateCcw,
+  ShieldCheck,
+  Zap,
+  Award,
+  Crown,
+  Globe,
+  Briefcase,
+  CheckCircle2,
+} from 'lucide-react';
 
 interface SlotMachineProps {
   mode: GameMode;
   language: Language;
   selectedYear: number | null;
   selectedClub: Club | null;
+  selectedDecade?: NationalDecade | null;
+  selectedNationalTeamId?: string | null;
   isSpinning: boolean;
   blackBallSpinType?: BlackBallSpinType;
   blackBallStage?: 'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'golden-rain' | 'revealed';
   isBlackBallResult?: boolean;
   isGoldenResult?: boolean;
   isPurpleResult?: boolean;
+  isPurpleSpin?: boolean;
   hasCurrentDraft: boolean;
   skipsRemaining: number;
   onSpin: () => void;
   onSkip: () => void;
   disabled: boolean;
   isTeamFull: boolean;
+  managerDrafted?: boolean;
+  pendingManagerCount?: number;
+  draftedManager?: Manager | null;
+  onOpenManagerDraft?: () => void;
 }
 
 export const SlotMachine: React.FC<SlotMachineProps> = ({
@@ -29,30 +54,40 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
   language,
   selectedYear,
   selectedClub,
+  selectedDecade = null,
+  selectedNationalTeamId = null,
   isSpinning,
   blackBallSpinType = 'none',
   blackBallStage = 'spinning-normal',
   isBlackBallResult = false,
   isGoldenResult = false,
   isPurpleResult = false,
+  isPurpleSpin: isPurpleSpinProp = false,
   hasCurrentDraft,
   skipsRemaining,
   onSpin,
   onSkip,
   disabled,
   isTeamFull,
+  managerDrafted = false,
+  pendingManagerCount = 0,
+  draftedManager = null,
+  onOpenManagerDraft,
 }) => {
   const t = TRANSLATIONS[language];
   const clubs = getClubsByMode(mode);
   const years = getAvailableYears(mode);
+  const isNationalEra = mode === 'national_era';
+  const hasNationalResult = isNationalEra && hasCurrentDraft && Boolean(selectedDecade) && Boolean(selectedNationalTeamId);
 
   // Reel animated current indices
   const [displayYear, setDisplayYear] = useState<number>(selectedYear || 2021);
   const [displayClub, setDisplayClub] = useState<Club>(selectedClub || clubs[0]);
-  const spinIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Animation counter
-  const [animTick, setAnimTick] = useState<number>(0);
+  const [displayDecade, setDisplayDecade] = useState<NationalDecade>(selectedDecade || '2020s');
+  const [displayNation, setDisplayNation] = useState<NationalTeam>(
+    getNationalTeamById(selectedNationalTeamId) || NATIONAL_TEAMS[0]
+  );
+  const spinIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isGoldenSpin =
     blackBallSpinType === 'golden-ballon-dor' ||
@@ -60,6 +95,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
     isGoldenResult;
 
   const isPurpleSpin =
+    isPurpleSpinProp ||
     blackBallSpinType === 'purple-spark' ||
     blackBallSpinType === 'purple-neon' ||
     Boolean(isPurpleResult);
@@ -69,10 +105,13 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
       let tickCount = 0;
       spinIntervalRef.current = setInterval(() => {
         tickCount++;
-        setAnimTick((prev) => (prev + 1) % 100);
 
-        // If in regular spinning phase, update random items
-        if (blackBallStage === 'spinning-normal' || blackBallSpinType === 'none') {
+        if (isNationalEra) {
+          const randomDecade = NATIONAL_DECADES[Math.floor(Math.random() * NATIONAL_DECADES.length)].id;
+          const randomNation = NATIONAL_TEAMS[Math.floor(Math.random() * NATIONAL_TEAMS.length)];
+          setDisplayDecade(randomDecade);
+          setDisplayNation(randomNation);
+        } else if (blackBallStage === 'spinning-normal' || blackBallSpinType === 'none') {
           const randomYear = years[Math.floor(Math.random() * years.length)];
           const randomClub = clubs[Math.floor(Math.random() * clubs.length)];
           setDisplayYear(randomYear);
@@ -90,6 +129,11 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
       }
       if (selectedYear) setDisplayYear(selectedYear);
       if (selectedClub) setDisplayClub(selectedClub);
+      if (selectedDecade) setDisplayDecade(selectedDecade);
+      if (selectedNationalTeamId) {
+        const foundNation = getNationalTeamById(selectedNationalTeamId);
+        if (foundNation) setDisplayNation(foundNation);
+      }
     }
 
     return () => {
@@ -97,18 +141,28 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
         clearInterval(spinIntervalRef.current);
       }
     };
-  }, [isSpinning, selectedYear, selectedClub, clubs, years, blackBallSpinType, blackBallStage]);
+  }, [
+    isSpinning,
+    isNationalEra,
+    selectedYear,
+    selectedClub,
+    selectedDecade,
+    selectedNationalTeamId,
+    clubs,
+    years,
+    blackBallSpinType,
+    blackBallStage,
+  ]);
 
-  // Is black ball or golden reel active right now?
   const isSpecialReelActive =
     isSpinning &&
     (blackBallStage === 'blackball-spinning' || blackBallStage === 'golden-rain');
 
-  // Is lightning striking right now?
   const isLightningStriking = isSpinning && blackBallStage === 'lightning-striking';
-
-  // Is the main spin button disabled?
   const isSpinButtonDisabled = isSpinning || hasCurrentDraft || disabled || isTeamFull;
+
+  const activeClubBadgeSymbol = displayClub?.badgeSymbol || '🛡️';
+  const activeDecadeMeta = NATIONAL_DECADES.find((d) => d.id === displayDecade) || NATIONAL_DECADES[3];
 
   return (
     <div
@@ -122,6 +176,8 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
           ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-amber-950/60 border-2 border-yellow-300 shadow-[0_0_40px_rgba(250,204,21,0.4)]'
           : isSpecialReelActive || isBlackBallResult
           ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-amber-950/40 border-2 border-amber-400 shadow-amber-950/60'
+          : isNationalEra
+          ? 'bg-gradient-to-b from-slate-900/95 via-cyan-950/35 to-slate-900/95 border border-cyan-500/40 shadow-cyan-950/40'
           : 'bg-slate-900/90 border border-emerald-500/30 shadow-emerald-950/40'
       }`}
     >
@@ -134,11 +190,70 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
             ? 'bg-gradient-to-r from-transparent via-yellow-300 to-transparent shadow-[0_0_30px_#facc15]'
             : isSpecialReelActive || isBlackBallResult
             ? 'bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_20px_#f59e0b]'
+            : isNationalEra
+            ? 'bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_20px_#22d3ee]'
             : 'bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_15px_#10b981]'
         }`}
       />
 
-      {/* Lightning Flash Overlay when lightning strikes center */}
+      {/* Manager Draft Quick Banner Bar */}
+      {onOpenManagerDraft && (
+        <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div
+              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                managerDrafted
+                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
+                  : 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300'
+              }`}
+            >
+              {managerDrafted ? <CheckCircle2 className="w-4 h-4" /> : <Briefcase className="w-4 h-4" />}
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                {t.managerDraft} ({managerDrafted ? '1/1' : pendingManagerCount > 0 ? '候補選出中' : '0/1'})
+              </div>
+              <div className="text-xs font-bold text-white truncate">
+                {managerDrafted && draftedManager
+                  ? `${draftedManager.nationalityFlag} ${getLocalizedManagerName(draftedManager, language)} (MAX ${draftedManager.maxAffinity})`
+                  : pendingManagerCount > 0
+                  ? language === 'ja'
+                    ? `監督候補${pendingManagerCount}名が待機中 — 1名を選択してください`
+                    : `${pendingManagerCount} manager candidates waiting — select 1`
+                  : t.managerDraftSubtitle}
+              </div>
+            </div>
+          </div>
+
+          <button
+            id="btn-open-manager-draft"
+            type="button"
+            disabled={isSpinning}
+            onClick={() => {
+              soundManager.playButtonClick();
+              onOpenManagerDraft();
+            }}
+            className={`px-3.5 py-2 rounded-xl font-heading font-black text-xs tracking-wider transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
+              managerDrafted
+                ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30'
+                : 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95'
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            <span>
+              {managerDrafted
+                ? t.managerAppointed
+                : pendingManagerCount > 0
+                ? language === 'ja'
+                  ? `👔 監督を選ぶ (${pendingManagerCount}名)`
+                  : `👔 CHOOSE MANAGER (${pendingManagerCount})`
+                : `👔 ${t.managerDraft}`}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Lightning Flash Overlay */}
       {isLightningStriking && (
         <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center bg-white/50 animate-ping">
           <div
@@ -153,7 +268,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
         </div>
       )}
 
-      {/* Center Lightning Strike Visual ⚡ */}
+      {/* Center Lightning Strike Visual */}
       {isLightningStriking && (
         <div className="absolute inset-0 z-40 pointer-events-none flex flex-col items-center justify-center">
           <div className="relative flex flex-col items-center animate-bounce">
@@ -195,6 +310,8 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               ? 'text-yellow-300'
               : isSpecialReelActive || isBlackBallResult
               ? 'text-amber-400'
+              : isNationalEra
+              ? 'text-cyan-400'
               : 'text-emerald-400'
           }`}
         >
@@ -206,6 +323,10 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               ? 'GOLDEN REEL'
               : isSpecialReelActive
               ? 'BLACK BALL REEL'
+              : isNationalEra
+              ? language === 'ja'
+                ? '年代 (ERA)'
+                : 'ERA DECADE'
               : `${t.joiningYear} (YEAR)`}
           </span>
         </div>
@@ -217,6 +338,8 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               ? 'text-yellow-300'
               : isSpecialReelActive || isBlackBallResult
               ? 'text-yellow-400'
+              : isNationalEra
+              ? 'text-sky-400'
               : 'text-teal-400'
           }`}
         >
@@ -226,6 +349,8 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
             <Crown className="w-4 h-4 text-yellow-300" />
           ) : isSpecialReelActive || isBlackBallResult ? (
             <Award className="w-4 h-4 text-amber-400" />
+          ) : isNationalEra ? (
+            <Globe className="w-4 h-4 text-sky-400" />
           ) : (
             <ShieldCheck className="w-4 h-4" />
           )}
@@ -236,6 +361,10 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               ? 'GOLDEN REEL'
               : isSpecialReelActive
               ? 'BLACK BALL REEL'
+              : isNationalEra
+              ? language === 'ja'
+                ? '代表チーム (NATIONAL)'
+                : 'NATIONAL TEAM'
               : `${t.club} (CLUB)`}
           </span>
         </div>
@@ -243,7 +372,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
 
       {/* The Dual Slot Reels */}
       <div id="reels-display" className="grid grid-cols-2 gap-3 sm:gap-6 relative">
-        {/* Year Reel */}
+        {/* Left Reel: Year OR Era Decade */}
         <div
           id="year-reel"
           className={`h-36 sm:h-44 rounded-2xl border-2 flex flex-col items-center justify-center p-3 relative overflow-hidden transition-all duration-300 ${
@@ -252,20 +381,20 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               : isGoldenSpin
               ? 'border-yellow-300 bg-gradient-to-b from-slate-950 via-amber-950/50 to-slate-950 shadow-[inset_0_0_35px_rgba(250,204,21,0.6)]'
               : isSpecialReelActive
-              ? 'border-amber-400 bg-gradient-to-b from-slate-950 via-black to-slate-950 shadow-[inset_0_0_30px_rgba(251,191,36,0.6)]'
+              ? 'border-amber-300 bg-black shadow-[inset_0_0_35px_rgba(251,191,36,0.65)]'
               : isSpinning
               ? 'border-emerald-400 bg-slate-950 shadow-[inset_0_0_20px_rgba(16,185,129,0.3)] animate-pulse'
               : isBlackBallResult
-              ? 'border-amber-400 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-xl shadow-amber-900/30'
+              ? 'border-amber-300 bg-black shadow-xl shadow-amber-900/40'
+              : isNationalEra
+              ? 'border-cyan-500/70 bg-gradient-to-b from-slate-950 via-cyan-950/30 to-slate-950 shadow-lg'
               : selectedYear
               ? 'border-emerald-500/80 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-lg'
               : 'border-slate-800 bg-slate-950'
           }`}
         >
-          {/* Glass glare line */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 pointer-events-none" />
 
-          {/* STATE A1: PURPLE REEL SPINNING */}
           {isPurpleSpin && isSpinning ? (
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
@@ -278,12 +407,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               <div className="text-xs sm:text-sm font-heading font-black text-fuchsia-300 tracking-widest uppercase">
                 PURPLE SPECIAL
               </div>
-              <div className="text-[10px] font-mono text-fuchsia-200/90 font-bold">
-                8% RARE OCCURRENCE
-              </div>
+              <div className="text-[10px] font-mono text-fuchsia-200/90 font-bold">3.0% RARE OCCURRENCE</div>
             </div>
           ) : isGoldenSpin && isSpinning ? (
-            /* STATE A2: GOLDEN REEL SPINNING */
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
                 <span className="text-3xl sm:text-4xl animate-bounce">🏆</span>
@@ -295,29 +421,54 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               <div className="text-xs sm:text-sm font-heading font-black text-yellow-300 tracking-widest uppercase">
                 GOLDEN ERA
               </div>
-              <div className="text-[10px] font-mono text-yellow-200/90 font-bold">
-                GOLDEN SPECIAL
-              </div>
+              <div className="text-[10px] font-mono text-yellow-200/90 font-bold">GOLDEN SPECIAL</div>
             </div>
           ) : isSpecialReelActive ? (
-            /* STATE B: BLACK BALL REEL SPINNING */
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
-                <span className="text-3xl sm:text-4xl animate-spin">⚽</span>
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-black via-slate-900 to-amber-900 border-2 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.9)] flex items-center justify-center text-xs font-black text-amber-300">
+                <span className="text-3xl sm:text-4xl animate-bounce">⚡</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black border-2 border-amber-300 shadow-[0_0_25px_rgba(251,191,36,0.95)] flex items-center justify-center text-xs font-black text-amber-300">
                   ⚫
                 </div>
-                <span className="text-3xl sm:text-4xl animate-spin">⚽</span>
+                <span className="text-3xl sm:text-4xl animate-bounce">⚡</span>
               </div>
               <div className="text-xs sm:text-sm font-heading font-black text-amber-300 tracking-widest uppercase">
                 BLACK BALL
               </div>
-              <div className="text-[10px] font-mono text-amber-400/80">
-                0.001% ROULETTE
-              </div>
+              <div className="text-[10px] font-mono text-amber-300/90 font-bold">1.8% • OVR 100+</div>
             </div>
+          ) : isNationalEra ? (
+            isSpinning || hasNationalResult ? (
+              <>
+                <div className="text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase mb-1 text-cyan-300">
+                  {hasNationalResult && !isSpinning ? '✓ SELECTED ERA' : 'ERA DECADE'}
+                </div>
+                <div
+                  className={`font-heading font-extrabold text-3xl sm:text-5xl tracking-tight transition-transform ${
+                    isSpinning ? 'scale-110 blur-[0.5px] text-cyan-300' : 'scale-100 text-white drop-shadow-[0_0_14px_rgba(34,211,238,0.45)]'
+                  }`}
+                >
+                  {displayDecade}
+                </div>
+                <div className="mt-2 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border bg-cyan-950/70 border-cyan-500/40 text-[10px] sm:text-xs font-bold text-cyan-200">
+                  <span>{getDecadeLabel(displayDecade, language)}</span>
+                  <span className="font-mono text-cyan-400">({activeDecadeMeta.range})</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase mb-1 text-cyan-300/80">
+                  ERA ROULETTE
+                </div>
+                <div className="font-heading font-black text-3xl sm:text-4xl text-cyan-200/80 tracking-widest">
+                  ? ? ?
+                </div>
+                <div className="mt-2 px-2.5 py-0.5 rounded-full border bg-slate-900 border-cyan-500/30 text-[10px] font-bold text-cyan-300">
+                  {language === 'ja' ? 'ランダム決定' : 'RANDOM DRAW'}
+                </div>
+              </>
+            )
           ) : (
-            /* STATE C: STANDARD REEL / REVEALED RESULT */
             <>
               <div
                 className={`text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase mb-1 ${
@@ -335,7 +486,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
                   : isGoldenResult
                   ? '👑 GOLDEN SPECIAL YEAR 👑'
                   : isBlackBallResult
-                  ? '⭐ LEGENDARY YEAR ⭐'
+                  ? '⚫ BLACK BALL (OVR 100+) ⚫'
                   : 'SIGNING YEAR'}
               </div>
 
@@ -385,7 +536,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
           )}
         </div>
 
-        {/* Club Reel */}
+        {/* Right Reel: Club OR National Team */}
         <div
           id="club-reel"
           className={`h-36 sm:h-44 rounded-2xl border-2 flex flex-col items-center justify-center p-3 relative overflow-hidden transition-all duration-300 ${
@@ -394,11 +545,13 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               : isGoldenSpin
               ? 'border-yellow-300 bg-gradient-to-b from-slate-950 via-amber-950/50 to-slate-950 shadow-[inset_0_0_35px_rgba(250,204,21,0.6)]'
               : isSpecialReelActive
-              ? 'border-yellow-400 bg-gradient-to-b from-slate-950 via-black to-slate-950 shadow-[inset_0_0_30px_rgba(250,204,21,0.6)]'
+              ? 'border-amber-300 bg-black shadow-[inset_0_0_35px_rgba(251,191,36,0.65)]'
               : isSpinning
               ? 'border-teal-400 bg-slate-950 shadow-[inset_0_0_20px_rgba(20,184,166,0.3)] animate-pulse'
               : isBlackBallResult
-              ? 'border-amber-400 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-xl shadow-amber-900/30'
+              ? 'border-amber-300 bg-black shadow-xl shadow-amber-900/40'
+              : isNationalEra
+              ? 'border-sky-500/70 bg-gradient-to-b from-slate-950 via-sky-950/25 to-slate-950 shadow-lg'
               : selectedClub
               ? 'border-teal-500/80 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-lg'
               : 'border-slate-800 bg-slate-950'
@@ -410,13 +563,13 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               ? '#fde047'
               : isBlackBallResult
               ? '#fbbf24'
+              : isNationalEra
+              ? displayNation.primaryColor
               : displayClub.primaryColor || undefined,
           }}
         >
-          {/* Glass glare line */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 pointer-events-none" />
 
-          {/* STATE A1: PURPLE REEL SPINNING */}
           {isPurpleSpin && isSpinning ? (
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
@@ -429,12 +582,9 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               <div className="text-xs sm:text-sm font-heading font-black text-fuchsia-300 tracking-widest uppercase">
                 ACTIVE SUPERSTARS
               </div>
-              <div className="text-[10px] font-mono text-fuchsia-200/90 font-bold">
-                OVR 98 - 101
-              </div>
+              <div className="text-[10px] font-mono text-fuchsia-200/90 font-bold">OVR 98 - 101</div>
             </div>
           ) : isGoldenSpin && isSpinning ? (
-            /* STATE A2: GOLDEN REEL SPINNING */
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
                 <span className="text-3xl sm:text-4xl animate-bounce">🏆</span>
@@ -446,31 +596,50 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
               <div className="text-xs sm:text-sm font-heading font-black text-yellow-300 tracking-widest uppercase">
                 GOLDEN CLUB
               </div>
-              <div className="text-[10px] font-mono text-yellow-200/90 font-bold">
-                SPECIAL EDITION
-              </div>
+              <div className="text-[10px] font-mono text-yellow-200/90 font-bold">SPECIAL EDITION</div>
             </div>
           ) : isSpecialReelActive ? (
-            /* STATE B: BLACK BALL REEL SPINNING */
             <div className="flex flex-col items-center justify-center space-y-1.5 animate-pulse">
               <div className="flex items-center gap-2">
-                <span className="text-3xl sm:text-4xl animate-spin">⚽</span>
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-black via-slate-900 to-amber-900 border-2 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.9)] flex items-center justify-center text-xs font-black text-yellow-300">
+                <span className="text-3xl sm:text-4xl animate-bounce">⚡</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black border-2 border-amber-300 shadow-[0_0_25px_rgba(251,191,36,0.95)] flex items-center justify-center text-xs font-black text-amber-300">
                   ⚫
                 </div>
-                <span className="text-3xl sm:text-4xl animate-spin">⚽</span>
+                <span className="text-3xl sm:text-4xl animate-bounce">⚡</span>
               </div>
-              <div className="text-xs sm:text-sm font-heading font-black text-yellow-300 tracking-widest uppercase">
+              <div className="text-xs sm:text-sm font-heading font-black text-amber-300 tracking-widest uppercase">
                 BLACK BALL
               </div>
-              <div className="text-[10px] font-mono text-yellow-400/80">
-                0.001% ROULETTE
-              </div>
+              <div className="text-[10px] font-mono text-amber-300/90 font-bold">1.8% • OVR 100+</div>
             </div>
+          ) : isNationalEra ? (
+            isSpinning || hasNationalResult ? (
+              <>
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-mono font-bold tracking-wider uppercase mb-1 text-sky-300">
+                  <span>{displayNation.confederation}</span>
+                </div>
+                <div className={`text-4xl sm:text-5xl transition-transform my-0.5 ${isSpinning ? 'scale-110 blur-[0.5px]' : 'scale-100'}`}>
+                  {displayNation.flag}
+                </div>
+                <div className="text-center px-1 mt-1">
+                  <span className="font-heading font-extrabold text-sm sm:text-lg line-clamp-1 text-white">
+                    {getLocalizedNationalTeamName(displayNation, language)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase mb-1 text-sky-300/80">
+                  NATIONAL TEAM
+                </div>
+                <div className="text-4xl sm:text-5xl opacity-80 my-0.5">🌐</div>
+                <div className="mt-1 px-2.5 py-0.5 rounded-full border bg-slate-900 border-sky-500/30 text-[10px] font-bold text-sky-300">
+                  {language === 'ja' ? 'DRAFT STARTで抽選' : 'PRESS DRAFT START'}
+                </div>
+              </>
+            )
           ) : (
-            /* STATE C: STANDARD REEL / REVEALED RESULT */
             <>
-              {/* Club Header Badges */}
               <div
                 className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-mono font-bold tracking-wider uppercase mb-1 ${
                   isPurpleResult
@@ -488,16 +657,10 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
                 </span>
               </div>
 
-              {/* Club Crest Emoji / Icon */}
-              <div
-                className={`text-3xl sm:text-5xl transition-transform my-0.5 ${
-                  isSpinning ? 'scale-110 blur-[0.5px]' : 'scale-100'
-                }`}
-              >
-                {isPurpleResult ? '🟣' : displayClub.crestEmoji || '🛡️'}
+              <div className={`text-3xl sm:text-5xl transition-transform my-0.5 ${isSpinning ? 'scale-110 blur-[0.5px]' : 'scale-100'}`}>
+                {isPurpleResult ? '🟣' : activeClubBadgeSymbol}
               </div>
 
-              {/* Club Localized Name */}
               <div className="text-center px-1">
                 <span
                   className={`font-heading font-extrabold text-sm sm:text-lg line-clamp-1 ${
@@ -524,14 +687,40 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
         </div>
       </div>
 
-      {/* Action Buttons: ⚽ SPIN DRAFT + SKIP */}
+      {/* Prominent Locked Result Banner for Randomized Era x National Team Draft */}
+      {hasNationalResult && !isSpinning && (
+        <div
+          id="national-era-locked-banner"
+          className="mt-4 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-cyan-950/90 via-slate-900 to-sky-950/90 border-2 border-cyan-400/70 shadow-xl shadow-cyan-950/50 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn"
+        >
+          <div className="flex items-center gap-3 text-center sm:text-left">
+            <span className="text-4xl sm:text-5xl shrink-0">{displayNation.flag}</span>
+            <div>
+              <div className="text-[10px] font-mono font-black uppercase tracking-widest text-cyan-300">
+                {language === 'ja' ? '🎯 抽選決定条件（固定）' : '🎯 DRAWN CONDITION (LOCKED)'}
+              </div>
+              <div className="font-heading font-black text-lg sm:text-2xl text-white leading-tight">
+                {getDecadeLabel(displayDecade, language)} × {getLocalizedNationalTeamName(displayNation, language)}
+              </div>
+              <div className="text-[11px] font-mono text-cyan-200/80">
+                {activeDecadeMeta.range} • {displayNation.confederation}
+              </div>
+            </div>
+          </div>
+
+          <div className="px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/50 text-cyan-200 text-[11px] font-mono font-black shrink-0">
+            🔒 {language === 'ja' ? '条件確定（変更不可）' : 'LOCKED IN'}
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons: SPIN DRAFT + SKIP */}
       <div className="mt-5 flex flex-col sm:flex-row items-center gap-3 justify-center">
-        {/* Main 1-Click Spin Draft Button */}
         <button
           id="spin-draft-btn"
           disabled={isSpinButtonDisabled}
           onClick={onSpin}
-          className={`w-full sm:flex-1 py-3.5 px-6 rounded-2xl font-heading font-extrabold text-base sm:text-lg tracking-wider transition-all transform active:scale-95 flex items-center justify-center gap-2.5 shadow-xl ${
+          className={`w-full sm:flex-1 py-3.5 px-6 rounded-2xl font-heading font-extrabold text-base sm:text-lg tracking-wider transition-all transform active:scale-95 flex items-center justify-center gap-2.5 shadow-xl cursor-pointer ${
             isTeamFull
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
               : isSpinning
@@ -544,6 +733,8 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
                 : 'bg-emerald-700 text-white cursor-wait animate-pulse'
               : hasCurrentDraft
               ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed opacity-80'
+              : isNationalEra
+              ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-teal-500 hover:from-cyan-400 hover:to-sky-400 text-slate-950 font-black shadow-cyan-500/25'
               : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
           }`}
         >
@@ -567,7 +758,7 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
           ) : isTeamFull ? (
             <>
               <span>🏆</span>
-              <span>{t.bestXiCompleted}</span>
+              <span>{t.teamCompletedBadge} (11/11)</span>
             </>
           ) : hasCurrentDraft ? (
             <>
@@ -576,27 +767,30 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
             </>
           ) : (
             <>
-              <span className="text-xl">⚽</span>
-              <span>{t.spinDraft}</span>
+              <span className="text-xl">{isNationalEra ? '🌐' : '⚽'}</span>
+              <span>
+                {isNationalEra
+                  ? language === 'ja'
+                    ? 'DRAFT START（年代×代表 抽選）'
+                    : 'DRAFT START'
+                  : t.spinDraft}
+              </span>
             </>
           )}
         </button>
 
-        {/* Skip Button (Max 3) */}
         {hasCurrentDraft && !isTeamFull && (
           <button
             id="skip-btn"
             disabled={isSpinning || skipsRemaining <= 0}
             onClick={onSkip}
-            className={`w-full sm:w-auto py-3.5 px-5 rounded-2xl font-heading font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 border ${
+            className={`w-full sm:w-auto py-3.5 px-5 rounded-2xl font-heading font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 border cursor-pointer ${
               isSpinning || skipsRemaining <= 0
                 ? 'bg-slate-900 text-slate-600 border-slate-800 cursor-not-allowed opacity-50'
                 : 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border-amber-500/40 hover:border-amber-400 active:scale-95 shadow-md'
             }`}
           >
-            <RotateCcw
-              className={`w-4 h-4 ${!isSpinning && skipsRemaining > 0 ? 'animate-none' : 'opacity-40'}`}
-            />
+            <RotateCcw className={`w-4 h-4 ${!isSpinning && skipsRemaining > 0 ? 'animate-none' : 'opacity-40'}`} />
             <span>{t.skip}</span>
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-mono font-extrabold ${
@@ -611,7 +805,6 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
         )}
       </div>
 
-      {/* Lock Notice or Skips Remaining Indicator */}
       {hasCurrentDraft && (
         <div className="mt-2.5 text-center text-[11px] text-amber-300/80 font-medium">
           💡 {t.spinDraftLockedNotice}
@@ -640,6 +833,3 @@ export const SlotMachine: React.FC<SlotMachineProps> = ({
     </div>
   );
 };
-
-
-

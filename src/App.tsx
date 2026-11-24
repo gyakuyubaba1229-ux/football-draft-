@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   GameMode,
   Language,
   Player,
   Club,
+  Manager,
+  NationalDecade,
+  MainPosition,
   DraftHistoryEntry,
   FormationType,
   CustomPlayerPosition,
@@ -18,15 +21,29 @@ import {
   getClubsByMode,
   getAvailableYears,
   findCandidatePlayers,
-  getLegendaryCombination,
+  getOver100Players,
 } from './data/playerDatabase';
-import {
-  findGoldenCandidates,
-  getBallonDorWinner,
-  getLegendPeakEra,
-} from './data/legendaryEraDatabase';
+import { findOver100BlackBallCandidates } from './data/legendaryEraDatabase';
 import { findPurpleCandidates } from './data/purpleActivePlayers';
-import { TRANSLATIONS } from './utils/translations';
+import {
+  findNationalEraCandidates,
+  pickRandomNationalEraCombo,
+  getNationalTeamById,
+  getLocalizedNationalTeamName,
+  getDecadeLabel,
+} from './data/nationalEraDatabase';
+import {
+  getDisallowedPositions,
+  canDraftPlayerByPositionLimit,
+  filterCandidatesByPositionLimits,
+} from './utils/positionEngine';
+import {
+  UnifiedRarity,
+  selectLeadCandidateByRarity,
+  rollDraftStagingEvent,
+} from './utils/rarityEngine';
+import { drawManagerCandidates } from './data/managersDatabase';
+import { TRANSLATIONS, getLocalizedPlayerName } from './utils/translations';
 import { soundManager } from './utils/audio';
 import { Header } from './components/Header';
 import { HomeScreen } from './components/HomeScreen';
@@ -40,6 +57,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { HowToPlayModal } from './components/HowToPlayModal';
 import { PlayerDetailModal } from './components/PlayerDetailModal';
 import { ModeSelectModal } from './components/ModeSelectModal';
+import { ManagerDraftModal } from './components/ManagerDraftModal';
+import { DraftRevealOverlay, DraftRevealTier, RevealStagingEvent } from './components/BlackBallAnimation';
 import { getDefenseSquadId, setDefenseSquad } from './utils/pvpEngine';
 import { saveLockedTeamToSupabase } from './utils/supabasePvP';
 import { CelebrationModal } from './components/CelebrationModal';
@@ -68,7 +87,7 @@ import { CURRENT_VERSION } from './data/versionConfig';
 import { DEFAULT_X_CHAR_LIMIT, STORAGE_KEY_X_CHAR_LIMIT } from './utils/shareUtils';
 import { autoAssignSlot, remapPlayerSlots } from './utils/formationUtils';
 import confetti from 'canvas-confetti';
-import { CheckCircle2, Share2 } from 'lucide-react';
+import { CheckCircle2, Share2, Trash2 } from 'lucide-react';
 
 // Dedicated LocalStorage Keys
 const STORAGE_KEY_TEAMS = 'footballDraft_teams';
@@ -217,16 +236,58 @@ export default function App() {
   // 4. Draft state with persistent draft tracking
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [selectedDecade, setSelectedDecade] = useState<NationalDecade | null>(null);
+  const [selectedNationalTeamId, setSelectedNationalTeamId] = useState<string | null>(null);
   const [candidatePlayers, setCandidatePlayers] = useState<Player[]>([]);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [hasCurrentDraft, setHasCurrentDraft] = useState<boolean>(false);
   const [skipsRemaining, setSkipsRemaining] = useState<number>(3);
   const [acquiredPlayerBanner, setAcquiredPlayerBanner] = useState<Player | null>(null);
   const [celebratingTeam, setCelebratingTeam] = useState<UserTeam | null>(null);
+  const [lockedRarity, setLockedRarity] = useState<UnifiedRarity | null>(null);
+
+  // Manager Draft & Tiered Reveal Overlay State
+  const [isManagerDraftOpen, setIsManagerDraftOpen] = useState<boolean>(false);
+  const [activeReveal, setActiveReveal] = useState<{
+    tier: DraftRevealTier;
+    stagingEvent?: RevealStagingEvent;
+    player?: Player | null;
+    manager?: Manager | null;
+    rarityOverride?: UnifiedRarity | null;
+    candidateCount?: number;
+    onDone: () => void;
+  } | null>(null);
+
+  // Ref-managed spin timers so re-renders never leak or orphan timeouts
+  const spinTimersRef = useRef<number[]>([]);
+  const clearSpinTimers = useCallback(() => {
+    spinTimersRef.current.forEach((id) => window.clearTimeout(id));
+    spinTimersRef.current = [];
+  }, []);
+
+  const scheduleSpinTimer = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(fn, ms);
+    spinTimersRef.current.push(id);
+    return id;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearSpinTimers();
+    };
+  }, [clearSpinTimers]);
+
+  // Dynamic disallowed positions based on current squad (FW max 3, GK max 1, 11th must be GK if 0)
+  const disallowedPositions = useMemo(
+    () => getDisallowedPositions(activeTeam.players),
+    [activeTeam.players]
+  );
 
   // Black Ball, Golden Event & Purple Special State
   const [blackBallSpinType, setBlackBallSpinType] = useState<BlackBallSpinType>('none');
-  const [blackBallStage, setBlackBallStage] = useState<'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'revealed'>('revealed');
+  const [blackBallStage, setBlackBallStage] = useState<
+    'spinning-normal' | 'lightning-striking' | 'blackball-spinning' | 'golden-rain' | 'revealed'
+  >('revealed');
   const [isBlackBallResult, setIsBlackBallResult] = useState<boolean>(false);
   const [isGoldenResult, setIsGoldenResult] = useState<boolean>(false);
   const [isPurpleResult, setIsPurpleResult] = useState<boolean>(false);
@@ -241,6 +302,8 @@ export default function App() {
         if (parsed.hasCurrentDraft) {
           setSelectedYear(parsed.selectedYear);
           setSelectedClub(parsed.selectedClub);
+          if (parsed.selectedDecade) setSelectedDecade(parsed.selectedDecade);
+          if (parsed.selectedNationalTeamId) setSelectedNationalTeamId(parsed.selectedNationalTeamId);
           setCandidatePlayers(parsed.candidatePlayers || []);
           setHasCurrentDraft(parsed.hasCurrentDraft);
           const matchedTeam = parsed.activeTeamId ? teams.find((tItem) => tItem.teamId === parsed.activeTeamId) : activeTeam;
@@ -250,6 +313,7 @@ export default function App() {
           setIsBlackBallResult(parsed.isBlackBallResult || false);
           setIsGoldenResult(parsed.isGoldenResult || false);
           setIsPurpleResult(parsed.isPurpleResult || false);
+          setLockedRarity(parsed.lockedRarity || null);
           if (parsed.activeTeamId && teams.some((tItem) => tItem.teamId === parsed.activeTeamId)) {
             setActiveTeamId(parsed.activeTeamId);
           }
@@ -268,6 +332,8 @@ export default function App() {
         mode: activeTeam.mode,
         selectedYear,
         selectedClub,
+        selectedDecade,
+        selectedNationalTeamId,
         candidatePlayers,
         isSpinning,
         hasCurrentDraft,
@@ -277,6 +343,7 @@ export default function App() {
         isBlackBallResult,
         isGoldenResult,
         isPurpleResult,
+        lockedRarity: lockedRarity || undefined,
       };
       localStorage.setItem(STORAGE_KEY_CURRENT_DRAFT, JSON.stringify(draftState));
     } catch (e) {
@@ -287,6 +354,8 @@ export default function App() {
     activeTeam.mode,
     selectedYear,
     selectedClub,
+    selectedDecade,
+    selectedNationalTeamId,
     candidatePlayers,
     isSpinning,
     hasCurrentDraft,
@@ -296,6 +365,7 @@ export default function App() {
     isBlackBallResult,
     isGoldenResult,
     isPurpleResult,
+    lockedRarity,
   ]);
 
   // 5. Persistent History state (never wiped on game reset)
@@ -376,7 +446,7 @@ export default function App() {
     setRewardTickets(getStoredUserTickets());
   }, [userProfile.userId]);
 
-  // Version 1.4.0 Online Sync Heartbeat & Automatic 10-Minute Periodic Sync
+  // Version 1.5.0 Online Sync Heartbeat & Automatic 10-Minute Periodic Sync
   useEffect(() => {
     const cleanup = initOnlineSyncManager();
     return cleanup;
@@ -453,6 +523,8 @@ export default function App() {
   // SWITCH ACTIVE TEAM (Strictly preserves each team's own skips & draft state)
   const switchActiveTeam = (targetTeamId: string) => {
     if (targetTeamId === activeTeamId) return;
+    clearSpinTimers();
+    setActiveReveal(null);
 
     // Snapshot current active team's draft state
     const currentDraftStateSnapshot: CurrentDraftState = {
@@ -460,8 +532,10 @@ export default function App() {
       mode: activeTeam.mode,
       selectedYear,
       selectedClub,
+      selectedDecade,
+      selectedNationalTeamId,
       candidatePlayers,
-      isSpinning,
+      isSpinning: false,
       hasCurrentDraft,
       skipsRemaining,
       blackBallSpinType,
@@ -469,6 +543,7 @@ export default function App() {
       isBlackBallResult,
       isGoldenResult,
       isPurpleResult,
+      lockedRarity: lockedRarity || undefined,
     };
 
     // Save snapshot to current active team
@@ -494,6 +569,8 @@ export default function App() {
         const ds = targetTeam.draftState;
         setSelectedYear(ds.selectedYear);
         setSelectedClub(ds.selectedClub);
+        setSelectedDecade(ds.selectedDecade ?? null);
+        setSelectedNationalTeamId(ds.selectedNationalTeamId ?? null);
         setCandidatePlayers(ds.candidatePlayers || []);
         setIsSpinning(false);
         setHasCurrentDraft(ds.hasCurrentDraft || false);
@@ -503,9 +580,12 @@ export default function App() {
         setIsBlackBallResult(ds.isBlackBallResult || false);
         setIsGoldenResult(ds.isGoldenResult || false);
         setIsPurpleResult(ds.isPurpleResult || false);
+        setLockedRarity(ds.lockedRarity ?? null);
       } else {
         setSelectedYear(null);
         setSelectedClub(null);
+        setSelectedDecade(null);
+        setSelectedNationalTeamId(null);
         setCandidatePlayers([]);
         setIsSpinning(false);
         setHasCurrentDraft(false);
@@ -516,12 +596,15 @@ export default function App() {
         setIsBlackBallResult(false);
         setIsGoldenResult(false);
         setIsPurpleResult(false);
+        setLockedRarity(null);
       }
     }
   };
 
-  // CREATE NEW TEAM (Team 2, Team 3, etc.)
+  // CREATE NEW TEAM (Team 2, Team 3, etc.) — unlocks Manager Draft for the new game/team
   const handleCreateNewTeam = () => {
+    clearSpinTimers();
+    setActiveReveal(null);
     // Save current active team state before switching
     setTeams((prev) =>
       prev.map((t) => {
@@ -543,6 +626,8 @@ export default function App() {
     // Reset draft state for new team
     setSelectedYear(null);
     setSelectedClub(null);
+    setSelectedDecade(null);
+    setSelectedNationalTeamId(null);
     setCandidatePlayers([]);
     setIsSpinning(false);
     setHasCurrentDraft(false);
@@ -553,6 +638,8 @@ export default function App() {
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
     setIsPurpleResult(false);
+    setIsPurpleSpin(false);
+    setLockedRarity(null);
 
     setCurrentView('draft');
   };
@@ -586,21 +673,34 @@ export default function App() {
 
   // Change mode for active team or start fresh mode
   const handleSelectMode = (newMode: GameMode) => {
+    clearSpinTimers();
+    setActiveReveal(null);
     updateActiveTeam((prev) => ({
       ...prev,
       mode: newMode,
     }));
     setSelectedYear(null);
     setSelectedClub(null);
+    setSelectedDecade(null);
+    setSelectedNationalTeamId(null);
     setCandidatePlayers([]);
     setIsSpinning(false);
     setHasCurrentDraft(false);
     setSkipsRemaining(3);
     setAcquiredPlayerBanner(null);
+    setBlackBallSpinType('none');
+    setBlackBallStage('revealed');
+    setIsBlackBallResult(false);
+    setIsGoldenResult(false);
+    setIsPurpleResult(false);
+    setIsPurpleSpin(false);
+    setLockedRarity(null);
   };
 
   // Reset ALL game data (Teams + Draft). HISTORY remains completely preserved! Locked teams are strictly protected!
   const handleResetGame = () => {
+    clearSpinTimers();
+    setActiveReveal(null);
     const lockedTeams = teams.filter((t) => t.isLocked);
     let nextTeams: UserTeam[];
     if (lockedTeams.length > 0) {
@@ -613,6 +713,8 @@ export default function App() {
 
     setSelectedYear(null);
     setSelectedClub(null);
+    setSelectedDecade(null);
+    setSelectedNationalTeamId(null);
     setCandidatePlayers([]);
     setIsSpinning(false);
     setHasCurrentDraft(false);
@@ -623,6 +725,8 @@ export default function App() {
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
     setIsPurpleResult(false);
+    setIsPurpleSpin(false);
+    setLockedRarity(null);
 
     try {
       localStorage.removeItem(STORAGE_KEY_CURRENT_DRAFT);
@@ -653,10 +757,12 @@ export default function App() {
     setDraftHistory((prev) => prev.filter((item) => item.id !== entryId));
   };
 
-  // CORE ROULETTE SPIN LOGIC
+  // CORE ROULETTE SPIN LOGIC (Unified rarity resolution across Draw -> Staging -> Card)
   const handleSpinDraft = () => {
     if (isSpinning || hasCurrentDraft || activeTeam.players.length >= 11) return;
 
+    clearSpinTimers();
+    setActiveReveal(null);
     soundManager.playButtonClick();
     setIsSpinning(true);
     setHasCurrentDraft(true);
@@ -666,24 +772,158 @@ export default function App() {
     setIsGoldenResult(false);
     setIsPurpleResult(false);
     setIsPurpleSpin(false);
+    setLockedRarity(null);
+
+    const currentTeamPlayerIds = activeTeam.players.map((p) => p.playerId);
+    const currentTeamPersonIds = activeTeam.players.map((p) => p.personId);
+    const disallowed = getDisallowedPositions(activeTeam.players);
+    const disallowedSet = new Set<MainPosition>(disallowed);
+
+    // 🌍 MODE 3: ERA × NATIONAL TEAM ROULETTE (Pure random draw; empty combos excluded)
+    if (mode === 'national_era') {
+      setBlackBallSpinType('none');
+      setBlackBallStage('spinning-normal');
+
+      scheduleSpinTimer(() => {
+        const combo = pickRandomNationalEraCombo(
+          currentTeamPlayerIds,
+          currentTeamPersonIds,
+          disallowed
+        );
+        const rawCandidates = findNationalEraCandidates(
+          combo.decade,
+          combo.team.id,
+          currentTeamPlayerIds,
+          currentTeamPersonIds,
+          disallowed
+        );
+        const candidates = filterCandidatesByPositionLimits(rawCandidates, activeTeam.players);
+
+        setSelectedDecade(combo.decade);
+        setSelectedNationalTeamId(combo.team.id);
+        soundManager.playSlotStop();
+
+        if (candidates.length > 0) {
+          const { leadPlayer, rarity } = selectLeadCandidateByRarity(candidates);
+          const normalTier: DraftRevealTier =
+            leadPlayer && (leadPlayer.rating >= 85 || leadPlayer.isLegendary) ? 'high' : 'normal';
+          setLockedRarity(rarity === 'black' || rarity === 'golden' || rarity === 'purple' ? 'star' : rarity);
+          setIsBlackBallResult(false);
+          setIsGoldenResult(false);
+          setIsPurpleResult(false);
+          setIsSpinning(false);
+
+          setActiveReveal({
+            tier: normalTier,
+            stagingEvent: 'normal',
+            player: leadPlayer,
+            rarityOverride: rarity,
+            candidateCount: candidates.length,
+            onDone: () => {
+              setActiveReveal(null);
+              setCandidatePlayers(candidates);
+              setBlackBallStage('revealed');
+            },
+          });
+        } else {
+          setCandidatePlayers([]);
+          setIsSpinning(false);
+          setBlackBallStage('revealed');
+        }
+      }, 1050);
+      return;
+    }
 
     const clubs = getClubsByMode(mode);
     const years = getAvailableYears(mode);
-    const currentTeamPlayerIds = activeTeam.players.map((p) => p.playerId);
-    const currentTeamPersonIds = activeTeam.players.map((p) => p.personId);
 
-    // 🟣 PRIORITY 0: PURPLE SPECIAL EVENT (8% occurrence probability)
-    // - Triggered at exactly 8% chance
-    // - Purple Special visual performance & animation
-    // - Exactly 3 candidates from the Purple Superstars pool
-    // - Strictly excluded from normal draft candidates
-    const isPurpleTrigger = Math.random() < 0.08;
+    // Mutually exclusive per-spin draw roll:
+    // 1.8% Black Ball (All candidates strictly OVR 100+) | 3.0% Purple | 95.2% Normal
+    const stagingEventRoll = rollDraftStagingEvent();
 
-    if (isPurpleTrigger) {
-      const purpleCandidates = findPurpleCandidates(
-        currentTeamPlayerIds,
-        currentTeamPersonIds,
-        3
+    // ⚫ 1.8% ULTRA RARE: BLACK BALL (All candidates MUST have OVR >= 100, zero <100 players)
+    if (stagingEventRoll === 'blackball') {
+      const over100Candidates = filterCandidatesByPositionLimits(
+        findOver100BlackBallCandidates(
+          mode,
+          getOver100Players(),
+          currentTeamPlayerIds,
+          currentTeamPersonIds,
+          3,
+          disallowed
+        ),
+        activeTeam.players
+      ).filter((p) => p.rating >= 100);
+
+      if (over100Candidates.length > 0) {
+        const isLightning = Math.random() < 0.7;
+        const spinType: BlackBallSpinType = isLightning ? 'lightning-blackball' : 'normal-blackball';
+
+        setIsPurpleSpin(false);
+        setBlackBallSpinType(spinType);
+        setBlackBallStage('spinning-normal');
+        soundManager.playBlackBallAura();
+
+        if (isLightning) {
+          scheduleSpinTimer(() => {
+            setBlackBallStage('lightning-striking');
+            soundManager.playLightningElectricBuzz();
+          }, 360);
+          scheduleSpinTimer(() => {
+            setBlackBallStage('blackball-spinning');
+          }, 720);
+        } else {
+          scheduleSpinTimer(() => {
+            setBlackBallStage('blackball-spinning');
+          }, 480);
+        }
+
+        scheduleSpinTimer(() => {
+          const { leadPlayer } = selectLeadCandidateByRarity(over100Candidates);
+          const primaryPlayer = leadPlayer || over100Candidates[0];
+          const matchedClub =
+            clubs.find((c) => c.id === primaryPlayer.clubId) ||
+            ALL_CLUBS.find((c) => c.id === primaryPlayer.clubId) ||
+            clubs[0];
+
+          setSelectedYear(primaryPlayer.joiningYear);
+          setSelectedClub(matchedClub);
+          setIsSpinning(false);
+          setLockedRarity('black');
+          setIsBlackBallResult(true);
+          setIsGoldenResult(false);
+          setIsPurpleResult(false);
+          soundManager.playSlotStop();
+
+          setActiveReveal({
+            tier: 'supreme',
+            stagingEvent: 'blackball',
+            player: primaryPlayer,
+            rarityOverride: 'black',
+            candidateCount: over100Candidates.length,
+            onDone: () => {
+              setActiveReveal(null);
+              setBlackBallStage('revealed');
+              setCandidatePlayers(over100Candidates);
+              soundManager.playGoldenFanfare();
+              confetti({
+                particleCount: 180,
+                spread: 110,
+                origin: { y: 0.5 },
+                colors: ['#fde047', '#fbbf24', '#ffffff', '#18181b'],
+              });
+            },
+          });
+        }, 1250);
+        return;
+      }
+    }
+
+    // 🟣 3.0% PURPLE SPECIAL EVENT (Active Superstars, 3 distinct positions)
+    if (stagingEventRoll === 'purple') {
+      const purpleCandidates = filterCandidatesByPositionLimits(
+        findPurpleCandidates(currentTeamPlayerIds, currentTeamPersonIds, 3, disallowed),
+        activeTeam.players
       );
 
       if (purpleCandidates.length > 0) {
@@ -692,18 +932,18 @@ export default function App() {
         setBlackBallStage('spinning-normal');
         soundManager.playBlackBallAura();
 
-        // Staged lightning flash & electric excitement
-        setTimeout(() => {
+        scheduleSpinTimer(() => {
           setBlackBallStage('lightning-striking');
           soundManager.playGoldenLightning();
-        }, 400);
+        }, 380);
 
-        setTimeout(() => {
+        scheduleSpinTimer(() => {
           setBlackBallStage('blackball-spinning');
-        }, 850);
+        }, 780);
 
-        setTimeout(() => {
-          const primaryPlayer = purpleCandidates[0];
+        scheduleSpinTimer(() => {
+          const { leadPlayer } = selectLeadCandidateByRarity(purpleCandidates);
+          const primaryPlayer = leadPlayer || purpleCandidates[0];
           setSelectedYear(primaryPlayer.joiningYear);
           const matchedClub = clubs.find((c) => c.id === primaryPlayer.clubId) || {
             id: primaryPlayer.clubId || 'special_purple',
@@ -711,172 +951,65 @@ export default function App() {
             nameJa: primaryPlayer.clubName,
             nameEn: primaryPlayer.clubName,
             nameEs: primaryPlayer.clubName,
+            shortName: (primaryPlayer.clubName || 'SPL').slice(0, 3).toUpperCase(),
             league: 'Active Superstars',
             country: 'World',
             countryFlag: primaryPlayer.nationalityFlag || '🌐',
-            crestEmoji: '🟣',
+            badgeSymbol: '🟣',
             primaryColor: '#a855f7',
             secondaryColor: '#ec4899',
           };
           setSelectedClub(matchedClub);
           setIsSpinning(false);
           setIsPurpleSpin(false);
-          setBlackBallStage('revealed');
+          setLockedRarity('purple');
           setIsBlackBallResult(false);
           setIsGoldenResult(false);
           setIsPurpleResult(true);
           soundManager.playSlotStop();
-          soundManager.playVictory();
 
-          // Purple / Fuchsia Confetti Burst
-          confetti({
-            particleCount: 160,
-            spread: 100,
-            origin: { y: 0.5 },
-            colors: ['#d946ef', '#a855f7', '#8b5cf6', '#ffffff', '#ec4899', '#f0abfc'],
+          setActiveReveal({
+            tier: 'supreme',
+            stagingEvent: 'purple',
+            player: primaryPlayer,
+            rarityOverride: 'purple',
+            candidateCount: purpleCandidates.length,
+            onDone: () => {
+              setActiveReveal(null);
+              setBlackBallStage('revealed');
+              setCandidatePlayers(purpleCandidates);
+              soundManager.playVictory();
+              confetti({
+                particleCount: 160,
+                spread: 100,
+                origin: { y: 0.5 },
+                colors: ['#d946ef', '#a855f7', '#8b5cf6', '#ffffff', '#ec4899', '#f0abfc'],
+              });
+            },
           });
-
-          // Set all 3 purple superstars as candidates
-          setCandidatePlayers(purpleCandidates);
-        }, 2400);
+        }, 1250);
         return;
       }
     }
 
-    // 2.1% Rare Event trigger (approx 1.17x increase from 1.8%) for Golden Special / Peak Era staging
-    const isRareTrigger = Math.random() < 0.021;
-
-    if (isRareTrigger) {
-      // 🥇 PRIORITY 1: GOLDEN SUPREME EVENT (3 randomized candidates across eras/clubs)
-      const goldenCandidates = findGoldenCandidates(
-        mode,
-        currentTeamPlayerIds,
-        currentTeamPersonIds,
-        3
-      );
-
-      if (goldenCandidates.length > 0) {
-        const primaryPlayer = goldenCandidates[0];
-        const targetYear = primaryPlayer.joiningYear;
-        const targetClub = clubs.find((c) => c.id === primaryPlayer.clubId) || clubs[0];
-        const isLightning = Math.random() < 0.6;
-        const spinType: BlackBallSpinType = isLightning
-          ? 'golden-lightning-ballon-dor'
-          : 'golden-ballon-dor';
-
-        setBlackBallSpinType(spinType);
-        setBlackBallStage('spinning-normal');
-        soundManager.playBlackBallAura();
-
-        if (isLightning) {
-          setTimeout(() => {
-            setBlackBallStage('lightning-striking');
-            soundManager.playGoldenLightning();
-          }, 400);
-
-          setTimeout(() => {
-            setBlackBallStage('blackball-spinning');
-          }, 800);
-        } else {
-          setTimeout(() => {
-            setBlackBallStage('blackball-spinning');
-          }, 600);
-        }
-
-        setTimeout(() => {
-          setSelectedYear(targetYear);
-          setSelectedClub(targetClub);
-          setIsSpinning(false);
-          setBlackBallStage('revealed');
-          setIsBlackBallResult(true);
-          setIsGoldenResult(true);
-          setIsPurpleResult(false);
-          soundManager.playSlotStop();
-          soundManager.playGoldenFanfare();
-
-          // Golden Confetti Burst
-          confetti({
-            particleCount: 160,
-            spread: 100,
-            origin: { y: 0.5 },
-            colors: ['#fde047', '#eab308', '#ca8a04', '#ffffff', '#fbbf24'],
-          });
-
-          // Set all 3 randomized Golden candidates for user selection
-          setCandidatePlayers(goldenCandidates);
-        }, 2400);
-        return;
-      }
-
-      // 🥈 PRIORITY 2: BLACK BALL (LEGEND PEAK ERA)
-      const combo = getLegendaryCombination(mode, currentTeamPlayerIds, currentTeamPersonIds);
-      const targetYear = combo ? combo.year : 2018;
-      const targetClub = combo ? (clubs.find((c) => c.id === combo.clubId) || clubs[0]) : clubs[0];
-      const isLightning = Math.random() < 0.5;
-      const spinType: BlackBallSpinType = isLightning ? 'lightning-blackball' : 'normal-blackball';
-
-      setBlackBallSpinType(spinType);
-      setBlackBallStage('spinning-normal');
-      soundManager.playBlackBallAura();
-
-      if (isLightning) {
-        setTimeout(() => {
-          setBlackBallStage('lightning-striking');
-          soundManager.playLightningElectricBuzz();
-        }, 450);
-
-        setTimeout(() => {
-          setBlackBallStage('blackball-spinning');
-        }, 700);
-      } else {
-        setTimeout(() => {
-          setBlackBallStage('blackball-spinning');
-        }, 550);
-      }
-
-      setTimeout(() => {
-        setSelectedYear(targetYear);
-        setSelectedClub(targetClub);
-        setIsSpinning(false);
-        setBlackBallStage('revealed');
-        setIsBlackBallResult(true);
-        setIsGoldenResult(false);
-        setIsPurpleResult(false);
-        soundManager.playSlotStop();
-        soundManager.playVictory();
-
-        // Victory Confetti
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.55 },
-          colors: ['#fbbf24', '#f59e0b', '#10b981', '#ffffff'],
-        });
-
-        const candidates = findCandidatePlayers(
-          mode,
-          targetYear,
-          targetClub.id,
-          currentTeamPlayerIds,
-          currentTeamPersonIds
-        );
-        setCandidatePlayers(candidates.length > 0 ? candidates : (combo ? [combo.player] : []));
-      }, 2200);
-      return;
-    }
-
-    // 🥉 REGULAR NORMAL ROULETTE SPIN
+    // ⚽ 95.2% NORMAL ROULETTE SPIN (Strictly NEVER triggers Black Ball or Purple staging)
     setBlackBallSpinType('none');
     setBlackBallStage('spinning-normal');
+    setIsBlackBallResult(false);
     setIsGoldenResult(false);
     setIsPurpleResult(false);
+    setIsPurpleSpin(false);
 
-    setTimeout(() => {
-      // 80% weighted selection toward populated combinations
+    scheduleSpinTimer(() => {
+      // 80% weighted selection toward populated normal combinations that obey position limits
       const matchingPlayers = ALL_PLAYERS.filter(
         (p) =>
+          p.rating < 100 &&
+          !p.playerId.startsWith('bd_special_') &&
+          !p.playerId.startsWith('purple_') &&
           p.clubId &&
           clubs.some((c) => c.id === p.clubId) &&
+          !disallowedSet.has(p.position) &&
           !currentTeamPlayerIds.includes(p.playerId) &&
           !currentTeamPersonIds.includes(p.personId)
       );
@@ -885,7 +1018,6 @@ export default function App() {
       let targetClub: Club;
 
       if (matchingPlayers.length > 0 && Math.random() < 0.8) {
-        // レジェンド選手の排出率を約1.15倍（1.1〜1.2倍の指定範囲内）に微増
         const totalWeight = matchingPlayers.reduce(
           (acc, p) => acc + (p.isLegendary ? 1.15 : 1.0),
           0
@@ -911,24 +1043,54 @@ export default function App() {
       setSelectedClub(targetClub);
       soundManager.playSlotStop();
 
-      // Search matching real candidates
-      const candidates = findCandidatePlayers(
-        mode,
-        targetYear,
-        targetClub.id,
-        currentTeamPlayerIds,
-        currentTeamPersonIds
+      // Search matching real candidates strictly obeying disallowed positions
+      const candidates = filterCandidatesByPositionLimits(
+        findCandidatePlayers(
+          mode,
+          targetYear,
+          targetClub.id,
+          currentTeamPlayerIds,
+          currentTeamPersonIds,
+          disallowed
+        ),
+        activeTeam.players
       );
 
-      setCandidatePlayers(candidates);
       setIsSpinning(false);
-      setBlackBallStage('revealed');
-    }, 1200);
+
+      if (candidates.length > 0) {
+        const { leadPlayer, rarity } = selectLeadCandidateByRarity(candidates);
+        const normalTier: DraftRevealTier =
+          leadPlayer && (leadPlayer.rating >= 85 || leadPlayer.isLegendary) ? 'high' : 'normal';
+        setLockedRarity(rarity === 'black' || rarity === 'golden' || rarity === 'purple' ? 'star' : rarity);
+        setIsBlackBallResult(false);
+        setIsGoldenResult(false);
+        setIsPurpleResult(false);
+
+        setActiveReveal({
+          tier: normalTier,
+          stagingEvent: 'normal',
+          player: leadPlayer,
+          rarityOverride: rarity,
+          candidateCount: candidates.length,
+          onDone: () => {
+            setActiveReveal(null);
+            setCandidatePlayers(candidates);
+            setBlackBallStage('revealed');
+          },
+        });
+      } else {
+        setCandidatePlayers([]);
+        setBlackBallStage('revealed');
+      }
+    }, 1050);
   };
 
   // Handle Skip (consumes 1 skip count and unlocks next spin)
   const handleSkip = () => {
     if (skipsRemaining <= 0 || isSpinning) return;
+    clearSpinTimers();
+    setActiveReveal(null);
     soundManager.playSkip();
     const nextSkips = Math.max(0, skipsRemaining - 1);
     setSkipsRemaining(nextSkips);
@@ -939,34 +1101,49 @@ export default function App() {
     setCandidatePlayers([]);
     setSelectedYear(null);
     setSelectedClub(null);
+    setSelectedDecade(null);
+    setSelectedNationalTeamId(null);
     setHasCurrentDraft(false);
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
     setIsPurpleResult(false);
+    setIsPurpleSpin(false);
     setBlackBallSpinType('none');
+    setLockedRarity(null);
   };
 
   // Handle Free Skip / Next Draft (When No Players Found)
   const handleNextDraftFree = () => {
+    clearSpinTimers();
+    setActiveReveal(null);
     soundManager.playButtonClick();
     setCandidatePlayers([]);
     setSelectedYear(null);
     setSelectedClub(null);
+    setSelectedDecade(null);
+    setSelectedNationalTeamId(null);
     setHasCurrentDraft(false);
     setIsBlackBallResult(false);
     setIsGoldenResult(false);
     setIsPurpleResult(false);
+    setIsPurpleSpin(false);
     setBlackBallSpinType('none');
+    setLockedRarity(null);
   };
 
-
-  // Handle Draft Player Selection
+  // Handle Draft Player Selection (with FW<=3 / GK<=1 enforcement)
   const handleDraftPlayer = (player: Player) => {
-    if (activeTeam.players.length >= 11) return;
+    if (activeTeam.isLocked || activeTeam.players.length >= 11) return;
+
+    const limitCheck = canDraftPlayerByPositionLimit(activeTeam.players, player);
+    if (!limitCheck.allowed) {
+      soundManager.playError();
+      return;
+    }
 
     const newPlayers = [...activeTeam.players, player];
     const newSlots = autoAssignSlot(player, activeTeam.playerSlots, activeTeam.formation);
-    
+
     // Double safeguard: ensure player.playerId is 100% assigned in newSlots
     if (!Object.values(newSlots).includes(player.playerId)) {
       const basePreset = activeTeam.formation === 'CUSTOM' ? '4-3-3' : activeTeam.formation;
@@ -992,10 +1169,11 @@ export default function App() {
 
     updateActiveTeam(() => updatedTeam);
 
-    // Record to persistent Draft History with multilingual metadata
+    // Record to persistent Draft History with multilingual & national era metadata
     const dbClub = ALL_CLUBS.find((c) => c.id === player.clubId);
     const historyEntry: DraftHistoryEntry = {
       id: `${Date.now()}_${player.playerId}`,
+      entryType: 'player',
       playerId: player.playerId,
       playerName: player.playerName,
       nameJa: player.nameJa,
@@ -1021,6 +1199,8 @@ export default function App() {
       teamId: activeTeam.teamId,
       teamNumber: activeTeam.teamNumber,
       teamName: activeTeam.name,
+      eraDecade: player.eraDecade,
+      nationalTeamId: player.nationalTeamId,
     };
     setDraftHistory((prev) => [historyEntry, ...prev]);
 
@@ -1040,6 +1220,9 @@ export default function App() {
         setAcquiredPlayerBanner(null);
         setHasCurrentDraft(false);
         setIsPurpleResult(false);
+        setSelectedDecade(null);
+        setSelectedNationalTeamId(null);
+        setLockedRarity(null);
         setCelebratingTeam(updatedTeam);
       }, 1800);
     } else {
@@ -1047,13 +1230,145 @@ export default function App() {
         setAcquiredPlayerBanner(null);
         setSelectedYear(null);
         setSelectedClub(null);
+        setSelectedDecade(null);
+        setSelectedNationalTeamId(null);
         setHasCurrentDraft(false);
         setIsBlackBallResult(false);
         setIsGoldenResult(false);
         setIsPurpleResult(false);
         setBlackBallSpinType('none');
+        setLockedRarity(null);
       }, 2000);
     }
+  };
+
+  // Undo / Remove a drafted player from active team -> immediately restores position eligibility
+  const handleRemovePlayer = (playerId: string) => {
+    if (activeTeam.isLocked) {
+      soundManager.playError();
+      return;
+    }
+    soundManager.playSkip();
+    updateActiveTeam((prev) => {
+      const nextPlayers = prev.players.filter((p) => p.playerId !== playerId);
+      const nextSlots: Record<string, string> = {};
+      Object.entries(prev.playerSlots || {}).forEach(([slotId, assignedId]) => {
+        if (assignedId !== playerId) {
+          nextSlots[slotId] = assignedId;
+        }
+      });
+      const nextCustomPositions = { ...(prev.customPositions || {}) };
+      delete nextCustomPositions[playerId];
+      return {
+        ...prev,
+        players: nextPlayers,
+        playerSlots: nextSlots,
+        customPositions: nextCustomPositions,
+        isCompleted: false,
+        completedAt: undefined,
+      };
+    });
+  };
+
+  // Manager Gacha Spin (Draws 3 unique real managers, persists them immediately so re-roll is impossible)
+  const handleStartManagerGacha = () => {
+    if (activeTeam.isLocked || activeTeam.managerDrafted || activeTeam.manager || isSpinning) {
+      soundManager.playError();
+      return;
+    }
+
+    // Never re-roll if 3 candidates are already drawn and waiting for selection
+    if (activeTeam.pendingManagerCandidates && activeTeam.pendingManagerCandidates.length > 0) {
+      soundManager.playButtonClick();
+      setIsManagerDraftOpen(true);
+      return;
+    }
+
+    clearSpinTimers();
+    soundManager.playButtonClick();
+    const drawn = drawManagerCandidates(3);
+    if (drawn.length === 0) return;
+
+    updateActiveTeam((prev) => ({
+      ...prev,
+      pendingManagerCandidates: drawn,
+    }));
+
+    setActiveReveal({
+      tier: 'manager',
+      manager: drawn[0],
+      candidateCount: drawn.length,
+      onDone: () => {
+        setActiveReveal(null);
+        setIsManagerDraftOpen(true);
+      },
+    });
+  };
+
+  // Opens Manager Draft — launches unified Gacha immediately if not spun yet, or opens the persisted 3-candidate picker / summary
+  const handleOpenManagerDraft = () => {
+    if (
+      !activeTeam.isLocked &&
+      !activeTeam.managerDrafted &&
+      !activeTeam.manager &&
+      !(activeTeam.pendingManagerCandidates && activeTeam.pendingManagerCandidates.length > 0)
+    ) {
+      handleStartManagerGacha();
+      return;
+    }
+    soundManager.playButtonClick();
+    setIsManagerDraftOpen(true);
+  };
+
+  // Draft Manager (Strictly 1 manager per team/game; recorded in MY TEAM & HISTORY)
+  const handleDraftManager = (manager: Manager) => {
+    if (activeTeam.isLocked || activeTeam.managerDrafted || activeTeam.manager) {
+      soundManager.playError();
+      return;
+    }
+
+    updateActiveTeam((prev) => ({
+      ...prev,
+      manager,
+      managerDrafted: true,
+      pendingManagerCandidates: [],
+    }));
+
+    const historyEntry: DraftHistoryEntry = {
+      id: `manager_${Date.now()}_${manager.id}`,
+      entryType: 'manager',
+      manager,
+      playerId: manager.id,
+      playerName: manager.name,
+      nameJa: manager.nameJa,
+      nameEn: manager.nameEn,
+      nameEs: manager.nameEs,
+      clubId: 'manager',
+      clubName: manager.clubsCoached.join(' / '),
+      joiningYear: 2026,
+      position: 'MF',
+      nationality: manager.nationality,
+      nationalityJa: manager.nationalityJa,
+      nationalityEn: manager.nationalityEn,
+      nationalityEs: manager.nationalityEs,
+      nationalityFlag: manager.nationalityFlag,
+      rating: manager.maxAffinity,
+      isLegendary: manager.eraOrStatus === 'LEGEND',
+      timestamp: Date.now(),
+      mode,
+      teamId: activeTeam.teamId,
+      teamNumber: activeTeam.teamNumber,
+      teamName: activeTeam.name,
+    };
+    setDraftHistory((prev) => [historyEntry, ...prev]);
+
+    soundManager.playVictory();
+    confetti({
+      particleCount: 110,
+      spread: 85,
+      origin: { y: 0.55 },
+      colors: ['#f59e0b', '#fbbf24', '#06b6d4', '#ffffff'],
+    });
   };
 
   const handleAcquireScoutPlayer = (player: Player) => {
@@ -1180,6 +1495,8 @@ export default function App() {
               language={language}
               selectedYear={selectedYear}
               selectedClub={selectedClub}
+              selectedDecade={selectedDecade}
+              selectedNationalTeamId={selectedNationalTeamId}
               isSpinning={isSpinning}
               blackBallSpinType={blackBallSpinType}
               blackBallStage={blackBallStage}
@@ -1193,6 +1510,10 @@ export default function App() {
               onSkip={handleSkip}
               disabled={isSpinning}
               isTeamFull={activeTeam.players.length >= 11}
+              managerDrafted={Boolean(activeTeam.managerDrafted || activeTeam.manager)}
+              pendingManagerCount={activeTeam.pendingManagerCandidates?.length || 0}
+              draftedManager={activeTeam.manager || null}
+              onOpenManagerDraft={handleOpenManagerDraft}
             />
 
             {/* Acquired Player Flash Banner (Displayed for 2 seconds) */}
@@ -1210,7 +1531,7 @@ export default function App() {
                       {t.playerAcquired}
                     </div>
                     <div className="text-xs font-bold text-slate-950/80">
-                      {acquiredPlayerBanner.playerName} ({acquiredPlayerBanner.clubName} • {acquiredPlayerBanner.position})
+                      {getLocalizedPlayerName(acquiredPlayerBanner, language)} ({acquiredPlayerBanner.clubName} • {acquiredPlayerBanner.position})
                     </div>
                   </div>
                 </div>
@@ -1220,15 +1541,78 @@ export default function App() {
               </div>
             )}
 
+            {/* Squad Position Counts Bar + Quick Undo Strip (Always visible when squad has picks or drafting) */}
+            {(activeTeam.players.length > 0 || hasCurrentDraft) && (
+              <div className="max-w-3xl mx-auto space-y-2.5">
+                <PositionCountsBar players={activeTeam.players} language={language} />
+
+                {activeTeam.players.length > 0 && (
+                  <div
+                    id="draft-squad-undo-strip"
+                    className="bg-slate-900/75 border border-slate-800 rounded-xl p-2.5 sm:p-3 space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 px-0.5">
+                      <span className="font-bold text-slate-300">
+                        {language === 'ja'
+                          ? `📋 獲得済みメンバー (${activeTeam.players.length}/11)`
+                          : `📋 DRAFTED SQUAD (${activeTeam.players.length}/11)`}
+                      </span>
+                      {!activeTeam.isLocked && (
+                        <span>
+                          {language === 'ja'
+                            ? '× クリックで選択取消（ポジション制限も即座に解除）'
+                            : 'Click × to undo pick'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeTeam.players.map((p) => (
+                        <div
+                          key={p.playerId}
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-200"
+                        >
+                          <span
+                            className={`text-[9px] font-black px-1 rounded ${
+                              p.position === 'GK'
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : p.position === 'DF'
+                                ? 'bg-sky-500/20 text-sky-300'
+                                : p.position === 'MF'
+                                ? 'bg-emerald-500/20 text-emerald-300'
+                                : 'bg-rose-500/20 text-rose-300'
+                            }`}
+                          >
+                            {p.position}
+                          </span>
+                          <span className="font-bold truncate max-w-[115px]">
+                            {getLocalizedPlayerName(p, language)}
+                          </span>
+                          <span className="font-mono text-[10px] text-emerald-400 font-bold">
+                            {p.rating}
+                          </span>
+                          {!activeTeam.isLocked && (
+                            <button
+                              id={`btn-undo-pick-${p.playerId}`}
+                              type="button"
+                              onClick={() => handleRemovePlayer(p.playerId)}
+                              title={t.undoPick}
+                              className="ml-0.5 p-0.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Candidates Section */}
             {hasCurrentDraft && !isSpinning && !acquiredPlayerBanner && (
-              <div id="candidates-container" className="space-y-4 pt-2">
-                {/* Squad Position Counts Bar */}
-                <div className="max-w-3xl mx-auto">
-                  <PositionCountsBar players={activeTeam.players} language={language} />
-                </div>
-
-                <div className="flex items-center justify-between max-w-3xl mx-auto px-1">
+              <div id="candidates-container" className="space-y-4 pt-1">
+                <div className="flex items-center justify-between max-w-3xl mx-auto px-1 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-emerald-400 font-heading font-black text-base sm:text-lg">
                       🎯 CANDIDATES
@@ -1236,6 +1620,16 @@ export default function App() {
                     <span className="text-xs bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full border border-slate-700">
                       {candidatePlayers.length} FOUND
                     </span>
+                    {mode === 'national_era' && selectedNationalTeamId && selectedDecade && (
+                      <span className="text-[11px] bg-cyan-500/15 text-cyan-300 font-bold px-2 py-0.5 rounded-full border border-cyan-500/30">
+                        {(() => {
+                          const nt = getNationalTeamById(selectedNationalTeamId);
+                          return nt
+                            ? `${nt.flag} ${getLocalizedNationalTeamName(nt, language)} • ${getDecadeLabel(selectedDecade, language)}`
+                            : selectedDecade;
+                        })()}
+                      </span>
+                    )}
                   </div>
                   {candidatePlayers.length > 0 && (
                     <span className="text-xs text-slate-400 font-medium">
@@ -1246,21 +1640,39 @@ export default function App() {
 
                 {candidatePlayers.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
-                    {candidatePlayers.map((player) => (
-                      <CandidateCard
-                        key={player.playerId}
-                        player={player}
-                        language={language}
-                        onDraft={handleDraftPlayer}
-                        isDrafting={isSpinning}
-                        disabled={activeTeam.players.length >= 11}
-                      />
-                    ))}
+                    {candidatePlayers.map((player) => {
+                      const limitCheck = canDraftPlayerByPositionLimit(activeTeam.players, player);
+                      const isPosBlocked = !limitCheck.allowed;
+                      const blockedMsg = isPosBlocked
+                        ? language === 'ja'
+                          ? limitCheck.reasonJa
+                          : limitCheck.reasonEn
+                        : undefined;
+                      return (
+                        <CandidateCard
+                          key={player.playerId}
+                          player={player}
+                          language={language}
+                          onDraft={handleDraftPlayer}
+                          isDrafting={isSpinning}
+                          disabled={activeTeam.players.length >= 11 || Boolean(activeTeam.isLocked) || isPosBlocked}
+                          disabledReason={blockedMsg}
+                        />
+                      );
+                    })}
                   </div>
                 ) : (
                   <NoCandidatesCard
                     language={language}
                     onNextDraft={handleNextDraftFree}
+                    titleOverride={mode === 'national_era' ? t.noDataFound : undefined}
+                    descOverride={
+                      mode === 'national_era'
+                        ? language === 'ja'
+                          ? '選択された代表×年代の組み合わせに登録対象選手がいません（例：ベルギー1990s/2000sなど）。別の年代または代表を選択するか再抽選してください。'
+                          : 'No verified players match this National Team × Decade combination. Select another era/team or spin again.'
+                        : undefined
+                    }
                   />
                 )}
               </div>
@@ -1353,6 +1765,8 @@ export default function App() {
             }}
             isLocked={activeTeam.isLocked}
             onToggleLock={handleToggleTeamLock}
+            onRemovePlayer={handleRemovePlayer}
+            onOpenManagerDraft={handleOpenManagerDraft}
             language={language}
           />
         )}
@@ -1493,6 +1907,34 @@ export default function App() {
         isOpen={isSyncDebugOpen}
         onClose={() => setIsSyncDebugOpen(false)}
       />
+
+      {/* Manager Draft Modal (1 per team/game Gacha) */}
+      <ManagerDraftModal
+        isOpen={isManagerDraftOpen}
+        onClose={() => setIsManagerDraftOpen(false)}
+        language={language}
+        teamName={activeTeam.name}
+        existingManager={activeTeam.manager || null}
+        managerDrafted={Boolean(activeTeam.managerDrafted || activeTeam.manager)}
+        pendingCandidates={activeTeam.pendingManagerCandidates || []}
+        isTeamLocked={Boolean(activeTeam.isLocked)}
+        onStartManagerGacha={handleStartManagerGacha}
+        onDraftManager={handleDraftManager}
+      />
+
+      {/* Tiered Draft Reveal Overlay (Normal / High / Ultra / Supreme / Manager) */}
+      {activeReveal && (
+        <DraftRevealOverlay
+          language={language}
+          tier={activeReveal.tier}
+          stagingEvent={activeReveal.stagingEvent}
+          player={activeReveal.player}
+          manager={activeReveal.manager}
+          rarityOverride={activeReveal.rarityOverride}
+          candidateCount={activeReveal.candidateCount}
+          onAnimationEnd={activeReveal.onDone}
+        />
+      )}
 
       {/* Footer */}
       <footer className="mt-auto py-4 border-t border-slate-900 bg-slate-950/80 text-center text-xs text-slate-400">

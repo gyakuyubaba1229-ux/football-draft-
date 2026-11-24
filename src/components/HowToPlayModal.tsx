@@ -130,7 +130,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
               <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/50 text-purple-200 text-xs space-y-1 shadow-md">
                 <div className="flex items-center gap-2 font-bold text-purple-300">
                   <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span>{language === 'ja' ? '特別な紫演出（発生確率 8%）' : 'Special Purple Presentation (8% Rate)'}</span>
+                  <span>{language === 'ja' ? '特別な紫演出（発生確率 3.0%）' : 'Special Purple Presentation (3.0% Rate)'}</span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed pl-1">
                   {language === 'ja'
@@ -160,7 +160,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                 <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 pt-1">
                   <div className="p-2 rounded-lg bg-slate-950/70 border border-purple-500/20">
                     <span className="text-purple-400 font-bold font-mono block">発生確率</span>
-                    <span className="text-white font-bold text-sm">8%</span>
+                    <span className="text-white font-bold text-sm">3.0%</span>
                   </div>
                   <div className="p-2 rounded-lg bg-slate-950/70 border border-purple-500/20">
                     <span className="text-purple-400 font-bold font-mono block">候補構成</span>

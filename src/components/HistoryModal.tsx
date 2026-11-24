@@ -3,9 +3,11 @@ import { DraftHistoryEntry, Language } from '../types';
 import { TRANSLATIONS, getLocalizedPlayerName, getLocalizedClubName, getLocalizedNationality, getLocalizedPosition } from '../utils/translations';
 import { searchDraftHistory } from '../utils/searchHistory';
 import { soundManager } from '../utils/audio';
-import { ALL_PLAYERS } from '../data/playerDatabase';
+import { findAnyPlayerById } from '../data/playerDatabase';
 import { ALL_CLUBS } from '../data/clubs';
-import { History, X, Search, Trash2, AlertTriangle, Shield, Trophy, Globe2 } from 'lucide-react';
+import { getLocalizedManagerName, getLocalizedTacticName } from '../data/managersDatabase';
+import { NATIONAL_TEAMS, getDecadeLabel, getNationalTeamById, getLocalizedNationalTeamName } from '../data/nationalEraDatabase';
+import { History, X, Search, Trash2, AlertTriangle, Briefcase } from 'lucide-react';
 
 interface HistoryModalProps {
   isOpen: boolean;
@@ -25,7 +27,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
   onDeleteEntry,
 }) => {
   const t = TRANSLATIONS[language];
-  const [filterMode, setFilterMode] = useState<'all' | 'europe' | 'j1'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'europe' | 'j1' | 'national_era'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<DraftHistoryEntry | null>(null);
@@ -176,21 +178,21 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
         <div className="p-3 sm:p-4 border-b border-slate-800 bg-slate-900/60 space-y-2.5">
           <div className="flex flex-col sm:flex-row items-center gap-2.5">
             {/* Mode switch */}
-            <div className="flex items-center gap-1 w-full sm:w-auto">
-              {(['all', 'europe', 'j1'] as const).map((m) => (
+            <div className="flex items-center gap-1 w-full sm:w-auto flex-wrap">
+              {(['all', 'europe', 'j1', 'national_era'] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => {
                     soundManager.playButtonClick();
                     setFilterMode(m);
                   }}
-                  className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
+                  className={`flex-1 sm:flex-initial px-2.5 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                     filterMode === m
                       ? 'bg-emerald-600 border-emerald-400 text-white shadow-md'
                       : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {m === 'all' ? 'ALL' : m === 'europe' ? '🇪🇺 EUROPE' : '🇯🇵 J1'}
+                  {m === 'all' ? 'ALL' : m === 'europe' ? '🇪🇺 EUROPE' : m === 'j1' ? '🇯🇵 J1' : `🌐 ${t.modeNationalEra}`}
                 </button>
               ))}
             </div>
@@ -249,15 +251,89 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
             </div>
           ) : (
             filteredHistory.map((entry) => {
-              // Lookup player & club in database for localized display
-              const dbPlayer = ALL_PLAYERS.find((p) => p.playerId === entry.playerId || p.playerName === entry.playerName);
+              // Dedicated Manager Draft History Card
+              if (entry.entryType === 'manager' && entry.manager) {
+                const mgr = entry.manager;
+                return (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-slate-950/90 to-slate-950 border border-amber-500/40 hover:border-amber-400/70 transition-all shadow-sm group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl flex flex-col items-center justify-center font-heading font-black text-sm border bg-amber-500/20 text-amber-300 border-amber-400/50 shadow-md shrink-0">
+                        <span className="leading-none">{mgr.maxAffinity}</span>
+                        <span className="text-[7px] font-mono uppercase">MAX</span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-base">{mgr.nationalityFlag}</span>
+                          <span className="font-heading font-bold text-sm text-amber-200">
+                            {getLocalizedManagerName(mgr, language)}
+                          </span>
+                          <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded font-mono flex items-center gap-0.5">
+                            <Briefcase className="w-2.5 h-2.5" />
+                            <span>MANAGER / 監督</span>
+                          </span>
+                          {entry.teamNumber && (
+                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold px-1.5 py-0.2 rounded">
+                              TEAM {entry.teamNumber}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 flex-wrap">
+                          {mgr.specialtyTactics.map((tac) => (
+                            <span
+                              key={tac}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-emerald-300 border border-slate-700 font-semibold"
+                            >
+                              ★ {getLocalizedTacticName(tac, language)} ({mgr.tactics[tac]})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pl-2 shrink-0">
+                      <div className="text-right hidden xs:block">
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          {new Date(entry.timestamp).toLocaleDateString()}
+                        </span>
+                        <span className="text-[9px] text-slate-600 font-mono">
+                          {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {onDeleteEntry && (
+                        <button
+                          id={`delete-history-entry-${entry.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            soundManager.playButtonClick();
+                            setEntryToDelete(entry);
+                          }}
+                          title={t.deleteHistoryItem}
+                          aria-label={t.deleteHistoryItem}
+                          className="p-2 rounded-xl bg-slate-900/90 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-all cursor-pointer shadow-sm active:scale-95"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Lookup player & club/nation in database for localized display
+              const dbPlayer = findAnyPlayerById(entry.playerId, entry.playerName);
               const dbClub = ALL_CLUBS.find((c) => c.id === entry.clubId || c.name === entry.clubName);
+              const dbNation = NATIONAL_TEAMS.find((n) => n.id === entry.nationalTeamId || n.id === entry.clubId);
 
               const displayName = dbPlayer
                 ? getLocalizedPlayerName(dbPlayer, language)
                 : (language === 'ja' && entry.nameJa ? entry.nameJa : (language === 'es' && entry.nameEs ? entry.nameEs : entry.playerName));
 
-              const displayClub = dbClub
+              const displayClub = dbNation
+                ? getLocalizedNationalTeamName(dbNation, language)
+                : dbClub
                 ? getLocalizedClubName(dbClub, language)
                 : (language === 'ja' && entry.clubNameJa ? entry.clubNameJa : (language === 'es' && entry.clubNameEs ? entry.clubNameEs : entry.clubName));
 
@@ -343,7 +419,9 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                       <div className="text-xs text-slate-400 flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-emerald-400 font-semibold">{displayClub}</span>
                         <span>•</span>
-                        <span className="font-mono text-slate-300">{entry.joiningYear}</span>
+                        <span className="font-mono text-slate-300">
+                          {entry.eraDecade ? getDecadeLabel(entry.eraDecade, language) : entry.joiningYear}
+                        </span>
                         <span>•</span>
                         <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                           {getLocalizedPosition(entry.position, language)}

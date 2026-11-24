@@ -1,6 +1,7 @@
 import { DraftHistoryEntry, Language } from '../types';
-import { ALL_PLAYERS } from '../data/playerDatabase';
+import { findAnyPlayerById } from '../data/playerDatabase';
 import { ALL_CLUBS } from '../data/clubs';
+import { NATIONAL_TEAMS } from '../data/nationalEraDatabase';
 
 // Club alias keywords across English, Japanese, and Spanish
 const CLUB_ALIASES: Record<string, string[]> = {
@@ -66,8 +67,8 @@ function normalizeSearchText(str: string): string {
 }
 
 /**
- * Multi-language search function matching player name, club name, nationality,
- * position, joining year, team number, rating across Japanese, English, and Spanish.
+ * Multi-language search function matching player/manager name, club/nation name, nationality,
+ * position, joining year, era decade, team number, rating across Japanese, English, and Spanish.
  */
 export function searchDraftHistory(
   history: DraftHistoryEntry[],
@@ -82,18 +83,50 @@ export function searchDraftHistory(
   const normalizedQuery = normalizeSearchText(query);
 
   return history.filter((entry) => {
-    // 1. Enrich with database player/club definitions if fields are missing on legacy entries
-    const dbPlayer = ALL_PLAYERS.find((p) => p.playerId === entry.playerId || p.playerName === entry.playerName);
+    // Manager entries
+    if (entry.entryType === 'manager' && entry.manager) {
+      const m = entry.manager;
+      const mgrTargets = [
+        m.name,
+        m.nameJa,
+        m.nameEn,
+        m.nameEs,
+        m.nationality,
+        m.nationalityJa,
+        m.nationalityEn,
+        m.nationalityEs,
+        ...m.clubsCoached,
+        String(m.maxAffinity),
+        entry.teamName || '',
+        '監督',
+        'manager',
+        'director tecnico',
+      ];
+      for (const target of mgrTargets) {
+        if (
+          target &&
+          (target.toLowerCase().includes(query.toLowerCase()) ||
+            normalizeSearchText(target).includes(normalizedQuery))
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // 1. Enrich with database player/club/national-team definitions
+    const dbPlayer = findAnyPlayerById(entry.playerId, entry.playerName);
     const dbClub = ALL_CLUBS.find((c) => c.id === entry.clubId || c.name === entry.clubName);
+    const dbNation = NATIONAL_TEAMS.find((n) => n.id === entry.nationalTeamId || n.id === entry.clubId);
 
     const nameJa = entry.nameJa || dbPlayer?.nameJa || '';
     const nameEn = entry.nameEn || dbPlayer?.nameEn || entry.playerName || '';
     const nameEs = entry.nameEs || dbPlayer?.nameEs || entry.playerName || '';
     const playerName = entry.playerName || '';
 
-    const clubNameJa = entry.clubNameJa || dbClub?.nameJa || '';
-    const clubNameEn = entry.clubNameEn || dbClub?.nameEn || entry.clubName || '';
-    const clubNameEs = entry.clubNameEs || dbClub?.nameEs || entry.clubName || '';
+    const clubNameJa = entry.clubNameJa || dbClub?.nameJa || dbNation?.nameJa || '';
+    const clubNameEn = entry.clubNameEn || dbClub?.nameEn || dbNation?.nameEn || entry.clubName || '';
+    const clubNameEs = entry.clubNameEs || dbClub?.nameEs || dbNation?.nameEs || entry.clubName || '';
     const clubName = entry.clubName || '';
     const clubShort = dbClub?.shortName || '';
     const clubId = entry.clubId || dbClub?.id || '';
@@ -104,13 +137,13 @@ export function searchDraftHistory(
     const nat = entry.nationality || dbPlayer?.nationality || '';
 
     const yearStr = String(entry.joiningYear);
+    const eraStr = entry.eraDecade || dbPlayer?.eraDecade || '';
     const pos = entry.position;
     const subPos = entry.subPosition || dbPlayer?.subPosition || '';
     const teamNumStr = entry.teamNumber ? String(entry.teamNumber) : '';
     const teamNameStr = entry.teamName || (entry.teamNumber ? `TEAM ${entry.teamNumber}` : '');
     const ratingStr = String(entry.rating);
 
-    // Check direct substring matches on all strings
     const matchTargets = [
       playerName,
       nameJa,
@@ -128,26 +161,24 @@ export function searchDraftHistory(
       pos,
       subPos,
       yearStr,
+      eraStr,
       teamNumStr,
       teamNameStr,
       ratingStr,
     ];
 
-    // Check standard case-insensitive inclusion
     for (const target of matchTargets) {
       if (target && target.toLowerCase().includes(query.toLowerCase())) {
         return true;
       }
     }
 
-    // Check normalized NFKC comparison (handles Japanese half/full width, spaces)
     for (const target of matchTargets) {
       if (target && normalizeSearchText(target).includes(normalizedQuery)) {
         return true;
       }
     }
 
-    // Check club aliases (e.g. 'barca', 'バルサ', 'madrid', 'レアル')
     const aliases = CLUB_ALIASES[clubId] || [];
     for (const alias of aliases) {
       if (
@@ -158,7 +189,6 @@ export function searchDraftHistory(
       }
     }
 
-    // Position keyword synonyms in Japanese/English/Spanish
     if (
       (pos === 'GK' && (query.toLowerCase() === 'gk' || query.includes('キーパー') || query.toLowerCase().includes('portero') || query.toLowerCase().includes('goalkeeper'))) ||
       (pos === 'DF' && (query.toLowerCase() === 'df' || query.includes('ディフェンダー') || query.toLowerCase().includes('defensa') || query.toLowerCase().includes('defender'))) ||
@@ -168,7 +198,6 @@ export function searchDraftHistory(
       return true;
     }
 
-    // Legend search
     if (entry.isLegendary && (query.toLowerCase().includes('legend') || query.includes('レジェンド') || query.toLowerCase().includes('leyenda'))) {
       return true;
     }

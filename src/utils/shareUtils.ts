@@ -1,6 +1,7 @@
 import { Language, UserTeam, Player, FORMATIONS, FormationType } from '../types';
 import { getLocalizedPlayerName } from './translations';
-import { ALL_PLAYERS } from '../data/playerDatabase';
+import { findAnyPlayerById } from '../data/playerDatabase';
+import { getLocalizedManagerName } from '../data/managersDatabase';
 
 export const DEFAULT_X_CHAR_LIMIT = 280; // Standard X (Twitter) character limit for free tier
 export const STORAGE_KEY_X_CHAR_LIMIT = 'footballDraft_xCharLimit';
@@ -210,7 +211,7 @@ export function buildXShareText(
 
   // 1. Attempt standard full localized names
   const standardNameFormatter = (p: Player) => {
-    const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === p.playerId) || p;
+    const dbPlayer = findAnyPlayerById(p.playerId, p.playerName) || p;
     return getLocalizedPlayerName(dbPlayer, language);
   };
 
@@ -221,7 +222,7 @@ export function buildXShareText(
 
   // 2. Attempt shortened player names (e.g. Cristiano Ronaldo -> C. Ronaldo, クリスティアーノ・ロナウド -> ロナウド)
   const shortenedNameFormatter = (p: Player) => {
-    const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === p.playerId) || p;
+    const dbPlayer = findAnyPlayerById(p.playerId, p.playerName) || p;
     const fullName = getLocalizedPlayerName(dbPlayer, language);
     return shortenPlayerName(fullName, language);
   };
@@ -245,7 +246,7 @@ export function buildXShareText(
 
   // 5. Ultimate fallback: aggressive truncation of individual names
   const ultraShortFormatter = (p: Player) => {
-    const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === p.playerId) || p;
+    const dbPlayer = findAnyPlayerById(p.playerId, p.playerName) || p;
     const fullName = getLocalizedPlayerName(dbPlayer, language);
     const short = shortenPlayerName(fullName, language);
     return short.length > 5 ? short.slice(0, 5) : short;
@@ -279,7 +280,7 @@ export function generateShareData(
   const formatListWithDetails = (players: Player[]) => {
     return players
       .map((p) => {
-        const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === p.playerId) || p;
+        const dbPlayer = findAnyPlayerById(p.playerId, p.playerName) || p;
         const name = getLocalizedPlayerName(dbPlayer, language);
         return `${name} (${p.rating})`;
       })
@@ -290,19 +291,27 @@ export function generateShareData(
   let tagline = '自分だけのベストイレブン完成🔥';
   let cta = 'あなたもFOOTBALL DRAFTで作ってみよう！';
   let hashtag = '#FOOTBALLDRAFT';
+  let mgrLabel = '監督';
 
   if (language === 'en') {
     tagline = 'My Ultimate Best XI is ready!🔥';
     cta = 'Build your own Dream Team on FOOTBALL DRAFT!';
+    mgrLabel = 'Manager';
   } else if (language === 'es') {
     tagline = '¡Mi Once Ideal completado!🔥';
     cta = '¡Crea tu propio equipo en FOOTBALL DRAFT!';
+    mgrLabel = 'DT';
   }
+
+  const managerLine = team.manager
+    ? `👔 ${mgrLabel}: ${getLocalizedManagerName(team.manager, language)} (MAX ${team.manager.maxAffinity})`
+    : '';
 
   const fullMessage = [
     title,
     tagline,
     `🏆 ${team.name || `TEAM ${team.teamNumber}`} (OVR: ${avgRating})`,
+    managerLine,
     '',
     grouped.gk.length > 0 ? `🧤 GK: ${formatListWithDetails(grouped.gk)}` : '',
     grouped.df.length > 0 ? `🛡️ DF: ${formatListWithDetails(grouped.df)}` : '',

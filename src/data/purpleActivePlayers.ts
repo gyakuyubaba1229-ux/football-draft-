@@ -743,14 +743,19 @@ export function isPurpleCard(
 export function findPurpleCandidates(
   acquiredPlayerIds: string[] = [],
   acquiredPersonIds: string[] = [],
-  count: number = 3
+  count: number = 3,
+  disallowedPositions: MainPosition[] = []
 ): Player[] {
   const acquiredPlayerSet = new Set(acquiredPlayerIds);
   const acquiredPersonSet = new Set(acquiredPersonIds);
+  const disallowedSet = new Set<MainPosition>(disallowedPositions);
 
-  // 1. Available purple pool excluding already acquired on active team
+  // 1. Available purple pool excluding already acquired on active team and disallowed positions
   const availablePool = PURPLE_ACTIVE_PLAYERS.filter(
-    (p) => !acquiredPlayerSet.has(p.playerId) && !acquiredPersonSet.has(p.personId)
+    (p) =>
+      !disallowedSet.has(p.position) &&
+      !acquiredPlayerSet.has(p.playerId) &&
+      !acquiredPersonSet.has(p.personId)
   );
 
   // Group by main position

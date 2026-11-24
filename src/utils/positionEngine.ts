@@ -1,4 +1,4 @@
-import { Player, FormationSlotConfig, FORMATIONS, UserTeam } from '../types';
+import { Player, FormationSlotConfig, FORMATIONS, UserTeam, MainPosition } from '../types';
 import { EFootballPosition, VERIFIED_PLAYER_POSITIONS, SUB_POSITION_COMPATIBILITY } from '../data/playerPositions';
 
 /**
@@ -409,4 +409,93 @@ export function canTeamAcceptGK(
 
   return { allowed: true };
 }
+
+export const MAX_FW_PER_TEAM = 3;
+export const MAX_GK_PER_TEAM = 1;
+
+/**
+ * Returns counts per main position for a squad.
+ */
+export function getSquadPositionCounts(players: Player[]): Record<MainPosition, number> {
+  return {
+    GK: players.filter((p) => p.position === 'GK').length,
+    DF: players.filter((p) => p.position === 'DF').length,
+    MF: players.filter((p) => p.position === 'MF').length,
+    FW: players.filter((p) => p.position === 'FW').length,
+  };
+}
+
+/**
+ * Returns the list of main positions that are currently disallowed from drafting
+ * based on squad limits (FW max 3, GK max 1, and 11th pick must be GK if GK count is 0).
+ */
+export function getDisallowedPositions(players: Player[]): MainPosition[] {
+  const counts = getSquadPositionCounts(players);
+  const disallowed: MainPosition[] = [];
+
+  if (counts.FW >= MAX_FW_PER_TEAM) {
+    disallowed.push('FW');
+  }
+  if (counts.GK >= MAX_GK_PER_TEAM) {
+    disallowed.push('GK');
+  }
+
+  // If 10 players have been drafted and no GK yet, the 11th slot MUST be GK
+  if (players.length === 10 && counts.GK === 0) {
+    if (!disallowed.includes('DF')) disallowed.push('DF');
+    if (!disallowed.includes('MF')) disallowed.push('MF');
+    if (!disallowed.includes('FW')) disallowed.push('FW');
+  }
+
+  return disallowed;
+}
+
+/**
+ * Checks whether a player can be drafted given FW (max 3) and GK (max 1) limits.
+ */
+export function canDraftPlayerByPositionLimit(
+  currentPlayers: Player[],
+  candidate: Player
+): { allowed: boolean; reasonJa?: string; reasonEn?: string } {
+  const counts = getSquadPositionCounts(currentPlayers);
+
+  if (candidate.position === 'FW' && counts.FW >= MAX_FW_PER_TEAM) {
+    return {
+      allowed: false,
+      reasonJa: `FWは1チーム最大${MAX_FW_PER_TEAM}人まで選択可能です（すでに3人選択済み）。`,
+      reasonEn: `A team can draft at most ${MAX_FW_PER_TEAM} Forwards.`,
+    };
+  }
+
+  if (candidate.position === 'GK' && counts.GK >= MAX_GK_PER_TEAM) {
+    return {
+      allowed: false,
+      reasonJa: `GKは1チーム最大${MAX_GK_PER_TEAM}人まで選択可能です（すでに1人選択済み）。`,
+      reasonEn: `A team can draft at most ${MAX_GK_PER_TEAM} Goalkeeper.`,
+    };
+  }
+
+  if (currentPlayers.length === 10 && counts.GK === 0 && candidate.position !== 'GK') {
+    return {
+      allowed: false,
+      reasonJa: 'チーム完成にはGKが1人必須です。11人目はGKを選択してください。',
+      reasonEn: 'The 11th player must be a Goalkeeper.',
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Filters a pool of players in real time to exclude any position that has reached its squad limit.
+ */
+export function filterCandidatesByPositionLimits(
+  pool: Player[],
+  currentPlayers: Player[]
+): Player[] {
+  const disallowedSet = new Set<MainPosition>(getDisallowedPositions(currentPlayers));
+  if (disallowedSet.size === 0) return pool;
+  return pool.filter((p) => !disallowedSet.has(p.position));
+}
+
 

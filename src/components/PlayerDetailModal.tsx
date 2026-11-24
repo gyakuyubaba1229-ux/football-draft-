@@ -8,7 +8,8 @@ import {
   normalizeRoleToEFootball,
 } from '../utils/positionEngine';
 import { getPlayerBioInfo } from '../data/playerBioData';
-import { X, Shield, Award, Activity, CheckCircle, AlertTriangle, Calendar, User } from 'lucide-react';
+import { getDecadeLabel, getNationalTeamById, getLocalizedNationalTeamName } from '../data/nationalEraDatabase';
+import { X, Shield, Award, Activity, CheckCircle, AlertTriangle, User, Trash2 } from 'lucide-react';
 
 interface PlayerDetailModalProps {
   player: Player | null;
@@ -16,6 +17,8 @@ interface PlayerDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   language: Language;
+  onRemovePlayer?: (playerId: string) => void;
+  isTeamLocked?: boolean;
 }
 
 export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
@@ -24,10 +27,14 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
   isOpen,
   onClose,
   language,
+  onRemovePlayer,
+  isTeamLocked = false,
 }) => {
   const t = TRANSLATIONS[language];
 
   if (!isOpen || !player) return null;
+
+  const nationalTeam = player.nationalTeamId ? getNationalTeamById(player.nationalTeamId) : undefined;
 
   const bio = getPlayerBioInfo(player);
 
@@ -97,9 +104,20 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
           {/* Main Quick Info Card */}
           <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/90 flex items-center justify-between">
             <div className="space-y-1">
-              <div className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                <span className="text-white font-bold">{clubName}</span>
-                <span>({player.joiningYear}年入団)</span>
+              <div className="text-xs text-slate-400 font-medium flex items-center gap-1.5 flex-wrap">
+                {nationalTeam ? (
+                  <>
+                    <span className="text-cyan-300 font-bold">
+                      {nationalTeam.flag} {getLocalizedNationalTeamName(nationalTeam, language)}
+                    </span>
+                    <span>({player.eraDecade ? getDecadeLabel(player.eraDecade, language) : player.joiningYear})</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-white font-bold">{clubName}</span>
+                    <span>({player.joiningYear}年入団)</span>
+                  </>
+                )}
               </div>
               <div className="text-xs text-slate-300 flex items-center gap-2">
                 <span>{nationalityName}</span>
@@ -277,7 +295,25 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 text-right">
+        <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
+          {onRemovePlayer && !isTeamLocked ? (
+            <button
+              id="btn-remove-player-from-modal"
+              type="button"
+              onClick={() => {
+                soundManager.playSkip();
+                onRemovePlayer(player.playerId);
+                onClose();
+              }}
+              className="px-4 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 text-xs font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{t.undoPick}</span>
+            </button>
+          ) : (
+            <div />
+          )}
+
           <button
             onClick={() => {
               soundManager.playButtonClick();

@@ -1,6 +1,73 @@
 export type Language = 'ja' | 'en' | 'es';
 
-export type GameMode = 'europe' | 'j1';
+export type GameMode = 'europe' | 'j1' | 'national_era';
+
+export type NationalDecade = '1990s' | '2000s' | '2010s' | '2020s';
+
+export interface NationalTeam {
+  id: string;
+  name: string;
+  nameJa: string;
+  nameEn: string;
+  nameEs: string;
+  flag: string;
+  confederation: string;
+  primaryColor: string;
+  secondaryColor: string;
+}
+
+export type TacticType =
+  | 'possession'
+  | 'shortCounter'
+  | 'longCounter'
+  | 'sideAttack'
+  | 'longBall';
+
+export interface ManagerTacticalAffinities {
+  possession: number;
+  shortCounter: number;
+  longCounter: number;
+  sideAttack: number;
+  longBall: number;
+}
+
+export interface ManagerAvatarStyle {
+  skinColor: string;
+  hairColor: string;
+  hairStyle: 'short' | 'bald' | 'wavy' | 'silver' | 'parted' | 'curly';
+  suitColor: string;
+  tieColor: string;
+  hasGlasses?: boolean;
+  hasBeard?: boolean;
+  hasCap?: boolean;
+  initials: string;
+}
+
+export interface Manager {
+  id: string;
+  name: string;
+  nameJa: string;
+  nameEn: string;
+  nameEs: string;
+  nationality: string;
+  nationalityJa: string;
+  nationalityEn: string;
+  nationalityEs: string;
+  nationalityFlag: string;
+  eraOrStatus: 'ACTIVE' | 'LEGEND';
+  eraLabelJa: string;
+  eraLabelEn: string;
+  eraLabelEs: string;
+  clubsCoached: string[];
+  achievementsJa: string[];
+  achievementsEn: string[];
+  achievementsEs: string[];
+  tactics: ManagerTacticalAffinities;
+  specialtyTactics: TacticType[];
+  maxAffinity: number;
+  rating: number;
+  avatarStyle: ManagerAvatarStyle;
+}
 
 export type MainPosition = 'GK' | 'DF' | 'MF' | 'FW';
 
@@ -62,6 +129,8 @@ export interface Player {
   specialType?: 'purple' | 'golden' | 'black';
   isLegendary?: boolean;  // Star / Legend player
   height?: number;        // Player height in cm (e.g. 202)
+  eraDecade?: NationalDecade;
+  nationalTeamId?: string;
   stats: PlayerStats;
 }
 
@@ -423,6 +492,10 @@ export interface DraftHistoryEntry {
   teamId?: string;
   teamNumber?: number;
   teamName?: string;
+  entryType?: 'player' | 'manager';
+  manager?: Manager;
+  eraDecade?: NationalDecade;
+  nationalTeamId?: string;
 }
 
 export interface UserTeam {
@@ -431,6 +504,9 @@ export interface UserTeam {
   name: string; // e.g. "TEAM 1"
   mode: GameMode;
   players: Player[]; // max 11
+  manager?: Manager | null;
+  managerDrafted?: boolean;
+  pendingManagerCandidates?: Manager[]; // v1.5.0: Persists 3 gacha candidates until 1 is selected (no rerolls)
   formation: FormationType;
   playerSlots: Record<string, string>; // slotId -> playerId
   customPositions: Record<string, CustomPlayerPosition>;
@@ -597,6 +673,9 @@ export interface CurrentDraftState {
   isGoldResult?: boolean;
   isPurpleResult?: boolean;
   isPurpleSpin?: boolean;
+  selectedDecade?: NationalDecade | null;
+  selectedNationalTeamId?: string | null;
+  lockedRarity?: 'purple' | 'golden' | 'black' | 'star' | 'mid' | 'young' | 'normal';
 }
 
 export type RewardTicketType =
@@ -607,7 +686,8 @@ export type RewardTicketType =
   | 'purple_50'
   | 'purple_guaranteed'
   | 'legend_purple_guaranteed'
-  | 'legend_purple_50';
+  | 'legend_purple_50'
+  | 'japan_star_guaranteed';
 
 export interface GiftBoxItem {
   id: string;

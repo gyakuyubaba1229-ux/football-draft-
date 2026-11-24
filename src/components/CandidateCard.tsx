@@ -10,8 +10,10 @@ import {
 import { soundManager } from '../utils/audio';
 import { getBallonDorWinner, getLegendPeakEra } from '../data/legendaryEraDatabase';
 import { getPlayerHeight } from '../data/playerHeights';
+import { getDecadeLabel, getNationalTeamById, getLocalizedNationalTeamName } from '../data/nationalEraDatabase';
 import { EFootballPositionGrid } from './PositionBadge';
-import { Sparkles, Plus, AlertCircle, Award, Shield, Zap, Sprout, Trophy, Crown, MapPin, Ruler } from 'lucide-react';
+import { resolvePlayerRarity, rarityToPlayerCategory } from '../utils/rarityEngine';
+import { Sparkles, Plus, AlertCircle, Award, Shield, Zap, Sprout, Trophy, Crown, MapPin, Ruler, Globe } from 'lucide-react';
 
 interface CandidateCardProps {
   player: Player;
@@ -19,6 +21,7 @@ interface CandidateCardProps {
   onDraft?: (player: Player) => void;
   isDrafting?: boolean;
   disabled?: boolean;
+  disabledReason?: string;
   onSelect?: (player: Player) => void;
   isSelected?: boolean;
 }
@@ -29,6 +32,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   onDraft,
   isDrafting = false,
   disabled = false,
+  disabledReason,
   onSelect,
   isSelected = false,
 }) => {
@@ -37,18 +41,14 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const legendPeak = getLegendPeakEra(player);
   const playerHeight = getPlayerHeight(player);
   const [showPositionMap, setShowPositionMap] = useState(false);
-  const isPurple = player.special_type === 'purple' || player.specialType === 'purple';
+  const nationalTeam = player.nationalTeamId ? getNationalTeamById(player.nationalTeamId) : undefined;
 
-  // Helper to determine effective category
-  const category: PlayerCategory =
-    ballonDor || player.isLegendary
-      ? 'LEGEND'
-      : player.category ||
-        (player.rating >= 85
-          ? 'STAR'
-          : player.rating >= 78
-          ? 'MID'
-          : 'NORMAL');
+  // Unified formal rarity resolution (identical across Draw -> Staging -> Card)
+  const unifiedRarity = resolvePlayerRarity(player);
+  const isPurple = unifiedRarity === 'purple';
+  const isGolden = unifiedRarity === 'golden';
+  const isBlackBall = unifiedRarity === 'black';
+  const category: PlayerCategory = rarityToPlayerCategory(unifiedRarity, player.category);
 
   const getPositionBadgeColor = (pos: string) => {
     switch (pos) {
@@ -125,6 +125,9 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
     if (isPurple) {
       return 'bg-gradient-to-b from-purple-950/70 via-slate-900 to-slate-950 border-2 border-fuchsia-400 shadow-2xl shadow-purple-900/50 hover:border-fuchsia-300 hover:shadow-purple-500/40';
     }
+    if (isGolden) {
+      return 'bg-gradient-to-b from-yellow-950/50 via-amber-950/40 to-slate-950 border-2 border-yellow-300/80 shadow-xl shadow-amber-900/30 hover:border-yellow-300 hover:shadow-yellow-500/30';
+    }
 
     switch (category) {
       case 'LEGEND':
@@ -159,11 +162,13 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-heading font-black border shadow-inner ${
               isPurple
                 ? 'bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-700 text-white border-fuchsia-300 shadow-[0_0_15px_rgba(217,70,239,0.5)]'
-                : player.rating >= 90
-                ? 'bg-gradient-to-br from-amber-500 to-yellow-600 text-slate-950 border-amber-300'
-                : player.rating >= 84
+                : isGolden
+                ? 'bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 text-slate-950 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.45)]'
+                : isBlackBall
+                ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-amber-900 text-amber-300 border-amber-400'
+                : category === 'STAR'
                 ? 'bg-gradient-to-br from-purple-600 to-indigo-700 text-white border-purple-400/50'
-                : player.rating >= 78
+                : category === 'MID' || category === 'VETERAN'
                 ? 'bg-gradient-to-br from-emerald-600 to-teal-700 text-white border-emerald-400/50'
                 : 'bg-slate-800 text-slate-200 border-slate-700'
             }`}
@@ -203,10 +208,14 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           </div>
         </div>
 
-        {/* Signing Year Badge */}
+        {/* Signing Year / Era Decade Badge */}
         <div className="text-right">
-          <div className="text-[10px] font-mono uppercase text-slate-400">{t.joiningYear}</div>
-          <div className="font-mono font-black text-sm text-emerald-400">{player.joiningYear}</div>
+          <div className="text-[10px] font-mono uppercase text-slate-400">
+            {player.eraDecade ? 'ERA' : t.joiningYear}
+          </div>
+          <div className="font-mono font-black text-sm text-emerald-400">
+            {player.eraDecade ? getDecadeLabel(player.eraDecade, language) : player.joiningYear}
+          </div>
         </div>
       </div>
 
@@ -215,19 +224,33 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         <h3 className="font-heading font-black text-lg sm:text-xl text-white tracking-wide group-hover:text-emerald-300 transition-colors">
           {getLocalizedPlayerName(player, language)}
         </h3>
-        <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-          <span className="text-emerald-400 font-semibold">{player.clubName}</span>
+        <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
+          {nationalTeam ? (
+            <span className="inline-flex items-center gap-1 text-cyan-300 font-semibold">
+              <Globe className="w-3 h-3" />
+              <span>
+                {nationalTeam.flag} {getLocalizedNationalTeamName(nationalTeam, language)}
+              </span>
+              {player.eraDecade && (
+                <span className="px-1.5 py-0.2 rounded bg-cyan-500/15 border border-cyan-500/30 text-[10px] font-mono text-cyan-200">
+                  {player.eraDecade}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-emerald-400 font-semibold">{player.clubName}</span>
+          )}
         </div>
 
-        {/* Golden Special / Legend Peak Era Highlight */}
-        {ballonDor ? (
+        {/* Golden Special / Legend Peak Era Highlight (Strictly only for Legend/Golden rarity) */}
+        {(isGolden || isBlackBall) && ballonDor ? (
           <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/20 border border-yellow-400/50 flex items-center gap-2 text-[11px] text-yellow-300">
             <Trophy className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
             <span className="font-extrabold truncate">
-              ⭐ GOLDEN LEGEND SPECIAL ({ballonDor.winningYears.join(', ')})
+              ⭐ {isGolden ? 'GOLDEN LEGEND SPECIAL' : 'BLACK BALL LEGEND'} ({ballonDor.winningYears.join(', ')})
             </span>
           </div>
-        ) : legendPeak ? (
+        ) : (isGolden || isBlackBall) && legendPeak ? (
           <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/40 flex items-center gap-2 text-[11px] text-amber-300">
             <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="font-bold truncate">
@@ -299,6 +322,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         id={`btn-draft-player-${player.playerId}`}
         disabled={isDrafting || disabled}
         onClick={() => {
+          if (disabled) return;
           if (onSelect) {
             onSelect(player);
           } else if (onDraft) {
@@ -307,7 +331,9 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           }
         }}
         className={`w-full py-2.5 px-4 rounded-xl font-heading font-black text-sm tracking-wider flex items-center justify-center gap-2 transition-all transform active:scale-95 shadow-md ${
-          isSelected
+          disabled
+            ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+            : isSelected
             ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/30'
             : category === 'LEGEND'
             ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 shadow-amber-500/20'
@@ -317,16 +343,26 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         }`}
       >
         <Plus className="w-4 h-4 stroke-[3]" />
-        <span>{onSelect ? (isSelected ? '✓ 選択中' : '選択する') : t.draft}</span>
+        <span>
+          {disabled && disabledReason
+            ? disabledReason
+            : onSelect
+            ? isSelected
+              ? '✓ 選択中'
+              : '選択する'
+            : t.draft}
+        </span>
       </button>
     </div>
   );
 };
 
-export const NoCandidatesCard: React.FC<{ language: Language; onNextDraft: () => void }> = ({
-  language,
-  onNextDraft,
-}) => {
+export const NoCandidatesCard: React.FC<{
+  language: Language;
+  onNextDraft: () => void;
+  titleOverride?: string;
+  descOverride?: string;
+}> = ({ language, onNextDraft, titleOverride, descOverride }) => {
   const t = TRANSLATIONS[language];
 
   return (
@@ -338,10 +374,10 @@ export const NoCandidatesCard: React.FC<{ language: Language; onNextDraft: () =>
         <AlertCircle className="w-6 h-6" />
       </div>
       <h4 className="font-heading font-black text-base sm:text-lg text-slate-200 tracking-wide">
-        {t.noPlayersFound}
+        {titleOverride || t.noPlayersFound}
       </h4>
       <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-sm mx-auto">
-        {t.noPlayersFoundDesc}
+        {descOverride || t.noPlayersFoundDesc}
       </p>
       <div className="mt-2 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 py-1 px-3 rounded-full inline-block border border-emerald-500/20">
         {t.noPlayersSkipFree}
@@ -353,7 +389,7 @@ export const NoCandidatesCard: React.FC<{ language: Language; onNextDraft: () =>
             soundManager.playButtonClick();
             onNextDraft();
           }}
-          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-heading font-black text-xs tracking-wider transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 mx-auto"
+          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-heading font-black text-xs tracking-wider transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 mx-auto cursor-pointer"
         >
           <span>{t.skipNextDraft}</span>
         </button>

@@ -20,8 +20,10 @@ import {
   fetchWeeklyStandingsWithSyncInfo,
   fetchMatchHistoryFromSupabase,
   fetchAllRegisteredUsersFromSupabase,
+  fetchMatchedOpponentsThisWeek,
   notifyMatchUpdates,
 } from './supabasePvP';
+import { getSeasonInfo } from './seasonEngine';
 import { fetchAuthoritativeTournamentState } from './supabaseTournament';
 import { getCurrentUserProfile } from './pvpEngine';
 
@@ -211,6 +213,16 @@ export async function performFullOnlineSync(isManual: boolean = false): Promise<
       }
     } catch (err) {
       console.warn('Registered users sync notice:', err);
+    }
+
+    // 4.5 Fetch weekly matched opponents for current user
+    try {
+      if (userProfile?.userId) {
+        const seasonInfo = getSeasonInfo(1);
+        await fetchMatchedOpponentsThisWeek(userProfile.userId, seasonInfo.weekId);
+      }
+    } catch (err) {
+      console.warn('Matched opponents sync notice:', err);
     }
 
     // 5. Fetch official tournament authoritative state & entries

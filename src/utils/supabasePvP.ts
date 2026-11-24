@@ -9,7 +9,7 @@ import {
 } from '../types';
 import { DEFAULT_TACTICS, computeWeeklyStandings, getCurrentUserProfile } from './pvpEngine';
 import { getTeamEffectiveOvr } from './positionEngine';
-import { getSeasonNumberForTimestamp, getSeasonInfo, SEASON_1_START_MS, getWeekIdForTimestamp, getSeasonRange, V130_START_MS, getCurrentWeekId } from './seasonEngine';
+import { getSeasonNumberForTimestamp, getSeasonInfo, SEASON_1_START_MS, SEASON_1_END_MS, getWeekIdForTimestamp, getSeasonRange, V130_START_MS, getCurrentWeekId } from './seasonEngine';
 import { EUROPEAN_PLAYERS } from '../data/playersEurope';
 
 const PRESENCE_CHANNEL_NAME = 'pvp_global_presence_v113';
@@ -242,26 +242,36 @@ export async function fetchMatchedOpponentsThisWeek(
 
   // 2. Supabase online DB query for matches in this week (cross-browser / cross-device)
   try {
-    const { data: dbMatches, error } = await supabase
-      .from('matches')
-      .select('challenger_id, opponent_id, week_id, match_type, created_at')
-      .or(`challenger_id.eq.${userId},opponent_id.eq.${userId}`)
-      .limit(200);
+    const { data: lbMatches, error: lbErr } = await supabase
+      .from('leaderboard')
+      .select('player_name, score, created_at')
+      .like('player_name', 'PVP_MATCH:%')
+      .order('created_at', { ascending: false })
+      .limit(300);
 
-    if (!error && dbMatches) {
-      dbMatches.forEach((row: any) => {
-        const mWeekId = row.week_id || (row.created_at ? getWeekIdForTimestamp(new Date(row.created_at).getTime()) : weekId);
-        if (mWeekId === weekId || weekId === '2026-09-13_week') {
-          const rawType = String(row.match_type || '').toUpperCase();
-          const isTactical = rawType.includes('TACTICAL');
-          const targetSet = isTactical ? tacticalSet : ovrSet;
+    if (!lbErr && lbMatches) {
+      lbMatches.forEach((row: any) => {
+        try {
+          const raw = row.player_name.replace(/^PVP_MATCH:/, '');
+          const m: BetaMatchRecord = JSON.parse(raw);
+          if (m && m.id) {
+            const mWeekId = m.weekId || (m.timestamp ? getWeekIdForTimestamp(m.timestamp) : weekId);
+            const isMatchInWeek = mWeekId === weekId ||
+              (weekId === '2026-09-13_week' && m.timestamp >= SEASON_1_START_MS && m.timestamp <= SEASON_1_END_MS);
 
-          if (row.challenger_id === userId && row.opponent_id) {
-            targetSet.add(row.opponent_id);
-          } else if (row.opponent_id === userId && row.challenger_id) {
-            targetSet.add(row.challenger_id);
+            if (isMatchInWeek) {
+              const rawType = String(m.matchType || (m as any).mode || '').toUpperCase();
+              const isTactical = rawType.includes('TACTICAL');
+              const targetSet = isTactical ? tacticalSet : ovrSet;
+
+              if (m.challengerUserId === userId && m.opponentUserId) {
+                targetSet.add(m.opponentUserId);
+              } else if (m.opponentUserId === userId && m.challengerUserId) {
+                targetSet.add(m.challengerUserId);
+              }
+            }
           }
-        }
+        } catch {}
       });
     }
   } catch (sbErr) {
@@ -1363,6 +1373,42 @@ export async function saveMatchRecordToSupabase(
 }
 
 /**
+ * Normalizes a match record relative to current user's perspective
+ * - If current user was challenger: score is challengerScore - opponentScore
+ * - If current user was opponent: score is opponentScore - challengerScore, result is inverted, opponent username is challenger
+ */
+function normalizeMatchForUser(match: BetaMatchRecord, currentUserId: string): BetaMatchRecord {
+  const season = match.season || getSeasonNumberForTimestamp(match.timestamp);
+  if (match.challengerUserId === currentUserId) {
+    return {
+      ...match,
+      season,
+    };
+  }
+  if (match.opponentUserId === currentUserId) {
+    const myScore = match.opponentScore ?? 0;
+    const oppScore = match.challengerScore ?? 0;
+    const result: 'WIN' | 'DRAW' | 'LOSS' = myScore > oppScore ? 'WIN' : myScore < oppScore ? 'LOSS' : 'DRAW';
+    const points: 3 | 1 | 0 = result === 'WIN' ? 3 : result === 'DRAW' ? 1 : 0;
+    return {
+      ...match,
+      season,
+      challengerUserId: currentUserId,
+      challengerUsername: match.opponentUsername,
+      challengerTeamName: match.opponentTeamName,
+      opponentUserId: match.challengerUserId,
+      opponentUsername: match.challengerUsername,
+      opponentTeamName: match.challengerTeamName,
+      challengerScore: myScore,
+      opponentScore: oppScore,
+      result,
+      points,
+    };
+  }
+  return { ...match, season };
+}
+
+/**
  * Fetch match history for current user (v1.1.3 onward, filtered to current and post-v1.1.3 matches)
  */
 export async function fetchMatchHistoryFromSupabase(
@@ -1380,10 +1426,7 @@ export async function fetchMatchHistoryFromSupabase(
           m.timestamp > 0 &&
           (m.challengerUserId === currentUserId || m.opponentUserId === currentUserId)
         ) {
-          matchesMap.set(m.id, {
-            ...m,
-            season: m.season || getSeasonNumberForTimestamp(m.timestamp),
-          });
+          matchesMap.set(m.id, normalizeMatchForUser(m, currentUserId));
         }
       });
     }
@@ -1410,10 +1453,7 @@ export async function fetchMatchHistoryFromSupabase(
             matchObj.id &&
             (matchObj.challengerUserId === currentUserId || matchObj.opponentUserId === currentUserId)
           ) {
-            matchesMap.set(matchObj.id, {
-              ...matchObj,
-              season: matchObj.season || getSeasonNumberForTimestamp(matchObj.timestamp),
-            });
+            matchesMap.set(matchObj.id, normalizeMatchForUser(matchObj, currentUserId));
           }
         } catch {}
       });
@@ -1446,27 +1486,27 @@ export async function fetchMatchHistoryFromSupabase(
 
         const record: BetaMatchRecord = {
           id: row.match_id || 'm_' + row.id,
-          challengerUserId: row.challenger_id,
-          challengerUsername: row.challenger_handle || 'Player',
-          opponentUserId: row.opponent_id,
-          opponentUsername: row.opponent_handle || 'Opponent',
+          challengerUserId: currentUserId,
+          challengerUsername: isChallenger ? row.challenger_handle || 'Player' : row.opponent_handle || 'Player',
+          opponentUserId: isChallenger ? row.opponent_id : row.challenger_id,
+          opponentUsername: isChallenger ? row.opponent_handle || 'Opponent' : row.challenger_handle || 'Opponent',
           matchType: row.match_type === 'TACTICAL' ? 'TACTICAL' : 'OVR',
           matchCategory: row.details?.matchCategory || 'ASYNC',
           season,
-          challengerScore: row.challenger_score,
-          opponentScore: row.opponent_score,
+          challengerScore: myScore,
+          opponentScore: oppScore,
           result,
           points: result === 'WIN' ? 3 : result === 'DRAW' ? 1 : 0,
-          challengerOvr: row.challenger_team?.ovr || 85,
-          opponentOvr: row.opponent_team?.ovr || 85,
-          challengerTeamName: row.challenger_team?.teamName || 'Best XI',
-          opponentTeamName: row.opponent_team?.teamName || 'Opponent Best XI',
+          challengerOvr: isChallenger ? (row.challenger_team?.ovr || 85) : (row.opponent_team?.ovr || 85),
+          opponentOvr: isChallenger ? (row.opponent_team?.ovr || 85) : (row.challenger_team?.ovr || 85),
+          challengerTeamName: isChallenger ? (row.challenger_team?.teamName || 'Best XI') : (row.opponent_team?.teamName || 'Best XI'),
+          opponentTeamName: isChallenger ? (row.opponent_team?.teamName || 'Opponent Best XI') : (row.challenger_team?.teamName || 'Opponent Best XI'),
           timestamp,
           events: row.details?.events || [],
-          fullTimeScore: [row.challenger_score, row.opponent_score],
+          fullTimeScore: [myScore, oppScore],
           halfTimeScore: row.details?.halfTimeScore,
-          challengerTactics: row.challenger_team?.tactics,
-          opponentTactics: row.opponent_team?.tactics,
+          challengerTactics: isChallenger ? row.challenger_team?.tactics : row.opponent_team?.tactics,
+          opponentTactics: isChallenger ? row.opponent_team?.tactics : row.challenger_team?.tactics,
         };
         matchesMap.set(record.id, record);
       });
@@ -1480,10 +1520,7 @@ export async function fetchMatchHistoryFromSupabase(
     const serverMatches = await fetchServerMatches();
     serverMatches.forEach((m) => {
       if (m.challengerUserId === currentUserId || m.opponentUserId === currentUserId) {
-        matchesMap.set(m.id, {
-          ...m,
-          season: m.season || getSeasonNumberForTimestamp(m.timestamp),
-        });
+        matchesMap.set(m.id, normalizeMatchForUser(m, currentUserId));
       }
     });
   } catch (e) {

@@ -144,7 +144,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <span>
               {mode === 'europe'
                 ? '🇪🇺 EUROPEAN CLUBS'
-                : '🇯🇵 J1 LEAGUE'}
+                : mode === 'j1'
+                ? '🇯🇵 J1 LEAGUE'
+                : `🌐 ${t.modeNationalEra}`}
             </span>
             <span className="text-[10px] text-slate-400 font-mono underline">Change</span>
           </button>
@@ -168,7 +170,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 PLAY
               </div>
               <div className="text-xs text-slate-950/80 font-bold font-sans">
-                {mode === 'europe' ? 'European Clubs Draft' : 'J1 League Draft'}
+                {mode === 'europe'
+                  ? 'European Clubs Draft'
+                  : mode === 'j1'
+                  ? 'J1 League Draft'
+                  : language === 'ja'
+                  ? '年代 × 代表 ドラフト'
+                  : 'Era × National Team Draft'}
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   RewardTicketType,
   Player,
@@ -11,9 +11,11 @@ import {
   getStoredUserTickets,
   consumeUserTicket,
 } from '../utils/rewardScoutEngine';
-import { BlackBallAnimation } from './BlackBallAnimation';
+import { DraftRevealOverlay, DraftRevealTier, RevealStagingEvent } from './BlackBallAnimation';
 import { CandidateCard } from './CandidateCard';
 import { soundManager } from '../utils/audio';
+import { getDisallowedPositions } from '../utils/positionEngine';
+import { UnifiedRarity, selectLeadCandidateByRarity } from '../utils/rarityEngine';
 import {
   X,
   Sparkles,
@@ -23,6 +25,7 @@ import {
   Star,
   Gift,
   Flame,
+  Flag,
   CheckCircle2,
   AlertCircle,
   HelpCircle,
@@ -47,21 +50,46 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
   onOpenGiftBox = () => {},
   activeTeam,
 }) => {
-  const [selectedTicketType, setSelectedTicketType] = useState<RewardTicketType>('legend_20');
+  const [selectedTicketType, setSelectedTicketType] = useState<RewardTicketType>('legend_purple_guaranteed');
   const [userTickets, setUserTickets] = useState<Record<RewardTicketType, number>>(() => getStoredUserTickets());
   const [isDraftSpinning, setIsDraftSpinning] = useState<boolean>(false);
   const [spinningCards, setSpinningCards] = useState<string[]>(['FW', 'MF', 'DF', 'GK']);
-  const [activeStaging, setActiveStaging] = useState<'gold' | 'purple' | 'black' | null>(null);
+  const [activeRevealState, setActiveRevealState] = useState<{
+    tier: DraftRevealTier;
+    stagingEvent?: RevealStagingEvent;
+    player: Player | null;
+    rarity: UnifiedRarity;
+    candidateCount: number;
+  } | null>(null);
   const [activeCandidates, setActiveCandidates] = useState<Player[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<Player | null>(null);
   const [acquiredPlayer, setAcquiredPlayer] = useState<Player | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const pendingCandidatesRef = useRef<Player[]>([]);
 
-  // Sync tickets on open
+  // Sync tickets on open & auto-select an available ticket if current selection has 0
   useEffect(() => {
     if (isOpen) {
-      setUserTickets(getStoredUserTickets());
+      const latest = getStoredUserTickets();
+      setUserTickets(latest);
       setErrorMessage(null);
+      if ((latest[selectedTicketType] || 0) <= 0) {
+        const preferredOrder: RewardTicketType[] = [
+          'legend_purple_guaranteed',
+          'japan_star_guaranteed',
+          'legend_guaranteed',
+          'purple_guaranteed',
+          'legend_purple_50',
+          'legend_50',
+          'purple_50',
+          'legend_20',
+          'purple_20',
+        ];
+        const firstOwned = preferredOrder.find((type) => (latest[type] || 0) > 0);
+        if (firstOwned) {
+          setSelectedTicketType(firstOwned);
+        }
+      }
     }
   }, [isOpen]);
 
@@ -108,36 +136,59 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
     // Update tickets in state
     setUserTickets(getStoredUserTickets());
 
-    // 3. Generate Candidates and Staging
-    const { candidates, stagingType } = generateScoutCandidates(selectedTicketType);
+    // 3. Generate Candidates and Staging (respecting activeTeam position limits if under 11)
+    const disallowed =
+      activeTeam && activeTeam.players.length < 11
+        ? getDisallowedPositions(activeTeam.players)
+        : [];
+    const excludePersons =
+      activeTeam?.players.map((p) => (p.personId || p.playerName).toLowerCase()) || [];
+    const { candidates, stagingType } = generateScoutCandidates(
+      selectedTicketType,
+      disallowed,
+      excludePersons
+    );
+    pendingCandidatesRef.current = candidates;
 
-    // 4. Start Spin Draft Animation (1.8s)
+    // 4. Start Spin Draft Animation (1.4s)
     setIsDraftSpinning(true);
     soundManager.playSpinTick();
 
     setTimeout(() => {
       setIsDraftSpinning(false);
 
-      // 5. Trigger Staging or direct candidates
-      if (stagingType === 'gold') {
-        setActiveStaging('gold');
-      } else if (stagingType === 'purple') {
-        setActiveStaging('purple');
+      if (candidates.length > 0) {
+        const { leadPlayer, rarity, tier } = selectLeadCandidateByRarity(candidates);
+        const mappedStagingEvent: RevealStagingEvent | undefined =
+          stagingType === 'japan_star'
+            ? 'japan_star'
+            : stagingType === 'purple'
+            ? 'purple'
+            : stagingType === 'normal'
+            ? 'normal'
+            : undefined;
+        setActiveRevealState({
+          tier: stagingType === 'japan_star' ? 'high' : tier,
+          stagingEvent: mappedStagingEvent,
+          player: leadPlayer,
+          rarity,
+          candidateCount: candidates.length,
+        });
       } else {
-        // Normal staging: show candidates directly
-        setActiveCandidates(candidates);
-        soundManager.playDraftAcquired();
+        setActiveCandidates([]);
       }
-
-      // Save candidates for reveal
-      (window as any).__pendingScoutCandidates = candidates;
-    }, 1800);
+    }, 1400);
   };
 
   const handleStagingEnd = () => {
-    setActiveStaging(null);
-    const candidates = (window as any).__pendingScoutCandidates || [];
-    setActiveCandidates(candidates);
+    setActiveRevealState(null);
+    const list = pendingCandidatesRef.current || [];
+    setActiveCandidates(list);
+    if (list.length === 1) {
+      setSelectedCandidate(list[0]);
+    } else {
+      setSelectedCandidate(null);
+    }
     soundManager.playDraftAcquired();
   };
 
@@ -160,6 +211,8 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
 
   const getScoutIcon = (type: RewardTicketType) => {
     switch (type) {
+      case 'japan_star_guaranteed':
+        return <Flag className="w-5 h-5 text-sky-400" />;
       case 'legend_guaranteed':
         return <Crown className="w-5 h-5 text-amber-300" />;
       case 'purple_guaranteed':
@@ -186,11 +239,15 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
       id="reward-scout-modal-backdrop"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto"
     >
-      {/* Active Staging Animation Component */}
-      {activeStaging && (
-        <BlackBallAnimation
+      {/* Unified Draft Reveal Staging Overlay */}
+      {activeRevealState && (
+        <DraftRevealOverlay
           language={language}
-          type={activeStaging}
+          tier={activeRevealState.tier}
+          stagingEvent={activeRevealState.stagingEvent}
+          player={activeRevealState.player}
+          rarityOverride={activeRevealState.rarity}
+          candidateCount={activeRevealState.candidateCount}
           onAnimationEnd={handleStagingEnd}
         />
       )}
@@ -296,7 +353,9 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
 
             {/* Candidates Grid */}
             <div className={`grid gap-3 sm:gap-4 ${
-              activeCandidates.length === 5
+              activeCandidates.length === 1
+                ? 'grid-cols-1 max-w-sm mx-auto'
+                : activeCandidates.length === 5
                 ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5'
                 : 'grid-cols-1 sm:grid-cols-3'
             }`}>
@@ -489,20 +548,37 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
                 <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs font-mono">
                   <div className="flex items-center justify-between text-slate-300">
                     <span>登場候補人数:</span>
-                    <span className="text-white font-bold">{currentDef.candidateCount} 名 (重複なし)</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-300">
-                    <span>レジェンド確率:</span>
-                    <span className="text-amber-400 font-bold">
-                      {Math.round(currentDef.legendChance * 100)}%
+                    <span className="text-white font-bold">
+                      {currentDef.candidateCount} 名 ({currentDef.candidateCount === 1 ? '確定獲得' : '重複なし'})
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-300">
-                    <span>紫演出確率 (OVR 98-101):</span>
-                    <span className="text-purple-400 font-bold">
-                      {Math.round(currentDef.purpleChance * 100)}%
-                    </span>
-                  </div>
+                  {selectedTicketType === 'japan_star_guaranteed' ? (
+                    <>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>専用抽選枠:</span>
+                        <span className="text-sky-400 font-bold">現日本代表スター選手 100%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>対象条件:</span>
+                        <span className="text-emerald-300 font-bold">現役SAMURAI BLUE STAR選手限定</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>レジェンド確率:</span>
+                        <span className="text-amber-400 font-bold">
+                          {Math.round(currentDef.legendChance * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>紫演出確率 (OVR 98-101):</span>
+                        <span className="text-purple-400 font-bold">
+                          {Math.round(currentDef.purpleChance * 100)}%
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {ticketCount === 0 && (

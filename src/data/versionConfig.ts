@@ -29,13 +29,57 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = '1.4.0';
+export const CURRENT_VERSION = '1.5.0';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
+    version: '1.5.0',
+    releaseDate: '2026.11.24',
+    isLatest: true,
+    titleJa: 'FOOTBALL DRAFT Ver.1.5.0 UPDATE',
+    titleEn: 'FOOTBALL DRAFT Ver.1.5.0 UPDATE',
+    titleEs: 'FOOTBALL DRAFT Ver.1.5.0 UPDATE',
+    notesJa: [
+      '【監督ドラフトのガチャ形式化】監督ドラフトボタンから統一ガチャ演出が発動し、ランダム選出された3名の実在名将から1名を選択（1ゲーム1回・選択完了まで再抽選不可）',
+      '【年代×代表モードのルーレット抽選化】従来の直接選択UIを廃止し、DRAFT STARTボタンで「年代 × 代表チーム」をランダム決定＆データ0件の組み合わせ（ベルギー1990s/2000s等）を自動除外',
+      '【黒玉演出の不具合を完全修正】抽選結果・ガチャ演出・カード表示・SKIPのレアリティ判定ロジックを統一し、非黒玉カードで黒玉演出が誤発動しないよう修正',
+      '【ポジション選択制限の改善】FW最大3人・GK最大1人の制限を強化し、上限到達ポジションを抽選データ・候補表示からリアルタイム除外（取消で即復帰）',
+      '【実在名将＆戦術適性システム】クロップ、グアルディオラ、モウリーニョ、アンチェロッティ、森保一ら20名の実在名監督を収録し、5種の戦術適性(0〜99)をMY TEAM・HISTORYへ記録',
+      '【Ver.1.5.0アップデート記念プレゼント】全ユーザー（既存・新規）へ「レジェンド・紫確定ガチャチケット ×2」をプレゼントボックスに自動配布',
+      '【今までありがとう森保監督！記念プレゼント】現日本代表のスター日本人選手のみが1名登場する「スター日本人選手確定ガチャチケット ×1」をプレゼントボックスに自動配布',
+      '【超激レア・紫演出の確率＆条件を完全整備】黒玉演出1.8%（全員OVR 100+確定・漆黒特別演出）/ 紫演出3.0%（現役特枠）/ 通常演出95.2%の排他抽選を実装',
+      '【PC・スマホ両対応UI最適化】監督ガチャカード・年代×代表ロック表示・プレゼント＆スカウト画面のレスポンシブ操作性を改善',
+      '【既存データ・機能の完全互換】MY TEAM、選手データ、カスタムフォーメーション、週間ランキング、PvPオンライン同期、公式大会データをすべて安全に維持',
+    ],
+    notesEn: [
+      'Manager Draft Gacha Overhaul: Unified gacha animation reveals 3 random real managers; select 1 (once per team, locked against re-rolls until selected)',
+      'Era × National Team Roulette Mode: Replaced manual combo selectors with pure random DRAFT START draw, automatically excluding empty/0-player combinations (e.g. Belgium 1990s/2000s)',
+      'Black Ball Animation Fix: Unified formal rarity resolution across Draw -> Staging -> Card -> SKIP so non-Black-Ball cards never trigger Black Ball staging',
+      'Position Limit Enforcement: Enforces FW max 3 & GK max 1 in real-time across candidate generation, SKIP, and undo restoration',
+      '20 Real Managers & 5 Tactical Affinities (0-99): Includes Klopp, Guardiola, Mourinho, Ancelotti, Moriyasu & more saved to MY TEAM and HISTORY',
+      'Ver.1.5.0 Memorial Gift: Auto-distributed "Legend / Purple Guaranteed Scout Ticket ×2" once per user to the Present Box',
+      'Coach Moriyasu Gratitude Gift: Auto-distributed "Japan NT Star Guaranteed Ticket ×1" drawing exclusively from active SAMURAI BLUE Star players',
+      'Refined Gacha Staging Probabilities: Mutually exclusive 1.8% Black Ball (strictly OVR 100+ only) / 3.0% Purple Special / 95.2% Normal',
+      'Responsive PC & Mobile Optimization across manager gacha cards, national era lock banner, and reward scout flows',
+      'Full Backwards Compatibility preserving all existing MY TEAM squads, custom formations, rankings, PvP online sync, and tournaments',
+    ],
+    notesEs: [
+      'Draft de Entrenador tipo Gacha: Animación unificada que revela 3 técnicos reales al azar para elegir 1 (1 por equipo, sin repetición)',
+      'Modo Época × Selección por Ruleta: Reemplazada la selección manual por sorteo aleatorio automático en DRAFT START, excluyendo combinaciones vacías',
+      'Corrección de Animación Balón Negro: Unificada la rareza oficial entre sorteo, animación, tarjeta y SKIP para evitar activaciones erróneas',
+      'Límites de Posición: Máximo 3 FW y 1 GK en tiempo real tanto en candidatos como al deshacer selecciones',
+      '20 Entrenadores Reales y 5 Afinidades Tácticas (0-99) guardados en MI EQUIPO e HISTORIAL',
+      'Regalo Conmemorativo Ver.1.5.0: Distribuido automáticamente "Ojeador Leyenda / Morado Garantizado ×2" en la Caja de Regalos',
+      'Regalo de Agradecimiento al Míster Moriyasu: Distribuido "Ojeador Estrella Japonesa Garantizada ×1" exclusivo de la selección actual',
+      'Probabilidades de Animación Ajustadas: 1.8% Balón Negro (solo OVR 100+), 3.0% Especial Morado y 95.2% Normal (mutuamente excluyentes)',
+      'Optimización responsiva para PC y móvil en todas las pantallas nuevas',
+      'Compatibilidad total con plantillas, formaciones personalizadas, ranking semanal y sincronización PvP',
+    ],
+  },
+  {
     version: '1.4.0',
     releaseDate: '2026.09.11',
-    isLatest: true,
+    isLatest: false,
     titleJa: '1.4.0 同期中型アップデート',
     titleEn: '1.4.0 Periodic Online Synchronization Mid-Size Update',
     titleEs: '1.4.0 Actualización Mediana de Sincronización Periódica Online',

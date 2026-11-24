@@ -64,13 +64,13 @@ export const ModeSelectModal: React.FC<ModeSelectModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Body: The 2 Selection Cards */}
-        <div className="p-5 sm:p-6 space-y-4">
+        {/* Modal Body: The 3 Selection Cards */}
+        <div className="p-5 sm:p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           {/* European Clubs Option */}
           <button
             id="select-mode-europe-card"
             onClick={() => handleModePick('europe')}
-            className={`w-full text-left p-5 rounded-2xl border-2 transition-all group flex items-center justify-between relative overflow-hidden ${
+            className={`w-full text-left p-5 rounded-2xl border-2 transition-all group flex items-center justify-between relative overflow-hidden cursor-pointer ${
               currentMode === 'europe'
                 ? 'bg-gradient-to-r from-emerald-950/60 to-slate-900 border-emerald-400 shadow-xl shadow-emerald-950/50'
                 : 'bg-slate-950/80 border-slate-800 hover:border-emerald-500/50 hover:bg-slate-900'
@@ -107,7 +107,7 @@ export const ModeSelectModal: React.FC<ModeSelectModalProps> = ({
           <button
             id="select-mode-j1-card"
             onClick={() => handleModePick('j1')}
-            className={`w-full text-left p-5 rounded-2xl border-2 transition-all group flex items-center justify-between relative overflow-hidden ${
+            className={`w-full text-left p-5 rounded-2xl border-2 transition-all group flex items-center justify-between relative overflow-hidden cursor-pointer ${
               currentMode === 'j1'
                 ? 'bg-gradient-to-r from-teal-950/60 to-slate-900 border-teal-400 shadow-xl shadow-teal-950/50'
                 : 'bg-slate-950/80 border-slate-800 hover:border-teal-500/50 hover:bg-slate-900'
@@ -138,6 +138,46 @@ export const ModeSelectModal: React.FC<ModeSelectModalProps> = ({
             </div>
 
             <ChevronRight className="w-6 h-6 text-slate-500 group-hover:text-teal-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" />
+          </button>
+
+          {/* Era × National Team Option */}
+          <button
+            id="select-mode-national-era-card"
+            onClick={() => handleModePick('national_era')}
+            className={`w-full text-left p-5 rounded-2xl border-2 transition-all group flex items-center justify-between relative overflow-hidden cursor-pointer ${
+              currentMode === 'national_era'
+                ? 'bg-gradient-to-r from-cyan-950/70 to-slate-900 border-cyan-400 shadow-xl shadow-cyan-950/50'
+                : 'bg-slate-950/80 border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-cyan-600/20 text-3xl flex items-center justify-center border border-cyan-500/30 group-hover:scale-105 transition-transform shrink-0">
+                🌐
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-heading font-black text-lg sm:text-xl text-white tracking-wide group-hover:text-cyan-300 transition-colors">
+                    {t.modeNationalEra}
+                  </span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-mono">
+                    NEW
+                  </span>
+                  {currentMode === 'national_era' && (
+                    <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-cyan-400 text-slate-950 font-mono">
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+                  {t.modeNationalEraDesc}
+                </p>
+                <div className="text-[11px] text-cyan-400 font-semibold pt-1 flex items-center gap-1.5">
+                  <span>🇧🇷 🇦🇷 🇫🇷 🇩🇪 🇪🇸 🇮🇹 🏴󠁧󠁢󠁥󠁮󠁧󠁿 🇳🇱 🇵🇹 🇯🇵 🇭🇷 🇧🇪 (1990s–2020s)</span>
+                </div>
+              </div>
+            </div>
+
+            <ChevronRight className="w-6 h-6 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" />
           </button>
         </div>
 

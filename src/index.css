@@ -27,3 +27,99 @@
 .animate-lightning {
   animation: flash-lightning 0.6s ease-out;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes reveal-flash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-reveal-flash {
+  animation: reveal-flash 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes radial-spin {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.animate-radial-spin {
+  animation: radial-spin 14s linear infinite;
+}
+
+@keyframes card-entrance-3d {
+  0% {
+    opacity: 0;
+    transform: perspective(900px) rotateY(-24deg) scale(0.84) translateY(20px);
+  }
+  60% {
+    opacity: 1;
+    transform: perspective(900px) rotateY(4deg) scale(1.03) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(900px) rotateY(0deg) scale(1) translateY(0);
+  }
+}
+
+.animate-card-3d {
+  animation: card-entrance-3d 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes shockwave-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.35);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+.animate-shockwave {
+  animation: shockwave-ring 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes light-beam-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-140%) skewX(-24deg);
+  }
+  40% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(240%) skewX(-24deg);
+  }
+}
+
+.animate-beam-sweep {
+  animation: light-beam-sweep 1.2s ease-in-out infinite;
+}

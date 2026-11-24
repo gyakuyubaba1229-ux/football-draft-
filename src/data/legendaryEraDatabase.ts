@@ -1,4 +1,4 @@
-import { Player, GameMode } from '../types';
+import { Player, GameMode, MainPosition } from '../types';
 
 /**
  * =========================================================================
@@ -1735,13 +1735,16 @@ export function findGoldenCandidates(
   mode: GameMode,
   excludePlayerIds: string[] = [],
   excludePersonIds: string[] = [],
-  count: number = 3
+  count: number = 3,
+  disallowedPositions: MainPosition[] = []
 ): Player[] {
   const normExcludePersons = new Set(
     excludePersonIds.map((id) => id.toLowerCase().trim())
   );
+  const disallowedSet = new Set<MainPosition>(disallowedPositions);
 
   const eligible = SPECIAL_BALLON_DOR_PLAYERS.filter((p) => {
+    if (disallowedSet.has(p.position)) return false;
     if (excludePlayerIds.includes(p.playerId)) return false;
     const canonKey = getCanonicalPersonKey(p);
     if (normExcludePersons.has(canonKey) || (p.personId && normExcludePersons.has(p.personId.toLowerCase()))) {
@@ -1754,6 +1757,7 @@ export function findGoldenCandidates(
   });
 
   const pool = (eligible.length >= count ? eligible : SPECIAL_BALLON_DOR_PLAYERS).filter((p) => {
+    if (disallowedSet.has(p.position)) return false;
     if (excludePlayerIds.includes(p.playerId)) return false;
     const canonKey = getCanonicalPersonKey(p);
     return !normExcludePersons.has(canonKey) && !(p.personId && normExcludePersons.has(p.personId.toLowerCase()));
@@ -1765,6 +1769,60 @@ export function findGoldenCandidates(
   const pickedPersonKeys = new Set<string>();
 
   for (const player of shuffled) {
+    const canonKey = getCanonicalPersonKey(player);
+    if (!pickedPersonKeys.has(canonKey)) {
+      picked.push(player);
+      pickedPersonKeys.add(canonKey);
+      if (picked.length >= count) break;
+    }
+  }
+
+  return picked;
+}
+
+/**
+ * Finds Black Ball (1.8%) candidates where EVERY single candidate strictly satisfies rating >= 100.
+ * Never mixes any player with OVR < 100 into the candidate list, and deduplicates by person.
+ */
+export function findOver100BlackBallCandidates(
+  mode: GameMode,
+  allOver100Players: Player[],
+  excludePlayerIds: string[] = [],
+  excludePersonIds: string[] = [],
+  count: number = 3,
+  disallowedPositions: MainPosition[] = []
+): Player[] {
+  const normExcludePersons = new Set(excludePersonIds.map((id) => id.toLowerCase().trim()));
+  const disallowedSet = new Set<MainPosition>(disallowedPositions);
+  const j1ClubIds = new Set(['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus']);
+
+  const strictOver100 = allOver100Players.filter((p) => {
+    if (p.rating < 100) return false;
+    if (disallowedSet.has(p.position)) return false;
+    if (excludePlayerIds.includes(p.playerId)) return false;
+    const canonKey = getCanonicalPersonKey(p);
+    if (normExcludePersons.has(canonKey) || (p.personId && normExcludePersons.has(p.personId.toLowerCase()))) {
+      return false;
+    }
+    return true;
+  });
+
+  const modeFiltered = strictOver100.filter((p) =>
+    mode === 'j1' ? j1ClubIds.has(p.clubId) : !j1ClubIds.has(p.clubId)
+  );
+
+  const primaryPool = modeFiltered.length >= count ? modeFiltered : [...modeFiltered, ...strictOver100];
+  const shuffledModeFirst = [
+    ...modeFiltered.sort(() => Math.random() - 0.5),
+    ...strictOver100.filter((p) => !modeFiltered.includes(p)).sort(() => Math.random() - 0.5),
+  ];
+  const sourcePool = primaryPool.length > 0 ? shuffledModeFirst : [];
+
+  const picked: Player[] = [];
+  const pickedPersonKeys = new Set<string>();
+
+  for (const player of sourcePool) {
+    if (player.rating < 100) continue;
     const canonKey = getCanonicalPersonKey(player);
     if (!pickedPersonKeys.has(canonKey)) {
       picked.push(player);

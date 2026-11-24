@@ -204,96 +204,180 @@ try {
   console.error('Failed to read pvp_standings.json', e);
 }
 
+function reconcileStandingsFromMatches(targetWeekId: string): ServerPvPStanding[] {
+  // Ensure that all matches belonging to targetWeekId are reflected in serverPvPStandingsMap
+  const weekMatches = serverPvPMatchesList.filter((m) => {
+    if (m.weekId) return m.weekId === targetWeekId;
+    if (m.timestamp) {
+      if (targetWeekId === '2026-09-13_week') {
+        return m.timestamp >= SEASON_1_START_MS && m.timestamp <= SEASON_1_END_MS;
+      }
+      return getWeekSeasonInfo(m.timestamp).weekId === targetWeekId;
+    }
+    return targetWeekId === '2026-09-13_week';
+  });
+
+  const standingsMap = new Map<string, ServerPvPStanding>();
+
+  // 1. Initialize from all known users
+  serverPvPUsersMap.forEach((u) => {
+    standingsMap.set(u.userId, {
+      weekId: targetWeekId,
+      seasonNumber: 1,
+      playerId: u.userId,
+      playerName: u.username,
+      teamName: u.team?.name || 'Best XI',
+      teamOvr: u.team?.ovr || 85,
+      points: 0,
+      matches: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      recentForm: [],
+      lastMatchTimestamp: 0,
+      updatedAt: 0,
+    });
+  });
+
+  // 2. Compute stats deterministically from unique matches
+  const sortedMatches = [...weekMatches].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  const seenMatchIds = new Set<string>();
+
+  for (const m of sortedMatches) {
+    if (!m.id || seenMatchIds.has(m.id)) continue;
+    seenMatchIds.add(m.id);
+    if (!m.challengerUserId || !m.opponentUserId) continue;
+
+    // Challenger standing
+    let c = standingsMap.get(m.challengerUserId);
+    if (!c) {
+      c = {
+        weekId: targetWeekId,
+        seasonNumber: 1,
+        playerId: m.challengerUserId,
+        playerName: m.challengerUsername || 'Challenger',
+        teamName: (m.challengerTeam as any)?.teamName || (m.challengerTeam as any)?.name || 'Best XI',
+        teamOvr: (m.challengerTeam as any)?.ovr || 85,
+        points: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        goalDifference: 0,
+        recentForm: [],
+        lastMatchTimestamp: 0,
+        updatedAt: 0,
+      };
+      standingsMap.set(m.challengerUserId, c);
+    }
+
+    // Opponent standing
+    let o = standingsMap.get(m.opponentUserId);
+    if (!o) {
+      o = {
+        weekId: targetWeekId,
+        seasonNumber: 1,
+        playerId: m.opponentUserId,
+        playerName: m.opponentUsername || 'Opponent',
+        teamName: (m.opponentTeam as any)?.teamName || (m.opponentTeam as any)?.name || 'Opponent Best XI',
+        teamOvr: (m.opponentTeam as any)?.ovr || 85,
+        points: 0,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        goalDifference: 0,
+        recentForm: [],
+        lastMatchTimestamp: 0,
+        updatedAt: 0,
+      };
+      standingsMap.set(m.opponentUserId, o);
+    }
+
+    const cScore = m.challengerScore ?? 0;
+    const oScore = m.opponentScore ?? 0;
+    const isWin = cScore > oScore || m.result === 'WIN';
+    const isDraw = cScore === oScore || m.result === 'DRAW';
+    const isLoss = !isWin && !isDraw;
+
+    c.matches += 1;
+    c.goalsFor += cScore;
+    c.goalsAgainst += oScore;
+    c.goalDifference = c.goalsFor - c.goalsAgainst;
+    if (isWin) {
+      c.wins += 1;
+      c.points += 3;
+      c.recentForm.unshift('W');
+    } else if (isDraw) {
+      c.draws += 1;
+      c.points += 1;
+      c.recentForm.unshift('D');
+    } else {
+      c.losses += 1;
+      c.recentForm.unshift('L');
+    }
+    c.recentForm = c.recentForm.slice(0, 5);
+    c.lastMatchTimestamp = Math.max(c.lastMatchTimestamp || 0, m.timestamp || 0);
+    c.updatedAt = Math.max(c.updatedAt || 0, m.timestamp || 0);
+
+    o.matches += 1;
+    o.goalsFor += oScore;
+    o.goalsAgainst += cScore;
+    o.goalDifference = o.goalsFor - o.goalsAgainst;
+    if (isLoss) {
+      o.wins += 1;
+      o.points += 3;
+      o.recentForm.unshift('W');
+    } else if (isDraw) {
+      o.draws += 1;
+      o.points += 1;
+      o.recentForm.unshift('D');
+    } else {
+      o.losses += 1;
+      o.recentForm.unshift('L');
+    }
+    o.recentForm = o.recentForm.slice(0, 5);
+    o.lastMatchTimestamp = Math.max(o.lastMatchTimestamp || 0, m.timestamp || 0);
+    o.updatedAt = Math.max(o.updatedAt || 0, m.timestamp || 0);
+  }
+
+  // 3. Retain persistent standings if already recorded with equal or higher counts
+  serverPvPStandingsMap.forEach((existing, key) => {
+    if (existing.weekId === targetWeekId || (!existing.weekId && targetWeekId === '2026-09-13_week')) {
+      const current = standingsMap.get(existing.playerId);
+      if (!current) {
+        standingsMap.set(existing.playerId, existing);
+      } else if (existing.matches > current.matches || existing.points > current.points) {
+        standingsMap.set(existing.playerId, existing);
+      }
+    }
+  });
+
+  standingsMap.forEach((val, playerId) => {
+    serverPvPStandingsMap.set(getStandingKey(targetWeekId, playerId), val);
+  });
+  savePvPStandingsToDisk();
+
+  return Array.from(standingsMap.values());
+}
+
 function applyMatchToStandings(m: ServerPvPMatch) {
   const currentWeekInfo = getWeekSeasonInfo(m.timestamp || Date.now());
-  const resolvedWeekId = m.weekId || currentWeekInfo.weekId;
-  const seasonNumber = m.seasonNumber || m.season || currentWeekInfo.seasonNumber;
-
-  // 1. Challenger Standing
-  const cKey = getStandingKey(resolvedWeekId, m.challengerUserId);
-  const cExisting: ServerPvPStanding = serverPvPStandingsMap.get(cKey) || {
-    weekId: resolvedWeekId,
-    seasonNumber,
-    playerId: m.challengerUserId,
-    playerName: m.challengerUsername || 'Challenger',
-    teamName: m.challengerTeam?.teamName || m.challengerTeam?.name || 'My Team',
-    teamOvr: m.challengerTeam?.ovr || m.challengerTeam?.teamOvr || 85,
-    points: 0,
-    matches: 0,
-    wins: 0,
-    draws: 0,
-    losses: 0,
-    goalsFor: 0,
-    goalsAgainst: 0,
-    goalDifference: 0,
-    recentForm: [],
-    lastMatchTimestamp: 0,
-    updatedAt: 0,
-  };
-
-  const isWin = (m.challengerScore ?? 0) > (m.opponentScore ?? 0) || m.result === 'WIN';
-  const isDraw = (m.challengerScore ?? 0) === (m.opponentScore ?? 0) || m.result === 'DRAW';
-  const isLoss = !isWin && !isDraw;
-
-  cExisting.matches += 1;
-  cExisting.points += isWin ? 3 : isDraw ? 1 : 0;
-  if (isWin) cExisting.wins += 1;
-  else if (isDraw) cExisting.draws += 1;
-  else cExisting.losses += 1;
-  cExisting.goalsFor += (m.challengerScore ?? 0);
-  cExisting.goalsAgainst += (m.opponentScore ?? 0);
-  cExisting.goalDifference = cExisting.goalsFor - cExisting.goalsAgainst;
-  cExisting.recentForm = [isWin ? 'W' : isDraw ? 'D' : 'L', ...(cExisting.recentForm || [])].slice(0, 5) as ('W' | 'D' | 'L')[];
-  cExisting.lastMatchTimestamp = Math.max(cExisting.lastMatchTimestamp || 0, m.timestamp || Date.now());
-  cExisting.updatedAt = Date.now();
-  if (m.challengerUsername) cExisting.playerName = m.challengerUsername;
-  if (m.challengerTeam?.teamName || m.challengerTeam?.name) cExisting.teamName = m.challengerTeam.teamName || m.challengerTeam.name;
-  if (m.challengerTeam?.ovr || m.challengerTeam?.teamOvr) cExisting.teamOvr = m.challengerTeam.ovr || m.challengerTeam.teamOvr;
-  serverPvPStandingsMap.set(cKey, cExisting);
-
-  // 2. Opponent Standing
-  const oKey = getStandingKey(resolvedWeekId, m.opponentUserId);
-  const oExisting: ServerPvPStanding = serverPvPStandingsMap.get(oKey) || {
-    weekId: resolvedWeekId,
-    seasonNumber,
-    playerId: m.opponentUserId,
-    playerName: m.opponentUsername || 'Opponent',
-    teamName: m.opponentTeam?.teamName || m.opponentTeam?.name || 'Best XI',
-    teamOvr: m.opponentTeam?.ovr || m.opponentTeam?.teamOvr || 85,
-    points: 0,
-    matches: 0,
-    wins: 0,
-    draws: 0,
-    losses: 0,
-    goalsFor: 0,
-    goalsAgainst: 0,
-    goalDifference: 0,
-    recentForm: [],
-    lastMatchTimestamp: 0,
-    updatedAt: 0,
-  };
-
-  oExisting.matches += 1;
-  oExisting.points += isLoss ? 3 : isDraw ? 1 : 0;
-  if (isLoss) oExisting.wins += 1;
-  else if (isDraw) oExisting.draws += 1;
-  else oExisting.losses += 1;
-  oExisting.goalsFor += (m.opponentScore ?? 0);
-  oExisting.goalsAgainst += (m.challengerScore ?? 0);
-  oExisting.goalDifference = oExisting.goalsFor - oExisting.goalsAgainst;
-  oExisting.recentForm = [isLoss ? 'W' : isDraw ? 'D' : 'L', ...(oExisting.recentForm || [])].slice(0, 5) as ('W' | 'D' | 'L')[];
-  oExisting.lastMatchTimestamp = Math.max(oExisting.lastMatchTimestamp || 0, m.timestamp || Date.now());
-  oExisting.updatedAt = Date.now();
-  if (m.opponentUsername) oExisting.playerName = m.opponentUsername;
-  if (m.opponentTeam?.teamName || m.opponentTeam?.name) oExisting.teamName = m.opponentTeam.teamName || m.opponentTeam.name;
-  if (m.opponentTeam?.ovr || m.opponentTeam?.teamOvr) oExisting.teamOvr = m.opponentTeam.ovr || m.opponentTeam.teamOvr;
-  serverPvPStandingsMap.set(oKey, oExisting);
+  const targetWeekId = m.weekId || currentWeekInfo.weekId;
+  reconcileStandingsFromMatches(targetWeekId);
 }
 
 // Initial bootstrap: populate standings from existing matches if standings file was empty
 if (serverPvPStandingsMap.size === 0 && serverPvPMatchesList.length > 0) {
-  serverPvPMatchesList.forEach((m) => applyMatchToStandings(m));
-  savePvPStandingsToDisk();
+  const currentWeek = getWeekSeasonInfo(Date.now()).weekId;
+  reconcileStandingsFromMatches(currentWeek);
 }
 
 function savePvPUsersToDisk() {
@@ -857,8 +941,11 @@ async function startServer() {
       const tacticalMatchedOpponentsSet = new Set<string>();
 
       for (const m of serverPvPMatchesList) {
-        const mWeek = m.weekId || (m.timestamp ? getWeekSeasonInfo(m.timestamp).weekId : targetWeekId);
-        if (mWeek === targetWeekId || targetWeekId === '2026-09-13_week') {
+        const isMatchInWeek = m.weekId === targetWeekId ||
+          (targetWeekId === '2026-09-13_week' && m.timestamp >= SEASON_1_START_MS && m.timestamp <= SEASON_1_END_MS) ||
+          (m.timestamp && getWeekSeasonInfo(m.timestamp).weekId === targetWeekId);
+
+        if (isMatchInWeek) {
           const rawMode = String((m as any).mode || m.matchType || 'OVR').toUpperCase();
           const isTactical = rawMode.includes('TACTICAL');
           let otherId: string | null = null;
@@ -934,6 +1021,9 @@ async function startServer() {
     const currentWeekInfo = getWeekSeasonInfo(Date.now());
     const targetSeason = seasonNumber ? parseInt(String(seasonNumber), 10) : currentWeekInfo.seasonNumber;
     const resolvedWeekId = weekId ? String(weekId) : currentWeekInfo.weekId;
+
+    // First ensure all matches for this week are authoritatively reconciled
+    reconcileStandingsFromMatches(resolvedWeekId);
 
     // 1. Gather all standing entries for this weekId from the persistent store
     const standingsForWeek: ServerPvPStanding[] = [];
@@ -2141,6 +2231,14 @@ async function startServer() {
           } catch {}
         });
         savePvPMatchesToDisk();
+      }
+
+      // Reconcile standings with all synced matches
+      try {
+        const currentWeekInfo = getWeekSeasonInfo(Date.now());
+        reconcileStandingsFromMatches(currentWeekInfo.weekId);
+      } catch (recErr) {
+        console.warn('Reconcile standings note:', recErr);
       }
 
       // 1.5 Sync PvP Standings from Supabase leaderboard table (Decoupled ranking persistence)

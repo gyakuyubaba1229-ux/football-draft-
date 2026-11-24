@@ -3,7 +3,8 @@ import { Language, UserTeam } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
 import { getTeamFormationDisplayName } from '../utils/formationUtils';
-import { Trophy, Share2, Plus, Eye, Sparkles, X } from 'lucide-react';
+import { getLocalizedManagerName } from '../data/managersDatabase';
+import { Trophy, Share2, Plus, Eye, Sparkles, X, Briefcase } from 'lucide-react';
 
 interface CelebrationModalProps {
   isOpen: boolean;
@@ -90,6 +91,14 @@ export const CelebrationModal: React.FC<CelebrationModalProps> = ({
               {getTeamFormationDisplayName(team)}
             </div>
           </div>
+          {team.manager && (
+            <div className="col-span-2 pt-2 border-t border-slate-800 flex items-center justify-center gap-2 text-xs text-amber-200 font-bold">
+              <Briefcase className="w-3.5 h-3.5 text-amber-400" />
+              <span>
+                {team.manager.nationalityFlag} {getLocalizedManagerName(team.manager, language)} (MAX {team.manager.maxAffinity})
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}

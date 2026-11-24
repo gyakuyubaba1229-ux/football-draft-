@@ -1,4 +1,4 @@
-import { Player, GameMode, PlayerCategory } from '../types';
+import { Player, GameMode, PlayerCategory, MainPosition } from '../types';
 import { EUROPEAN_PLAYERS } from './playersEurope';
 import { EUROPEAN_PLAYERS_MODERN } from './playersEuropeModern';
 import { EUROPEAN_PLAYERS_SQUAD } from './playersEuropeSquad';
@@ -10,6 +10,7 @@ import { J1_LEGENDS_EXPANDED } from './playersLegendsJ1';
 import { EUROPEAN_CLUBS, J1_CLUBS, ALL_CLUBS } from './clubs';
 import { SPECIAL_BALLON_DOR_PLAYERS } from './legendaryEraDatabase';
 import { PURPLE_ACTIVE_PLAYERS, isPurpleCard, findPurpleCandidates } from './purpleActivePlayers';
+import { NATIONAL_ERA_PLAYERS } from './nationalEraDatabase';
 
 export { isPurpleCard, findPurpleCandidates };
 
@@ -125,12 +126,21 @@ export function validateDatabaseIntegrity(): { valid: boolean; errors: string[] 
 // Run validation once at startup
 validateDatabaseIntegrity();
 
+export function findAnyPlayerById(playerId: string, playerName?: string): Player | undefined {
+  return (
+    ALL_PLAYERS.find((p) => p.playerId === playerId || (playerName && p.playerName === playerName)) ||
+    NATIONAL_ERA_PLAYERS.find((p) => p.playerId === playerId || (playerName && p.playerName === playerName))
+  );
+}
+
 export function getPlayersByMode(mode: GameMode): Player[] {
-  return mode === 'europe' ? COMBINED_EUROPEAN_PLAYERS : COMBINED_J1_PLAYERS;
+  if (mode === 'europe') return COMBINED_EUROPEAN_PLAYERS;
+  if (mode === 'national_era') return NATIONAL_ERA_PLAYERS;
+  return COMBINED_J1_PLAYERS;
 }
 
 export function getClubsByMode(mode: GameMode) {
-  return mode === 'europe' ? EUROPEAN_CLUBS : J1_CLUBS;
+  return mode === 'j1' ? J1_CLUBS : EUROPEAN_CLUBS;
 }
 
 // Available years for roulette per mode (all distinct years present in that dataset)
@@ -147,19 +157,21 @@ export function getAvailableYears(mode: GameMode): number[] {
   return Array.from(yearsSet).sort((a, b) => a - b);
 }
 
-// Search candidates by normalized Year and Club ID, excluding acquired player IDs and person IDs
+// Search candidates by normalized Year and Club ID, excluding acquired player IDs, person IDs, and disallowed positions
 export function findCandidatePlayers(
   mode: GameMode,
   year: number | string,
   clubId: string,
   acquiredPlayerIds: string[],
-  acquiredPersonIds: string[] = []
+  acquiredPersonIds: string[] = [],
+  disallowedPositions: MainPosition[] = []
 ): Player[] {
   const normalizedYear = typeof year === 'string' ? parseInt(year, 10) : year;
   const players = getPlayersByMode(mode);
 
   const acquiredPlayerSet = new Set(acquiredPlayerIds);
   const acquiredPersonSet = new Set(acquiredPersonIds);
+  const disallowedSet = new Set<MainPosition>(disallowedPositions);
 
   return players.filter((player) => {
     // Normal candidate generation strict limits:
@@ -167,6 +179,10 @@ export function findCandidatePlayers(
     // 2. Special Ballon d'Or edition players strictly excluded from normal roulette pool
     // 3. Purple Presentation target cards STRICTLY excluded from normal roulette pool (must go through 8% purple presentation)
     if (player.rating >= 100 || player.playerId.startsWith('bd_special_') || isPurpleCard(player)) {
+      return false;
+    }
+
+    if (disallowedSet.has(player.position)) {
       return false;
     }
 
@@ -182,16 +198,19 @@ export function findCandidatePlayers(
 export function getLegendaryCombination(
   mode: GameMode,
   acquiredPlayerIds: string[],
-  acquiredPersonIds: string[] = []
+  acquiredPersonIds: string[] = [],
+  disallowedPositions: MainPosition[] = []
 ): { year: number; clubId: string; player: Player } | null {
   const players = getPlayersByMode(mode);
   const acquiredPlayerSet = new Set(acquiredPlayerIds);
   const acquiredPersonSet = new Set(acquiredPersonIds);
+  const disallowedSet = new Set<MainPosition>(disallowedPositions);
 
   const availableLegendaries = players.filter(
     (p) =>
       p.isLegendary &&
       !isPurpleCard(p) &&
+      !disallowedSet.has(p.position) &&
       !acquiredPlayerSet.has(p.playerId) &&
       !acquiredPersonSet.has(p.personId)
   );
@@ -203,6 +222,7 @@ export function getLegendaryCombination(
         !isPurpleCard(p) &&
         p.rating < 100 &&
         !p.playerId.startsWith('bd_special_') &&
+        !disallowedSet.has(p.position) &&
         !acquiredPlayerSet.has(p.playerId) &&
         !acquiredPersonSet.has(p.personId)
     );

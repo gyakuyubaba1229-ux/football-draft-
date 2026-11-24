@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
                   FOOTBALL DRAFT
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  {mode === 'europe' ? 'EUROPE' : 'J1'}
+                  {mode === 'europe' ? 'EUROPE' : mode === 'j1' ? 'J1' : '年代×代表'}
                 </span>
               </div>
               <p className="hidden sm:block text-[11px] text-slate-400 font-medium -mt-0.5">
@@ -93,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
                 soundManager.playButtonClick();
                 onSelectMode('europe');
               }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                 mode === 'europe'
                   ? 'bg-emerald-600 text-white shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -107,13 +107,27 @@ export const Header: React.FC<HeaderProps> = ({
                 soundManager.playButtonClick();
                 onSelectMode('j1');
               }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                 mode === 'j1'
                   ? 'bg-teal-600 text-white shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               🇯🇵 J1 LEAGUE
+            </button>
+            <button
+              id="mode-btn-national-era"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onSelectMode('national_era');
+              }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                mode === 'national_era'
+                  ? 'bg-cyan-600 text-white shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🌐 {t.modeNationalEra}
             </button>
           </div>
         </div>

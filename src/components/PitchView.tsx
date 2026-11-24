@@ -26,6 +26,9 @@ import {
 } from '../utils/positionEngine';
 import { PlayerDetailModal } from './PlayerDetailModal';
 import { DefenseSquadModal } from './DefenseSquadModal';
+import { ManagerPortraitSvg, ManagerProfileModal } from './ManagerCard';
+import { getLocalizedManagerName, getLocalizedTacticName } from '../data/managersDatabase';
+import { Briefcase } from 'lucide-react';
 import {
   Share2,
   RotateCcw,
@@ -78,6 +81,8 @@ interface PitchViewProps {
   language: Language;
   isLocked?: boolean;
   onToggleLock?: (teamId: string, willLock: boolean) => void;
+  onRemovePlayer?: (playerId: string) => void;
+  onOpenManagerDraft?: () => void;
 }
 
 export const PitchView: React.FC<PitchViewProps> = ({
@@ -100,6 +105,8 @@ export const PitchView: React.FC<PitchViewProps> = ({
   language,
   isLocked: propIsLocked,
   onToggleLock,
+  onRemovePlayer,
+  onOpenManagerDraft,
 }) => {
   const t = TRANSLATIONS[language];
   const pitchRef = useRef<HTMLDivElement>(null);
@@ -136,6 +143,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
 
   // Defense Squad Modal state (v1.2.5 independent defense squads)
   const [isDefenseSquadModalOpen, setIsDefenseSquadModalOpen] = useState<boolean>(false);
+  const [isManagerProfileOpen, setIsManagerProfileOpen] = useState<boolean>(false);
 
   // Pointer event references for strictly separating Tap (<280ms) vs Drag
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -966,6 +974,13 @@ export const PitchView: React.FC<PitchViewProps> = ({
               <h3 className="font-heading font-black text-lg sm:text-xl text-white tracking-wide">
                 {currentTeam?.name || `TEAM ${currentTeamNumber}`}
               </h3>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                {currentTeam?.mode === 'j1'
+                  ? '🇯🇵 J1'
+                  : currentTeam?.mode === 'national_era'
+                  ? '🌐 年代×代表'
+                  : '🇪🇺 EUROPE'}
+              </span>
               <span
                 id="pitch-formation-badge"
                 className={`px-2.5 py-0.5 rounded-full text-xs font-heading font-black border transition-all ${
@@ -1178,6 +1193,65 @@ export const PitchView: React.FC<PitchViewProps> = ({
             <span>{moveErrorNotice}</span>
           </div>
         )}
+
+        {/* Row C: Drafted Manager Tactical Banner */}
+        <div className="pt-2 border-t border-slate-800/80">
+          {currentTeam?.manager ? (
+            <div
+              id="my-team-manager-banner"
+              onClick={() => {
+                soundManager.playButtonClick();
+                setIsManagerProfileOpen(true);
+              }}
+              className="p-3 rounded-2xl bg-gradient-to-r from-amber-950/50 via-slate-950 to-slate-950 border border-amber-500/40 hover:border-amber-400 transition-all flex items-center justify-between gap-3 cursor-pointer group"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <ManagerPortraitSvg manager={currentTeam.manager} size="sm" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-mono font-black uppercase px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
+                      MANAGER
+                    </span>
+                    <span className="font-heading font-black text-sm sm:text-base text-white group-hover:text-amber-300 transition-colors truncate">
+                      {getLocalizedManagerName(currentTeam.manager, language)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {currentTeam.manager.specialtyTactics.map((tac) => (
+                      <span
+                        key={tac}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-900 text-emerald-300 border border-slate-700"
+                      >
+                        ★ {getLocalizedTacticName(tac, language)} ({currentTeam.manager!.tactics[tac]})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[9px] font-mono text-slate-400 uppercase">MAX 適性</div>
+                <div className="text-xl font-mono font-black text-amber-300">{currentTeam.manager.maxAffinity}</div>
+              </div>
+            </div>
+          ) : onOpenManagerDraft ? (
+            <div className="p-3 rounded-2xl bg-slate-950/75 border border-dashed border-slate-700 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-xs text-slate-300">
+                <Briefcase className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{language === 'ja' ? '監督が未決定です（各チーム1回のみ抽選可能）' : 'Manager not appointed yet (1 per team)'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  onOpenManagerDraft();
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-heading font-black text-xs shrink-0 cursor-pointer"
+              >
+                👔 {t.managerDraft}
+              </button>
+            </div>
+          ) : null}
+        </div>
 
         {/* Swap Mode Active Banner */}
         {isSwapMode && (
@@ -1516,6 +1590,21 @@ export const PitchView: React.FC<PitchViewProps> = ({
                     <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded-md">
                       {slot?.role || p.position}
                     </span>
+                    {onRemovePlayer && !isTeamLocked && (
+                      <button
+                        type="button"
+                        title={t.undoPick}
+                        aria-label={t.undoPick}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          soundManager.playSkip();
+                          onRemovePlayer(p.playerId);
+                        }}
+                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -1530,6 +1619,16 @@ export const PitchView: React.FC<PitchViewProps> = ({
         currentRole={selectedPlayerForDetail?.role}
         isOpen={Boolean(selectedPlayerForDetail)}
         onClose={() => setSelectedPlayerForDetail(null)}
+        language={language}
+        onRemovePlayer={onRemovePlayer}
+        isTeamLocked={isTeamLocked}
+      />
+
+      {/* 5.5 MANAGER PROFILE MODAL */}
+      <ManagerProfileModal
+        manager={currentTeam?.manager || null}
+        isOpen={isManagerProfileOpen}
+        onClose={() => setIsManagerProfileOpen(false)}
         language={language}
       />
 

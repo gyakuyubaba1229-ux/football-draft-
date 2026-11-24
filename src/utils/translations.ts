@@ -13,6 +13,15 @@ export interface Translations {
   modeJ1Desc: string;
   modeActive: string;
   modeActiveDesc: string;
+  modeNationalEra: string;
+  modeNationalEraDesc: string;
+  managerDraft: string;
+  managerDraftSubtitle: string;
+  managerAppointed: string;
+  noDataFound: string;
+  undoPick: string;
+  fwLimitReached: string;
+  gkLimitReached: string;
   spinDraft: string;
   spinLocked: string;
   spinDraftLockedNotice: string;
@@ -156,6 +165,15 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     modeJ1Desc: 'J1所属クラブの歴代レジェンド名選手＆現役実在選手',
     modeActive: 'ACTIVE PLAYERS (現役選手)',
     modeActiveDesc: '世界中の現役選手のみが登場する新モード。引退選手なし、現役最高峰のスーパースター達が競演。',
+    modeNationalEra: '年代 × 代表',
+    modeNationalEraDesc: '1990s〜2020sの年代別・代表チームレジェンド＆現役代表選手をドラフト！',
+    managerDraft: '監督ドラフト',
+    managerDraftSubtitle: '1チーム1名限定・5種類の戦術適性を持つ名将を指名',
+    managerAppointed: '監督決定済み',
+    noDataFound: '該当データなし',
+    undoPick: '選択を取り消す',
+    fwLimitReached: 'FW上限(3/3)到達・候補から除外中',
+    gkLimitReached: 'GK上限(1/1)到達・候補から除外中',
     spinDraft: '⚽ SPIN DRAFT',
     spinLocked: '🔒 SPIN DRAFT (選択中)',
     spinDraftLockedNotice: 'DRAFTまたはSKIPを選択するまで次のSPINはできません',
@@ -275,11 +293,15 @@ export const TRANSLATIONS: Record<Language, Translations> = {
         description: 'MY TEAM内の選手カードをタップすると、公式の適正ポジション・能力値・所属クラブ・身長などの詳細情報を確認できます。',
       },
       {
-        title: '8. ⚔️ PvP対戦＆週間ランキング (Supabase)',
+        title: '8. ポジション制限・監督ドラフト・年代×代表',
+        description: 'FWは最大3名・GKは最大1名まで。上限に達したポジションは候補から自動除外（取り消しで復帰）。また各チーム1回限りの「監督ドラフト」や「年代×代表」モードも楽しめます！',
+      },
+      {
+        title: '9. ⚔️ PvP対戦＆週間ランキング (Supabase)',
         description: 'Supabaseに登録された実在プレイヤーとOVR対戦・戦術対戦で勝負！ 月曜〜日曜(JST)の週間ランキング上位を目指しましょう。',
       },
     ],
-    blackBallNotice: '※ドラフト時に対象選手のみ、1.8%の確率で「黒玉演出（漆黒の稲妻）」または「ゴールデン演出（黄金の輝き）」が発生します。',
+    blackBallNotice: '※ドラフト確率設定：超激レア黒玉演出（全員OVR 100+確定）1.8% / 紫演出（現役特枠）3.0% / 通常演出 95.2%（各回転ごとに排他抽選）。',
     teamChemistry: 'チームケミストリー',
     avgRating: '平均レート',
     shareTeam: 'SHARE TEAM (チーム共有)',
@@ -327,6 +349,15 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     modeJ1Desc: 'J1 League Clubs: Current stars and all-time legendary players',
     modeActive: 'ACTIVE PLAYERS',
     modeActiveDesc: 'Featuring exclusively active players worldwide. No retired players, drafting the current peak world superstars.',
+    modeNationalEra: 'ERA × NATIONAL TEAM',
+    modeNationalEraDesc: 'Draft iconic national team heroes and current internationals across 1990s–2020s!',
+    managerDraft: 'MANAGER DRAFT',
+    managerDraftSubtitle: '1 per squad — appoint a tactical manager with 5 affinity ratings',
+    managerAppointed: 'MANAGER APPOINTED',
+    noDataFound: 'NO DATA FOUND',
+    undoPick: 'Undo / Remove Player',
+    fwLimitReached: 'FW Max (3/3) — Excluded from pools',
+    gkLimitReached: 'GK Max (1/1) — Excluded from pools',
     spinDraft: '⚽ SPIN DRAFT',
     spinLocked: '🔒 SPIN DRAFT (LOCKED)',
     spinDraftLockedNotice: 'Select DRAFT or SKIP to unlock the next spin',
@@ -446,11 +477,15 @@ export const TRANSLATIONS: Record<Language, Translations> = {
         description: 'Tap any player card in MY TEAM to inspect official verified positions, ratings, attributes, club, and height.',
       },
       {
-        title: '8. ⚔️ PvP & Weekly Standings (Supabase)',
+        title: '8. Position Limits, Manager Draft & Era × National',
+        description: 'Max 3 FWs & 1 GK per squad (full positions are excluded from draws unless you undo a pick). Appoint 1 Manager per team and explore Era × National Team mode!',
+      },
+      {
+        title: '9. ⚔️ PvP & Weekly Standings (Supabase)',
         description: 'Battle real Supabase managers in OVR or Tactical matches and climb the weekly leaderboard (Mon-Sun JST).',
       },
     ],
-    blackBallNotice: '* In rare cases (1.8% each), eligible players trigger special "BLACK BALL" (dark lightning) or "GOLDEN BALL" (radiant gold) sequences.',
+    blackBallNotice: '* Draft staging rates: Ultra-Rare Black Ball (All OVR 100+) 1.8% / Purple Special 3.0% / Normal 95.2% (mutually exclusive per spin).',
     teamChemistry: 'Team Chemistry',
     avgRating: 'Squad OVR',
     shareTeam: 'SHARE TEAM',
@@ -498,6 +533,15 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     modeJ1Desc: 'Clubes J1: Jugadores reales históricos y estrellas actuales en activo',
     modeActive: 'JUGADORES EN ACTIVO',
     modeActiveDesc: 'Modo exclusivo con jugadores en activo de todo el mundo. Sin leyendas retiradas, los mejores cracks del momento.',
+    modeNationalEra: 'ÉPOCA × SELECCIÓN',
+    modeNationalEraDesc: '¡Ficha estrellas internacionales por década (1990s–2020s) y selección nacional!',
+    managerDraft: 'DRAFT DE ENTRENADOR',
+    managerDraftSubtitle: '1 por equipo — nombra un técnico con 5 afinidades tácticas',
+    managerAppointed: 'TÉCNICO DESIGNADO',
+    noDataFound: 'SIN DATOS',
+    undoPick: 'Quitar jugador',
+    fwLimitReached: 'Máx. DEL (3/3) — Excluido',
+    gkLimitReached: 'Máx. POR (1/1) — Excluido',
     spinDraft: '⚽ SPIN DRAFT',
     spinLocked: '🔒 SPIN DRAFT (BLOQUEADO)',
     spinDraftLockedNotice: 'Selecciona DRAFT o SKIP para desbloquear el siguiente giro',
@@ -617,11 +661,15 @@ export const TRANSLATIONS: Record<Language, Translations> = {
         description: 'Toca cualquier carta de jugador en MI EQUIPO para consultar sus posiciones aptas, estadísticas, club y altura.',
       },
       {
-        title: '8. ⚔️ PvP y Clasificaciones Semanales (Supabase)',
+        title: '8. Límites de Posición, Técnico y Época × Selección',
+        description: 'Máx. 3 DEL y 1 POR por plantilla. Ficha 1 entrenador por equipo y juega el nuevo modo Época × Selección.',
+      },
+      {
+        title: '9. ⚔️ PvP y Clasificaciones Semanales (Supabase)',
         description: 'Compite contra mánagers reales de Supabase en partidos OVR o tácticos y sube en la clasificación semanal (JST).',
       },
     ],
-    blackBallNotice: '* En ocasiones raras (1.8% cada una), jugadores seleccionados activan la cinemática "BALÓN NEGRO" o "DORADO".',
+    blackBallNotice: '* Probabilidades por giro: Balón Negro (Todos OVR 100+) 1.8% / Especial Morado 3.0% / Normal 95.2% (mutuamente excluyentes).',
     teamChemistry: 'Química de Equipo',
     avgRating: 'Media de Equipo',
     shareTeam: 'SHARE TEAM',

@@ -4,8 +4,10 @@ import { TRANSLATIONS, getLocalizedPlayerName, getLocalizedClubName } from '../u
 import { soundManager } from '../utils/audio';
 import { generateShareData, DEFAULT_X_CHAR_LIMIT } from '../utils/shareUtils';
 import { getTeamFormationDisplayName } from '../utils/formationUtils';
-import { ALL_PLAYERS } from '../data/playerDatabase';
+import { findAnyPlayerById } from '../data/playerDatabase';
 import { ALL_CLUBS } from '../data/clubs';
+import { getLocalizedManagerName, getLocalizedTacticName } from '../data/managersDatabase';
+import { NATIONAL_TEAMS, getLocalizedNationalTeamName } from '../data/nationalEraDatabase';
 import { toPng } from 'html-to-image';
 import {
   X,
@@ -287,7 +289,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 <span className="text-2xl">⚽</span>
                 <div>
                   <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-400">
-                    FOOTBALL DRAFT • {team.mode === 'europe' ? 'EUROPE' : 'J1 LEAGUE'}
+                    FOOTBALL DRAFT • {team.mode === 'europe' ? 'EUROPE' : team.mode === 'j1' ? 'J1 LEAGUE' : '年代×代表'}
                   </div>
                   <h4 className="font-heading font-black text-xl text-white tracking-wider">
                     {team.name || `TEAM ${team.teamNumber}`}
@@ -310,6 +312,21 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               </div>
             </div>
 
+            {team.manager && (
+              <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/40 flex items-center justify-between text-xs relative z-10">
+                <div className="flex items-center gap-2">
+                  <span>{team.manager.nationalityFlag}</span>
+                  <span className="font-mono text-[10px] text-amber-300 font-black uppercase">MANAGER</span>
+                  <span className="font-heading font-bold text-white">
+                    {getLocalizedManagerName(team.manager, language)}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-amber-300">
+                  {team.manager.specialtyTactics[0] ? getLocalizedTacticName(team.manager.specialtyTactics[0], language) : ''} MAX {team.manager.maxAffinity}
+                </span>
+              </div>
+            )}
+
             {/* Mini Tactical Pitch Preview */}
             <div className="w-full h-36 sm:h-40 rounded-2xl bg-gradient-to-b from-emerald-950/80 via-green-900/60 to-emerald-950/80 border border-emerald-500/30 relative overflow-hidden shadow-inner flex items-center justify-center">
               <div className="absolute inset-2 border border-white/20 rounded-xl pointer-events-none" />
@@ -320,7 +337,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               {pitchSlots.map((slot) => {
                 const pId = team.playerSlots?.[slot.id];
                 const player = team.players.find((p) => p.playerId === pId);
-                const dbPlayer = player ? ALL_PLAYERS.find((dp) => dp.playerId === player.playerId) || player : null;
+                const dbPlayer = player ? findAnyPlayerById(player.playerId, player.playerName) || player : null;
                 const playerName = dbPlayer ? getLocalizedPlayerName(dbPlayer, language) : (player?.playerName || slot.role);
 
                 return (
@@ -360,9 +377,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   </span>
                   <div className="flex-1 flex flex-wrap gap-x-3 gap-y-1">
                     {gks.map(({ player }) => {
-                      const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === player.playerId) || player;
+                      const dbPlayer = findAnyPlayerById(player.playerId, player.playerName) || player;
                       const name = getLocalizedPlayerName(dbPlayer, language);
-                      const club = getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
+                      const nt = NATIONAL_TEAMS.find((n) => n.id === player.nationalTeamId);
+                      const club = nt
+                        ? getLocalizedNationalTeamName(nt, language)
+                        : getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
                       return (
                         <span key={player.playerId} className="font-semibold text-slate-200">
                           {player.nationalityFlag} {name}{' '}
@@ -383,9 +403,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   </span>
                   <div className="flex-1 flex flex-wrap gap-x-3 gap-y-1">
                     {dfs.map(({ player }) => {
-                      const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === player.playerId) || player;
+                      const dbPlayer = findAnyPlayerById(player.playerId, player.playerName) || player;
                       const name = getLocalizedPlayerName(dbPlayer, language);
-                      const club = getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
+                      const nt = NATIONAL_TEAMS.find((n) => n.id === player.nationalTeamId);
+                      const club = nt
+                        ? getLocalizedNationalTeamName(nt, language)
+                        : getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
                       return (
                         <span key={player.playerId} className="font-semibold text-slate-200">
                           {player.nationalityFlag} {name}{' '}
@@ -406,9 +429,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   </span>
                   <div className="flex-1 flex flex-wrap gap-x-3 gap-y-1">
                     {mfs.map(({ player }) => {
-                      const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === player.playerId) || player;
+                      const dbPlayer = findAnyPlayerById(player.playerId, player.playerName) || player;
                       const name = getLocalizedPlayerName(dbPlayer, language);
-                      const club = getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
+                      const nt = NATIONAL_TEAMS.find((n) => n.id === player.nationalTeamId);
+                      const club = nt
+                        ? getLocalizedNationalTeamName(nt, language)
+                        : getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
                       return (
                         <span key={player.playerId} className="font-semibold text-slate-200">
                           {player.nationalityFlag} {name}{' '}
@@ -429,9 +455,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   </span>
                   <div className="flex-1 flex flex-wrap gap-x-3 gap-y-1">
                     {fws.map(({ player }) => {
-                      const dbPlayer = ALL_PLAYERS.find((dp) => dp.playerId === player.playerId) || player;
+                      const dbPlayer = findAnyPlayerById(player.playerId, player.playerName) || player;
                       const name = getLocalizedPlayerName(dbPlayer, language);
-                      const club = getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
+                      const nt = NATIONAL_TEAMS.find((n) => n.id === player.nationalTeamId);
+                      const club = nt
+                        ? getLocalizedNationalTeamName(nt, language)
+                        : getLocalizedClubName(ALL_CLUBS.find((c) => c.id === player.clubId) || { name: player.clubName }, language);
                       return (
                         <span key={player.playerId} className="font-semibold text-slate-200">
                           {player.nationalityFlag} {name}{' '}
