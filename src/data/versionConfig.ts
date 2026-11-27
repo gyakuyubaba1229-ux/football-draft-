@@ -29,13 +29,49 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = '1.5.0';
+export const CURRENT_VERSION = '1.6.0';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
+    version: '1.6.0',
+    releaseDate: '2026.11.27',
+    isLatest: true,
+    titleJa: 'FOOTBALL DRAFT Ver.1.6.0 大型アップデート',
+    titleEn: 'FOOTBALL DRAFT Ver.1.6.0 MAJOR UPDATE',
+    titleEs: 'FOOTBALL DRAFT Ver.1.6.0 GRAN ACTUALIZACIÓN',
+    notesJa: [
+      '【選択取り消し機能の削除】ドラフト中の「選択を取り消す」機能を完全に削除し、獲得した選手を即時確定とする緊張感のあるドラフト仕様へ刷新',
+      '【黒玉演出と紫演出の候補を完全分離】黒玉演出（1.8%）は全員OVR 100+のみ＆紫カード混入をゼロに、紫演出（3.0%）は紫カード専用候補から抽選するよう厳格に分離',
+      '【選手育成システム実装】「トレーニングチップ」（5枚でLv+1・最大Lv.10で初期OVR+5）と「覚醒チケット」（Lv.10到達選手のみ最大7段階覚醒・能力値非変動）を追加',
+      '【新スカウトチケット＆ポジションplus追加】ノーマルチケット・レジェンド10%・日本人レジェンド50%/確定・監督選択スカウト・ポジションplus（GK不可・重複不可・適正追加）を実装',
+      '【15日間ログインボーナス実装】日本時間（JST）0:00基準の日次受取制御。未ログイン日があっても報酬を飛ばさず、15日目受取後は1日目へループ（Day8/9は30日・Day15は10日有効期限付き）',
+      '【全ユーザーへ記念報酬を配布】「選択を取り消す機能の削除のお詫び」（レジェンド確定×1）と「トレーニングチップ＆覚醒チケット実装キャンペーン」（各10枚）をプレゼントボックスへ配布',
+      '【5カテゴリ対応アイテムBOX新設】育成・スカウト・監督・ポジション・その他の5カテゴリで所持数・使用可否・有効期限・使用履歴を一元管理',
+      '【既存データ・機能の完全保護】MY TEAM、選手データ、カスタムフォーメーション、監督ドラフト、週間ランキング、PvP同期、記念プレゼントをすべて安全に維持',
+    ],
+    notesEn: [
+      'Removed Draft Undo Pick: Picks are now immediately finalized upon selection with no undo/removal',
+      'Strict Black Ball vs Purple Separation: Black Ball (1.8%) strictly draws OVR 100+ non-Purple stars; Purple (3.0%) strictly draws from Purple Active Superstars',
+      'Player Training & Awakening System: Training Chips (5 chips = +1 Lv, Lv.10 grants +5 Base OVR) and Awakening Tickets (Lv.10 exclusive, Awakening 0->7 without altering OVR)',
+      'New Items & Scouts: Normal Ticket, Legend 10%, Japan Legend 50%/Guaranteed, Manager Select Ticket (separate from 1-per-game Manager Draft), and Position Plus (adds non-duplicate natural positions for outfielders)',
+      '15-Day Login Bonus (JST 00:00): Daily JST reset without skipping missed days, loops Day 15 -> Day 1, and tracks timed ticket expiry (Days 8/9: 30d, Day 15: 10d)',
+      'Memorial Presents for All Users: Distributed "Undo Removal Apology" (Legend Guaranteed ×1) and "Training & Awakening Campaign" (Training Chip ×10 & Awakening Ticket ×10)',
+      '5-Category Item Box: Unified UI with Training, Scout Tickets, Managers, Positions, and Other tabs plus expiration timers and usage logs',
+    ],
+    notesEs: [
+      'Eliminación de Deshacer Selección: Cada jugador fichado queda confirmado inmediatamente',
+      'Separación estricta Balón Negro (1.8%, solo OVR 100+) vs Especial Morado (3.0%, solo cartas Moradas)',
+      'Sistema de Entrenamiento y Despertar: Fichas de Entrenamiento (hasta Nv.10 con +5 OVR base) y Tickets de Despertar (exclusivo Nv.10, hasta 7 niveles)',
+      'Nuevos Objetos y Ojeadores: Ticket Normal, Leyenda 10%, Leyenda Japonesa 50%/Garantizada, Ticket Selector de Mánager y Posición Plus',
+      'Bonus de Inicio de Sesión de 15 Días (JST 00:00) con caducidad de tickets y ciclo continuo',
+      'Regalos Conmemorativos para Todos: Leyenda Garantizada ×1 y Campaña de Entrenamiento (10 Fichas + 10 Tickets de Despertar)',
+      'Caja de Objetos de 5 Categorías con historial de uso y temporizadores de expiración',
+    ],
+  },
+  {
     version: '1.5.0',
     releaseDate: '2026.11.24',
-    isLatest: true,
+    isLatest: false,
     titleJa: 'FOOTBALL DRAFT Ver.1.5.0 UPDATE',
     titleEn: 'FOOTBALL DRAFT Ver.1.5.0 UPDATE',
     titleEs: 'FOOTBALL DRAFT Ver.1.5.0 UPDATE',

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GameMode, Language } from '../types';
 import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
-import { Volume2, VolumeX, Settings, HelpCircle, History, Shield, Users, Home, Zap, Swords, Gift, Ticket, Trophy, Radio, Database } from 'lucide-react';
+import { Volume2, VolumeX, Settings, HelpCircle, History, Shield, Users, Home, Zap, Swords, Gift, Ticket, Trophy, Radio, Database, Package, CalendarCheck } from 'lucide-react';
 import { subscribeToSyncStatus, SyncManagerStatus, getSyncManagerStatus } from '../utils/onlineSyncManager';
 
 interface HeaderProps {
@@ -19,9 +19,13 @@ interface HeaderProps {
   onToggleSound: () => void;
   onOpenGiftBox?: () => void;
   onOpenScoutModal?: () => void;
+  onOpenItemBox?: () => void;
+  onOpenLoginBonus?: () => void;
   onOpenSyncDebug?: () => void;
   unclaimedGiftsCount?: number;
   totalTicketsCount?: number;
+  itemBoxTotalCount?: number;
+  canClaimLoginBonus?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -38,9 +42,13 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSound,
   onOpenGiftBox,
   onOpenScoutModal,
+  onOpenItemBox,
+  onOpenLoginBonus,
   onOpenSyncDebug,
   unclaimedGiftsCount = 0,
   totalTicketsCount = 0,
+  itemBoxTotalCount = 0,
+  canClaimLoginBonus = false,
 }) => {
   const t = TRANSLATIONS[language];
   const [syncStatus, setSyncStatus] = useState<SyncManagerStatus>(getSyncManagerStatus());
@@ -267,6 +275,44 @@ export const Header: React.FC<HeaderProps> = ({
                   ? '同期エラー'
                   : '10分同期'}
               </span>
+            </button>
+          )}
+
+          {/* Login Bonus Button */}
+          {onOpenLoginBonus && (
+            <button
+              id="header-login-bonus-btn"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onOpenLoginBonus();
+              }}
+              title="15日間ログインボーナス (Login Bonus)"
+              className="relative p-2 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/70 text-emerald-300 hover:text-emerald-100 border border-emerald-500/40 transition-all flex items-center gap-1"
+            >
+              <CalendarCheck className="w-4 h-4 text-emerald-400" />
+              {canClaimLoginBonus && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              )}
+            </button>
+          )}
+
+          {/* Item Box Button */}
+          {onOpenItemBox && (
+            <button
+              id="header-item-box-btn"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onOpenItemBox();
+              }}
+              title="アイテムBOX (Item Box)"
+              className="relative p-2 rounded-lg bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-300 hover:text-cyan-100 border border-cyan-500/40 transition-all flex items-center gap-1"
+            >
+              <Package className="w-4 h-4 text-cyan-400" />
+              {itemBoxTotalCount > 0 && (
+                <span className="hidden sm:inline text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full bg-cyan-400 text-slate-950 shadow-sm">
+                  {itemBoxTotalCount}
+                </span>
+              )}
             </button>
           )}
 

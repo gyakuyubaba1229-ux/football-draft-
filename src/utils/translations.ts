@@ -19,7 +19,6 @@ export interface Translations {
   managerDraftSubtitle: string;
   managerAppointed: string;
   noDataFound: string;
-  undoPick: string;
   fwLimitReached: string;
   gkLimitReached: string;
   spinDraft: string;
@@ -171,7 +170,6 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     managerDraftSubtitle: '1チーム1名限定・5種類の戦術適性を持つ名将を指名',
     managerAppointed: '監督決定済み',
     noDataFound: '該当データなし',
-    undoPick: '選択を取り消す',
     fwLimitReached: 'FW上限(3/3)到達・候補から除外中',
     gkLimitReached: 'GK上限(1/1)到達・候補から除外中',
     spinDraft: '⚽ SPIN DRAFT',
@@ -294,7 +292,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       },
       {
         title: '8. ポジション制限・監督ドラフト・年代×代表',
-        description: 'FWは最大3名・GKは最大1名まで。上限に達したポジションは候補から自動除外（取り消しで復帰）。また各チーム1回限りの「監督ドラフト」や「年代×代表」モードも楽しめます！',
+        description: 'FWは最大3名・GKは最大1名まで。上限に達したポジションは候補から自動除外され、獲得した選手は即時確定します。各チーム1回限りの「監督ドラフト」や「年代×代表」モードも楽しめます！',
       },
       {
         title: '9. ⚔️ PvP対戦＆週間ランキング (Supabase)',
@@ -355,7 +353,6 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     managerDraftSubtitle: '1 per squad — appoint a tactical manager with 5 affinity ratings',
     managerAppointed: 'MANAGER APPOINTED',
     noDataFound: 'NO DATA FOUND',
-    undoPick: 'Undo / Remove Player',
     fwLimitReached: 'FW Max (3/3) — Excluded from pools',
     gkLimitReached: 'GK Max (1/1) — Excluded from pools',
     spinDraft: '⚽ SPIN DRAFT',
@@ -478,7 +475,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       },
       {
         title: '8. Position Limits, Manager Draft & Era × National',
-        description: 'Max 3 FWs & 1 GK per squad (full positions are excluded from draws unless you undo a pick). Appoint 1 Manager per team and explore Era × National Team mode!',
+        description: 'Max 3 FWs & 1 GK per squad (full positions are excluded from draws and drafted picks are immediately finalized). Appoint 1 Manager per team and explore Era × National Team mode!',
       },
       {
         title: '9. ⚔️ PvP & Weekly Standings (Supabase)',
@@ -539,7 +536,6 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     managerDraftSubtitle: '1 por equipo — nombra un técnico con 5 afinidades tácticas',
     managerAppointed: 'TÉCNICO DESIGNADO',
     noDataFound: 'SIN DATOS',
-    undoPick: 'Quitar jugador',
     fwLimitReached: 'Máx. DEL (3/3) — Excluido',
     gkLimitReached: 'Máx. POR (1/1) — Excluido',
     spinDraft: '⚽ SPIN DRAFT',
@@ -662,7 +658,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       },
       {
         title: '8. Límites de Posición, Técnico y Época × Selección',
-        description: 'Máx. 3 DEL y 1 POR por plantilla. Ficha 1 entrenador por equipo y juega el nuevo modo Época × Selección.',
+        description: 'Máx. 3 DEL y 1 POR por plantilla. Los fichajes son definitivos. Ficha 1 entrenador por equipo y juega Época × Selección.',
       },
       {
         title: '9. ⚔️ PvP y Clasificaciones Semanales (Supabase)',

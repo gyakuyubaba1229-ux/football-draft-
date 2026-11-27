@@ -4,13 +4,18 @@ import {
   Player,
   Language,
   UserTeam,
+  TimedTicketLot,
 } from '../types';
 import {
   REWARD_SCOUT_DEFINITIONS,
   generateScoutCandidates,
   getStoredUserTickets,
-  consumeUserTicket,
 } from '../utils/rewardScoutEngine';
+import {
+  consumeScoutTicket as consumeScoutTicketFromServer,
+  ServerUserProgressPayload,
+} from '../utils/backendApi';
+import { formatRemainingTime } from '../utils/itemBoxEngine';
 import { DraftRevealOverlay, DraftRevealTier, RevealStagingEvent } from './BlackBallAnimation';
 import { CandidateCard } from './CandidateCard';
 import { soundManager } from '../utils/audio';
@@ -26,9 +31,10 @@ import {
   Gift,
   Flame,
   Flag,
+  Ticket,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
+  Clock,
   RotateCw,
   UserPlus,
 } from 'lucide-react';
@@ -37,6 +43,11 @@ interface RewardScoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   language?: Language;
+  userId?: string;
+  userTickets?: Record<RewardTicketType, number>;
+  timedLots?: TimedTicketLot[];
+  initialTicketType?: RewardTicketType | null;
+  onScoutConsumed?: (progress: ServerUserProgressPayload) => void;
   onAcquirePlayer: (player: Player) => void;
   onOpenGiftBox?: () => void;
   activeTeam?: UserTeam | null;
@@ -46,12 +57,20 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
   isOpen,
   onClose,
   language = 'ja',
+  userId = 'local_guest',
+  userTickets: propUserTickets,
+  timedLots = [],
+  initialTicketType = null,
+  onScoutConsumed,
   onAcquirePlayer,
   onOpenGiftBox = () => {},
   activeTeam,
 }) => {
   const [selectedTicketType, setSelectedTicketType] = useState<RewardTicketType>('legend_purple_guaranteed');
-  const [userTickets, setUserTickets] = useState<Record<RewardTicketType, number>>(() => getStoredUserTickets());
+  const [userTickets, setUserTickets] = useState<Record<RewardTicketType, number>>(
+    () => propUserTickets || getStoredUserTickets()
+  );
+  const [isExecutingRequest, setIsExecutingRequest] = useState<boolean>(false);
   const [isDraftSpinning, setIsDraftSpinning] = useState<boolean>(false);
   const [spinningCards, setSpinningCards] = useState<string[]>(['FW', 'MF', 'DF', 'GK']);
   const [activeRevealState, setActiveRevealState] = useState<{
@@ -67,23 +86,36 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const pendingCandidatesRef = useRef<Player[]>([]);
 
-  // Sync tickets on open & auto-select an available ticket if current selection has 0
+  // Keep local state synced when parent passes updated tickets
+  useEffect(() => {
+    if (propUserTickets) {
+      setUserTickets(propUserTickets);
+    }
+  }, [propUserTickets]);
+
+  // Sync tickets on open & auto-select initial or available ticket
   useEffect(() => {
     if (isOpen) {
-      const latest = getStoredUserTickets();
+      const latest = propUserTickets || getStoredUserTickets();
       setUserTickets(latest);
       setErrorMessage(null);
-      if ((latest[selectedTicketType] || 0) <= 0) {
+      if (initialTicketType && REWARD_SCOUT_DEFINITIONS[initialTicketType]) {
+        setSelectedTicketType(initialTicketType);
+      } else if ((latest[selectedTicketType] || 0) <= 0) {
         const preferredOrder: RewardTicketType[] = [
           'legend_purple_guaranteed',
+          'japan_legend_guaranteed',
           'japan_star_guaranteed',
           'legend_guaranteed',
           'purple_guaranteed',
           'legend_purple_50',
+          'japan_legend_50',
           'legend_50',
           'purple_50',
           'legend_20',
           'purple_20',
+          'legend_10',
+          'normal_ticket',
         ];
         const firstOwned = preferredOrder.find((type) => (latest[type] || 0) > 0);
         if (firstOwned) {
@@ -91,7 +123,7 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
         }
       }
     }
-  }, [isOpen]);
+  }, [isOpen, initialTicketType]);
 
   // Handle spin visual shuffle
   useEffect(() => {
@@ -112,29 +144,47 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
   const currentDef = REWARD_SCOUT_DEFINITIONS[selectedTicketType];
   const ticketCount = userTickets[selectedTicketType] || 0;
 
-  const handleExecuteScout = () => {
+  const getSoonestLotExpiry = (type: RewardTicketType): number | undefined => {
+    const now = Date.now();
+    const activeLots = timedLots
+      .filter((l) => l.ticketType === type && l.remaining > 0 && l.expiresAt > now)
+      .sort((a, b) => a.expiresAt - b.expiresAt);
+    return activeLots[0]?.expiresAt;
+  };
+  const selectedSoonestExpiry = getSoonestLotExpiry(selectedTicketType);
+
+  const handleExecuteScout = async () => {
+    if (isExecutingRequest || isDraftSpinning) return;
     soundManager.playButtonClick();
     setErrorMessage(null);
 
-    // 1. Strict Server/Client ticket inventory check
-    const currentInventory = getStoredUserTickets();
-    const available = currentInventory[selectedTicketType] || 0;
+    // 1. Pre-check client count
+    const available = userTickets[selectedTicketType] || 0;
     if (available <= 0) {
       soundManager.playError();
       setErrorMessage('チケットを所持していません。プレゼントBOXから受け取ってください。');
       return;
     }
 
-    // 2. Consume ticket safely
-    const consumed = consumeUserTicket(selectedTicketType);
-    if (!consumed) {
+    // 2. Consume ticket atomically on server (validates balance & timed expirations)
+    setIsExecutingRequest(true);
+    const consumeRes = await consumeScoutTicketFromServer(userId, selectedTicketType);
+    setIsExecutingRequest(false);
+
+    if (!consumeRes.success) {
       soundManager.playError();
-      setErrorMessage('チケット消費に失敗しました。');
+      if (consumeRes.updatedTickets) {
+        setUserTickets(consumeRes.updatedTickets);
+      }
+      setErrorMessage(consumeRes.error || 'チケットの消費に失敗しました（期限切れまたは所持数不足）。');
       return;
     }
 
-    // Update tickets in state
-    setUserTickets(getStoredUserTickets());
+    // Update tickets & notify parent progress immediately
+    if (consumeRes.progress) {
+      onScoutConsumed?.(consumeRes.progress);
+    }
+    setUserTickets(consumeRes.updatedTickets || getStoredUserTickets());
 
     // 3. Generate Candidates and Staging (respecting activeTeam position limits if under 11)
     const disallowed =
@@ -162,13 +212,20 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
         const mappedStagingEvent: RevealStagingEvent | undefined =
           stagingType === 'japan_star'
             ? 'japan_star'
+            : stagingType === 'japan_legend'
+            ? 'japan_legend'
             : stagingType === 'purple'
             ? 'purple'
             : stagingType === 'normal'
             ? 'normal'
             : undefined;
         setActiveRevealState({
-          tier: stagingType === 'japan_star' ? 'high' : tier,
+          tier:
+            stagingType === 'japan_star'
+              ? 'high'
+              : stagingType === 'japan_legend'
+              ? 'ultra'
+              : tier,
           stagingEvent: mappedStagingEvent,
           player: leadPlayer,
           rarity,
@@ -211,6 +268,14 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
 
   const getScoutIcon = (type: RewardTicketType) => {
     switch (type) {
+      case 'normal_ticket':
+        return <Ticket className="w-5 h-5 text-slate-300" />;
+      case 'legend_10':
+        return <Star className="w-5 h-5 text-amber-200" />;
+      case 'japan_legend_50':
+        return <Flag className="w-5 h-5 text-rose-300" />;
+      case 'japan_legend_guaranteed':
+        return <Crown className="w-5 h-5 text-rose-400" />;
       case 'japan_star_guaranteed':
         return <Flag className="w-5 h-5 text-sky-400" />;
       case 'legend_guaranteed':
@@ -544,6 +609,18 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
                   {currentDef.descriptionJa}
                 </p>
 
+                {selectedSoonestExpiry && (
+                  <div className="px-3 py-2 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs font-mono flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>期限付きチケット保有中</span>
+                    </span>
+                    <span className="font-black text-amber-300">
+                      {formatRemainingTime(selectedSoonestExpiry)}
+                    </span>
+                  </div>
+                )}
+
                 {/* Probabilities / Specs */}
                 <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs font-mono">
                   <div className="flex items-center justify-between text-slate-300">
@@ -561,6 +638,30 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
                       <div className="flex items-center justify-between text-slate-300">
                         <span>対象条件:</span>
                         <span className="text-emerald-300 font-bold">現役SAMURAI BLUE STAR選手限定</span>
+                      </div>
+                    </>
+                  ) : selectedTicketType === 'japan_legend_guaranteed' || selectedTicketType === 'japan_legend_50' ? (
+                    <>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>日本人レジェンド確率:</span>
+                        <span className="text-rose-300 font-bold">
+                          {selectedTicketType === 'japan_legend_guaranteed' ? '100%' : '50%'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>対象条件:</span>
+                        <span className="text-amber-300 font-bold">日本国籍レジェンド限定（海外・現役除外）</span>
+                      </div>
+                    </>
+                  ) : selectedTicketType === 'normal_ticket' ? (
+                    <>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>ノーマル選手確率:</span>
+                        <span className="text-slate-200 font-bold">100% (NORMAL限定)</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>対象外枠:</span>
+                        <span className="text-slate-400 font-bold">Star・紫・Legend・黒玉は出現しません</span>
                       </div>
                     </>
                   ) : (
@@ -604,16 +705,16 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
               {/* Action Button */}
               <div>
                 <button
-                  disabled={ticketCount <= 0}
+                  disabled={ticketCount <= 0 || isExecutingRequest}
                   onClick={handleExecuteScout}
                   className={`w-full py-3.5 rounded-2xl font-heading font-black text-sm tracking-wider flex items-center justify-center gap-2 shadow-xl transition-all ${
-                    ticketCount > 0
+                    ticketCount > 0 && !isExecutingRequest
                       ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 shadow-amber-500/20 active:scale-95 cursor-pointer'
                       : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
                   }`}
                 >
                   <Sparkles className="w-4 h-4 fill-slate-950" />
-                  <span>スカウトを実行 (チケット1枚消費)</span>
+                  <span>{isExecutingRequest ? '処理中...' : 'スカウトを実行 (チケット1枚消費)'}</span>
                 </button>
               </div>
             </div>

@@ -9,7 +9,7 @@ import {
 } from '../utils/positionEngine';
 import { getPlayerBioInfo } from '../data/playerBioData';
 import { getDecadeLabel, getNationalTeamById, getLocalizedNationalTeamName } from '../data/nationalEraDatabase';
-import { X, Shield, Award, Activity, CheckCircle, AlertTriangle, User, Trash2 } from 'lucide-react';
+import { X, Shield, Award, Activity, CheckCircle, AlertTriangle, User, Sparkles } from 'lucide-react';
 
 interface PlayerDetailModalProps {
   player: Player | null;
@@ -17,8 +17,6 @@ interface PlayerDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   language: Language;
-  onRemovePlayer?: (playerId: string) => void;
-  isTeamLocked?: boolean;
 }
 
 export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
@@ -27,8 +25,6 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
   isOpen,
   onClose,
   language,
-  onRemovePlayer,
-  isTeamLocked = false,
 }) => {
   const t = TRANSLATIONS[language];
 
@@ -53,6 +49,11 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
     player.nationality;
 
   const verifiedPositions = getVerifiedPositionsForPlayer(player);
+  const addedPosSet = new Set(player.addedPositions || []);
+  const playerLevel = player.level ?? 1;
+  const awakeningLevel = player.awakeningLevel ?? 0;
+  const baseRating = player.baseRating ?? player.rating;
+  const ovrGain = Math.max(0, player.rating - baseRating);
 
   const currentEPos = currentRole ? normalizeRoleToEFootball(currentRole) : null;
   const positionEval = currentEPos ? evaluatePlayerAtPosition(player, currentEPos) : null;
@@ -132,13 +133,24 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Base OVR Badge */}
-            <div className="text-right">
+            {/* Base & Trained OVR Badge */}
+            <div className="text-right space-y-1">
               <div className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">
-                BASE OVR
+                {ovrGain > 0 ? 'TRAINED OVR' : 'BASE OVR'}
               </div>
-              <div className="text-3xl sm:text-4xl font-heading font-black text-amber-400 leading-none mt-0.5">
+              <div className="text-3xl sm:text-4xl font-heading font-black text-amber-400 leading-none">
                 {player.rating}
+              </div>
+              <div className="flex items-center justify-end gap-1 flex-wrap">
+                <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  Lv.{playerLevel}/10{ovrGain > 0 ? ` (+${ovrGain})` : ''}
+                </span>
+                {awakeningLevel > 0 && (
+                  <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 inline-flex items-center gap-0.5">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    覚醒 Lv.{awakeningLevel}/7
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -234,16 +246,25 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
             <div className="flex flex-wrap gap-2">
               {verifiedPositions.map((pos) => {
                 const isCurrent = currentEPos === pos;
+                const isAddedPlus = addedPosSet.has(pos);
                 return (
                   <span
                     key={pos}
-                    className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-all ${
+                    className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-all inline-flex items-center gap-1 ${
                       isCurrent
                         ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/30'
+                        : isAddedPlus
+                        ? 'bg-violet-950/70 text-violet-200 border-violet-400/60'
                         : 'bg-slate-800/80 text-emerald-400 border-slate-700'
                     }`}
                   >
-                    {pos} {isCurrent && '★現在'}
+                    <span>{pos}</span>
+                    {isAddedPlus && (
+                      <span className="text-[9px] px-1 rounded bg-violet-500/30 text-violet-200 font-black">
+                        +POS
+                      </span>
+                    )}
+                    {isCurrent && <span>★現在</span>}
                   </span>
                 );
               })}
@@ -295,25 +316,7 @@ export const PlayerDetailModal: React.FC<PlayerDetailModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
-          {onRemovePlayer && !isTeamLocked ? (
-            <button
-              id="btn-remove-player-from-modal"
-              type="button"
-              onClick={() => {
-                soundManager.playSkip();
-                onRemovePlayer(player.playerId);
-                onClose();
-              }}
-              className="px-4 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 text-xs font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>{t.undoPick}</span>
-            </button>
-          ) : (
-            <div />
-          )}
-
+        <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-end gap-2">
           <button
             onClick={() => {
               soundManager.playButtonClick();

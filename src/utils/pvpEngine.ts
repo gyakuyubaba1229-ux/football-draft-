@@ -890,10 +890,10 @@ export function simulateTacticalMatchHalf(
   const oPlayers = activeOpponentTeam?.players || [];
 
   const cOvr = cPlayers.length
-    ? Math.round(cPlayers.reduce((s, p) => s + p.rating, 0) / cPlayers.length)
+    ? getTeamEffectiveOvr(activeChallengerTeam)
     : 85;
   const oOvr = oPlayers.length
-    ? Math.round(oPlayers.reduce((s, p) => s + p.rating, 0) / oPlayers.length)
+    ? getTeamEffectiveOvr(activeOpponentTeam)
     : 85;
 
   // Tactical advantage is the primary driver (+/- 0.60), OVR difference is secondary (0.015)

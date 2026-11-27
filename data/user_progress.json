@@ -1,0 +1,318 @@
+{
+  "verify_user_1795786987000": {
+    "userId": "verify_user_1795786987000",
+    "inventory": {
+      "training_chip": 1,
+      "awakening_ticket": 10,
+      "manager_select_ticket": 0,
+      "position_plus": 0,
+      "normal_ticket": 0,
+      "legend_10": 0,
+      "legend_20": 1,
+      "legend_50": 0,
+      "legend_guaranteed": 0,
+      "purple_20": 0,
+      "purple_50": 0,
+      "purple_guaranteed": 0,
+      "legend_purple_50": 0,
+      "legend_purple_guaranteed": 2,
+      "japan_star_guaranteed": 1,
+      "japan_legend_50": 0,
+      "japan_legend_guaranteed": 0
+    },
+    "timedLots": [],
+    "loginBonus": {
+      "currentDay": 2,
+      "claimedDaysInCycle": [
+        1
+      ],
+      "lastClaimedJstDate": "2026-11-27",
+      "lastClaimedAt": 1795786987040,
+      "totalClaims": 1,
+      "cycleCount": 1
+    },
+    "ownedManagers": [],
+    "playerStates": {
+      "test_p1": {
+        "playerId": "test_p1",
+        "baseRating": 82,
+        "baseStats": {
+          "pace": 80,
+          "shooting": 80,
+          "passing": 80,
+          "dribbling": 80,
+          "defending": 70,
+          "physical": 75
+        },
+        "level": 3,
+        "awakeningLevel": 0,
+        "addedPositions": [],
+        "updatedAt": 1795786987078
+      }
+    },
+    "usageLogs": [
+      {
+        "id": "log_1795786987089_expz0x",
+        "userId": "verify_user_1795786987000",
+        "itemType": "legend_guaranteed",
+        "action": "use_scout",
+        "amount": 1,
+        "detailJa": "スカウト実行 (legend_guaranteed)",
+        "detailEn": "Executed scout (legend_guaranteed)",
+        "timestamp": 1795786987089
+      },
+      {
+        "id": "log_1795786987078_d8osts",
+        "userId": "verify_user_1795786987000",
+        "itemType": "training_chip",
+        "action": "use_item",
+        "amount": 5,
+        "detailJa": "Test Player を Lv.3 に育成 (OVR 83)",
+        "detailEn": "Trained Test Player to Lv.3",
+        "timestamp": 1795786987078
+      },
+      {
+        "id": "log_1795786987074_5tpzb8",
+        "userId": "verify_user_1795786987000",
+        "itemType": "training_chip",
+        "action": "use_item",
+        "amount": 5,
+        "detailJa": "Test Player を Lv.2 に育成 (OVR 83)",
+        "detailEn": "Trained Test Player to Lv.2",
+        "timestamp": 1795786987074
+      },
+      {
+        "id": "log_1795786987064_a0cccz",
+        "userId": "verify_user_1795786987000",
+        "itemType": "training_chip",
+        "action": "claim_login_bonus",
+        "amount": 1,
+        "detailJa": "ログインボーナス DAY 1 獲得 (トレーニングチップ ×1)",
+        "detailEn": "Login Bonus DAY 1 claimed",
+        "timestamp": 1795786987040
+      },
+      {
+        "id": "log_1795786987028_nttgvn",
+        "userId": "verify_user_1795786987000",
+        "itemType": "awakening_ticket",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795786987027
+      },
+      {
+        "id": "log_1795786987028_r7oz6w",
+        "userId": "verify_user_1795786987000",
+        "itemType": "training_chip",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795786987027
+      },
+      {
+        "id": "log_1795786987028_i11l7l",
+        "userId": "verify_user_1795786987000",
+        "itemType": "legend_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「選択を取り消す機能の削除のお詫び」から獲得",
+        "detailEn": "Claimed from present: 選択を取り消す機能の削除のお詫び",
+        "timestamp": 1795786987027
+      },
+      {
+        "id": "log_1795786987028_yxlc1n",
+        "userId": "verify_user_1795786987000",
+        "itemType": "japan_star_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「今までありがとう森保監督！」から獲得",
+        "detailEn": "Claimed from present: 今までありがとう森保監督！",
+        "timestamp": 1795786987027
+      },
+      {
+        "id": "log_1795786987028_2vjy26",
+        "userId": "verify_user_1795786987000",
+        "itemType": "legend_purple_guaranteed",
+        "action": "claim_present",
+        "amount": 2,
+        "detailJa": "プレゼント「Ver.1.5.0 アップデート記念」から獲得",
+        "detailEn": "Claimed from present: Ver.1.5.0 アップデート記念",
+        "timestamp": 1795786987027
+      },
+      {
+        "id": "log_1795786987028_0hcd06",
+        "userId": "verify_user_1795786987000",
+        "itemType": "legend_20",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「【運営からのお詫び】特別スカウト配布」から獲得",
+        "detailEn": "Claimed from present: 【運営からのお詫び】特別スカウト配布",
+        "timestamp": 1795786987027
+      }
+    ],
+    "updatedAt": 1795786987089
+  },
+  "verify_user_1795786998936": {
+    "userId": "verify_user_1795786998936",
+    "inventory": {
+      "training_chip": 1,
+      "awakening_ticket": 10,
+      "manager_select_ticket": 0,
+      "position_plus": 0,
+      "normal_ticket": 0,
+      "legend_10": 0,
+      "legend_20": 1,
+      "legend_50": 0,
+      "legend_guaranteed": 0,
+      "purple_20": 0,
+      "purple_50": 0,
+      "purple_guaranteed": 0,
+      "legend_purple_50": 0,
+      "legend_purple_guaranteed": 2,
+      "japan_star_guaranteed": 1,
+      "japan_legend_50": 0,
+      "japan_legend_guaranteed": 0
+    },
+    "timedLots": [],
+    "loginBonus": {
+      "currentDay": 2,
+      "claimedDaysInCycle": [
+        1
+      ],
+      "lastClaimedJstDate": "2026-11-27",
+      "lastClaimedAt": 1795786998961,
+      "totalClaims": 1,
+      "cycleCount": 1
+    },
+    "ownedManagers": [
+      {
+        "managerId": "guardiola",
+        "acquiredAt": 1795786999001,
+        "source": "draft_gacha"
+      }
+    ],
+    "playerStates": {
+      "test_p1": {
+        "playerId": "test_p1",
+        "baseRating": 82,
+        "baseStats": {
+          "pace": 80,
+          "shooting": 80,
+          "passing": 80,
+          "dribbling": 80,
+          "defending": 70,
+          "physical": 75
+        },
+        "level": 3,
+        "awakeningLevel": 0,
+        "addedPositions": [],
+        "updatedAt": 1795786998976
+      }
+    },
+    "usageLogs": [
+      {
+        "id": "log_1795786998989_29j4h4",
+        "userId": "verify_user_1795786998936",
+        "itemType": "legend_guaranteed",
+        "action": "use_scout",
+        "amount": 1,
+        "detailJa": "スカウト実行 (legend_guaranteed)",
+        "detailEn": "Executed scout (legend_guaranteed)",
+        "timestamp": 1795786998989
+      },
+      {
+        "id": "log_1795786998976_bp1efb",
+        "userId": "verify_user_1795786998936",
+        "itemType": "training_chip",
+        "action": "use_item",
+        "amount": 5,
+        "detailJa": "Test Player を Lv.3 に育成 (OVR 83)",
+        "detailEn": "Trained Test Player to Lv.3",
+        "timestamp": 1795786998976
+      },
+      {
+        "id": "log_1795786998971_8m92ik",
+        "userId": "verify_user_1795786998936",
+        "itemType": "training_chip",
+        "action": "use_item",
+        "amount": 5,
+        "detailJa": "Test Player を Lv.2 に育成 (OVR 83)",
+        "detailEn": "Trained Test Player to Lv.2",
+        "timestamp": 1795786998971
+      },
+      {
+        "id": "log_1795786998962_je7qyv",
+        "userId": "verify_user_1795786998936",
+        "itemType": "training_chip",
+        "action": "claim_login_bonus",
+        "amount": 1,
+        "detailJa": "ログインボーナス DAY 1 獲得 (トレーニングチップ ×1)",
+        "detailEn": "Login Bonus DAY 1 claimed",
+        "timestamp": 1795786998961
+      },
+      {
+        "id": "log_1795786998952_qew0yk",
+        "userId": "verify_user_1795786998936",
+        "itemType": "awakening_ticket",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795786998951
+      },
+      {
+        "id": "log_1795786998952_w5zx4s",
+        "userId": "verify_user_1795786998936",
+        "itemType": "training_chip",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795786998951
+      },
+      {
+        "id": "log_1795786998952_a5pu4t",
+        "userId": "verify_user_1795786998936",
+        "itemType": "legend_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「選択を取り消す機能の削除のお詫び」から獲得",
+        "detailEn": "Claimed from present: 選択を取り消す機能の削除のお詫び",
+        "timestamp": 1795786998951
+      },
+      {
+        "id": "log_1795786998952_wzvddv",
+        "userId": "verify_user_1795786998936",
+        "itemType": "japan_star_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「今までありがとう森保監督！」から獲得",
+        "detailEn": "Claimed from present: 今までありがとう森保監督！",
+        "timestamp": 1795786998951
+      },
+      {
+        "id": "log_1795786998951_em4u7f",
+        "userId": "verify_user_1795786998936",
+        "itemType": "legend_purple_guaranteed",
+        "action": "claim_present",
+        "amount": 2,
+        "detailJa": "プレゼント「Ver.1.5.0 アップデート記念」から獲得",
+        "detailEn": "Claimed from present: Ver.1.5.0 アップデート記念",
+        "timestamp": 1795786998951
+      },
+      {
+        "id": "log_1795786998951_qqa4i2",
+        "userId": "verify_user_1795786998936",
+        "itemType": "legend_20",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「【運営からのお詫び】特別スカウト配布」から獲得",
+        "detailEn": "Claimed from present: 【運営からのお詫び】特別スカウト配布",
+        "timestamp": 1795786998951
+      }
+    ],
+    "updatedAt": 1795786999001
+  }
+}

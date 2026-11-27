@@ -85,6 +85,14 @@ export function getOver100Players(): Player[] {
   return Array.from(map.values()).sort((a, b) => b.rating - a.rating);
 }
 
+/**
+ * Strictly returns Black Ball (1.8%) eligible players:
+ * OVR >= 100 AND never Purple-target players.
+ */
+export function getBlackBallOver100Players(): Player[] {
+  return getOver100Players().filter((p) => !isPurpleCard(p));
+}
+
 // Validate database integrity on module load to guarantee zero bugs
 export function validateDatabaseIntegrity(): { valid: boolean; errors: string[] } {
   const errors: string[] = [];

@@ -21,7 +21,7 @@ import {
   getClubsByMode,
   getAvailableYears,
   findCandidatePlayers,
-  getOver100Players,
+  getBlackBallOver100Players,
 } from './data/playerDatabase';
 import { findOver100BlackBallCandidates } from './data/legendaryEraDatabase';
 import { findPurpleCandidates } from './data/purpleActivePlayers';
@@ -55,7 +55,6 @@ import { PositionCountsBar } from './components/PositionCountsBar';
 import { HistoryModal } from './components/HistoryModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HowToPlayModal } from './components/HowToPlayModal';
-import { PlayerDetailModal } from './components/PlayerDetailModal';
 import { ModeSelectModal } from './components/ModeSelectModal';
 import { ManagerDraftModal } from './components/ManagerDraftModal';
 import { DraftRevealOverlay, DraftRevealTier, RevealStagingEvent } from './components/BlackBallAnimation';
@@ -66,20 +65,36 @@ import { ShareModal } from './components/ShareModal';
 import { UpdateNotesModal } from './components/UpdateNotesModal';
 import { GiftBoxModal } from './components/GiftBoxModal';
 import { RewardScoutModal } from './components/RewardScoutModal';
+import { LoginBonusModal } from './components/LoginBonusModal';
+import { ItemBoxModal } from './components/ItemBoxModal';
+import { ManagerSelectModal } from './components/ManagerSelectModal';
 import { OnlineSyncDebugModal } from './components/OnlineSyncDebugModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   getStoredUserTickets,
   getStoredPresents,
-  claimPresentBoxItem,
-  claimAllPresentBoxItems,
-  consumeScoutTicket,
   ensureApologyGiftDistributed,
   getTotalTicketsCount,
   PresentBoxItem,
   UserRewardTickets,
-  ScoutTicketType,
 } from './utils/rewardScoutEngine';
+import { RewardTicketType } from './types';
+import {
+  fetchUserProgress,
+  fetchUserPresents,
+  claimPresent,
+  claimAllPresents,
+  recordDraftedManager,
+  ServerUserProgressPayload,
+  getCachedUserProgress,
+} from './utils/backendApi';
+import { canClaimLoginBonusToday } from './utils/loginBonusEngine';
+import {
+  ensurePlayerTrainingDefaults,
+  mergePlayerWithPersistedState,
+  applyStateMapToTeams,
+  updatePlayerAcrossTeams,
+} from './utils/playerTrainingEngine';
 import { checkAndPerformV132RankingReset } from './utils/supabasePvP';
 import { getCurrentUserProfile } from './utils/pvpEngine';
 import { initOnlineSyncManager } from './utils/onlineSyncManager';
@@ -87,7 +102,7 @@ import { CURRENT_VERSION } from './data/versionConfig';
 import { DEFAULT_X_CHAR_LIMIT, STORAGE_KEY_X_CHAR_LIMIT } from './utils/shareUtils';
 import { autoAssignSlot, remapPlayerSlots } from './utils/formationUtils';
 import confetti from 'canvas-confetti';
-import { CheckCircle2, Share2, Trash2 } from 'lucide-react';
+import { CheckCircle2, Share2 } from 'lucide-react';
 
 // Dedicated LocalStorage Keys
 const STORAGE_KEY_TEAMS = 'footballDraft_teams';
@@ -422,29 +437,88 @@ export default function App() {
   const [isUpdateNotesOpen, setIsUpdateNotesOpen] = useState<boolean>(false);
   const [sharingTeam, setSharingTeam] = useState<UserTeam | null>(null);
 
-  // Modals for Gift Box and Reward Scout
+  // Modals for Gift Box, Reward Scout, Item Box, Login Bonus & Manager Select
   const [isGiftBoxOpen, setIsGiftBoxOpen] = useState<boolean>(false);
   const [isRewardScoutOpen, setIsRewardScoutOpen] = useState<boolean>(false);
+  const [isItemBoxOpen, setIsItemBoxOpen] = useState<boolean>(false);
+  const [isLoginBonusOpen, setIsLoginBonusOpen] = useState<boolean>(false);
+  const [isManagerSelectOpen, setIsManagerSelectOpen] = useState<boolean>(false);
+  const [scoutInitialTicketType, setScoutInitialTicketType] = useState<RewardTicketType | null>(null);
   const [isSyncDebugOpen, setIsSyncDebugOpen] = useState<boolean>(false);
   const [rewardTickets, setRewardTickets] = useState<UserRewardTickets>(() => getStoredUserTickets());
   const [presents, setPresents] = useState<PresentBoxItem[]>([]);
 
-  // User Profile for persistent rewards
+  // User Profile for persistent rewards & Ver.1.6.0 inventory/training progress
   const userProfile = useMemo(() => getCurrentUserProfile(activeTeam, teams), [activeTeam, teams]);
+  const effectiveUserId = userProfile.userId || 'local_guest';
 
-  // Initial mount: v1.3.2 ranking reset & apology gift
+  const [userProgress, setUserProgress] = useState<ServerUserProgressPayload>(() =>
+    getCachedUserProgress('local_guest')
+  );
+
+  const applyServerProgress = useCallback((nextProgress: ServerUserProgressPayload) => {
+    setUserProgress(nextProgress);
+    setRewardTickets({
+      normal_ticket: nextProgress.inventory.normal_ticket || 0,
+      legend_10: nextProgress.inventory.legend_10 || 0,
+      legend_20: nextProgress.inventory.legend_20 || 0,
+      legend_50: nextProgress.inventory.legend_50 || 0,
+      legend_guaranteed: nextProgress.inventory.legend_guaranteed || 0,
+      purple_20: nextProgress.inventory.purple_20 || 0,
+      purple_50: nextProgress.inventory.purple_50 || 0,
+      purple_guaranteed: nextProgress.inventory.purple_guaranteed || 0,
+      legend_purple_50: nextProgress.inventory.legend_purple_50 || 0,
+      legend_purple_guaranteed: nextProgress.inventory.legend_purple_guaranteed || 0,
+      japan_star_guaranteed: nextProgress.inventory.japan_star_guaranteed || 0,
+      japan_legend_50: nextProgress.inventory.japan_legend_50 || 0,
+      japan_legend_guaranteed: nextProgress.inventory.japan_legend_guaranteed || 0,
+    });
+    if (nextProgress.playerStates && Object.keys(nextProgress.playerStates).length > 0) {
+      setTeams((prev) => applyStateMapToTeams(prev, nextProgress.playerStates));
+    }
+  }, []);
+
+  const totalItemBoxCount = useMemo(
+    () =>
+      Object.values(userProgress.inventory || {}).reduce<number>(
+        (sum, count) => sum + (Number(count) || 0),
+        0
+      ),
+    [userProgress.inventory]
+  );
+
+  const canClaimLoginBonus = useMemo(
+    () => canClaimLoginBonusToday(userProgress.loginBonus),
+    [userProgress.loginBonus]
+  );
+
+  // Initial mount: v1.3.2 ranking reset, Ver.1.6.0 server presents & inventory/training sync
   useEffect(() => {
-    // 1. Perform v1.3.2 ranking reset (clears past matches and rankings, strictly preserves all other data)
+    let cancelled = false;
     checkAndPerformV132RankingReset();
 
-    // 2. Distribute apology gift "Legend 20% Scout x1" to all users
-    if (userProfile.userId) {
-      ensureApologyGiftDistributed(userProfile.userId);
-      const loadedPresents = getStoredPresents(userProfile.userId);
-      setPresents(loadedPresents);
-    }
-    setRewardTickets(getStoredUserTickets());
-  }, [userProfile.userId]);
+    const cachedProgress = getCachedUserProgress(effectiveUserId);
+    applyServerProgress(cachedProgress);
+    ensureApologyGiftDistributed(effectiveUserId);
+    setPresents(getStoredPresents(effectiveUserId));
+
+    Promise.all([
+      fetchUserPresents(effectiveUserId),
+      fetchUserProgress(effectiveUserId),
+    ])
+      .then(([serverPresents, progressRes]) => {
+        if (cancelled) return;
+        setPresents(serverPresents);
+        applyServerProgress(progressRes.progress);
+      })
+      .catch((err) => {
+        console.warn('Initial Ver.1.6.0 server sync fallback:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveUserId, applyServerProgress]);
 
   // Version 1.5.0 Online Sync Heartbeat & Automatic 10-Minute Periodic Sync
   useEffect(() => {
@@ -452,24 +526,26 @@ export default function App() {
     return cleanup;
   }, []);
 
-  const handleClaimGift = (giftId: string) => {
-    const res = claimPresentBoxItem(giftId, userProfile.userId);
-    setPresents(res.updatedPresents || getStoredPresents(userProfile.userId));
-    setRewardTickets(res.updatedTickets || getStoredUserTickets());
-  };
-
-  const handleClaimAllGifts = () => {
-    const res = claimAllPresentBoxItems(userProfile.userId);
-    setPresents(res.updatedPresents || getStoredPresents(userProfile.userId));
-    setRewardTickets(res.updatedTickets || getStoredUserTickets());
-  };
-
-  const handleConsumeTicket = (ticketType: ScoutTicketType): boolean => {
-    const success = consumeScoutTicket(ticketType);
-    if (success) {
-      setRewardTickets(getStoredUserTickets());
+  const handleClaimGift = async (giftId: string) => {
+    const res = await claimPresent(effectiveUserId, giftId);
+    setPresents(res.updatedPresents || getStoredPresents(effectiveUserId));
+    if (res.progress) {
+      applyServerProgress(res.progress);
+    } else {
+      const refreshed = await fetchUserProgress(effectiveUserId);
+      applyServerProgress(refreshed.progress);
     }
-    return success;
+  };
+
+  const handleClaimAllGifts = async () => {
+    const res = await claimAllPresents(effectiveUserId);
+    setPresents(res.updatedPresents || getStoredPresents(effectiveUserId));
+    if (res.progress) {
+      applyServerProgress(res.progress);
+    } else {
+      const refreshed = await fetchUserProgress(effectiveUserId);
+      applyServerProgress(refreshed.progress);
+    }
   };
 
   // Language & Sound handlers
@@ -841,19 +917,19 @@ export default function App() {
     // 1.8% Black Ball (All candidates strictly OVR 100+) | 3.0% Purple | 95.2% Normal
     const stagingEventRoll = rollDraftStagingEvent();
 
-    // ⚫ 1.8% ULTRA RARE: BLACK BALL (All candidates MUST have OVR >= 100, zero <100 players)
+    // ⚫ 1.8% ULTRA RARE: BLACK BALL (All candidates MUST have OVR >= 100 and NEVER Purple)
     if (stagingEventRoll === 'blackball') {
       const over100Candidates = filterCandidatesByPositionLimits(
         findOver100BlackBallCandidates(
           mode,
-          getOver100Players(),
+          getBlackBallOver100Players(),
           currentTeamPlayerIds,
           currentTeamPersonIds,
           3,
           disallowed
         ),
         activeTeam.players
-      ).filter((p) => p.rating >= 100);
+      ).filter((p) => p.rating >= 100 && !p.playerId.startsWith('purple_'));
 
       if (over100Candidates.length > 0) {
         const isLightning = Math.random() < 0.7;
@@ -1131,9 +1207,14 @@ export default function App() {
     setLockedRarity(null);
   };
 
-  // Handle Draft Player Selection (with FW<=3 / GK<=1 enforcement)
-  const handleDraftPlayer = (player: Player) => {
+  // Handle Draft Player Selection (with FW<=3 / GK<=1 enforcement; finalized immediately without undo)
+  const handleDraftPlayer = (rawPlayer: Player) => {
     if (activeTeam.isLocked || activeTeam.players.length >= 11) return;
+
+    const player = mergePlayerWithPersistedState(
+      ensurePlayerTrainingDefaults(rawPlayer),
+      userProgress.playerStates?.[rawPlayer.playerId]
+    );
 
     const limitCheck = canDraftPlayerByPositionLimit(activeTeam.players, player);
     if (!limitCheck.allowed) {
@@ -1242,34 +1323,6 @@ export default function App() {
     }
   };
 
-  // Undo / Remove a drafted player from active team -> immediately restores position eligibility
-  const handleRemovePlayer = (playerId: string) => {
-    if (activeTeam.isLocked) {
-      soundManager.playError();
-      return;
-    }
-    soundManager.playSkip();
-    updateActiveTeam((prev) => {
-      const nextPlayers = prev.players.filter((p) => p.playerId !== playerId);
-      const nextSlots: Record<string, string> = {};
-      Object.entries(prev.playerSlots || {}).forEach(([slotId, assignedId]) => {
-        if (assignedId !== playerId) {
-          nextSlots[slotId] = assignedId;
-        }
-      });
-      const nextCustomPositions = { ...(prev.customPositions || {}) };
-      delete nextCustomPositions[playerId];
-      return {
-        ...prev,
-        players: nextPlayers,
-        playerSlots: nextSlots,
-        customPositions: nextCustomPositions,
-        isCompleted: false,
-        completedAt: undefined,
-      };
-    });
-  };
-
   // Manager Gacha Spin (Draws 3 unique real managers, persists them immediately so re-roll is impossible)
   const handleStartManagerGacha = () => {
     if (activeTeam.isLocked || activeTeam.managerDrafted || activeTeam.manager || isSpinning) {
@@ -1369,16 +1422,37 @@ export default function App() {
       origin: { y: 0.55 },
       colors: ['#f59e0b', '#fbbf24', '#06b6d4', '#ffffff'],
     });
+
+    recordDraftedManager(effectiveUserId, manager.id)
+      .then(() => fetchUserProgress(effectiveUserId))
+      .then((res) => applyServerProgress(res.progress))
+      .catch(() => {});
   };
 
-  const handleAcquireScoutPlayer = (player: Player) => {
+  const handleAssignManagerToTeam = (teamId: string, manager: Manager) => {
+    setTeams((prev) =>
+      prev.map((tItem) => {
+        if (tItem.teamId !== teamId || tItem.isLocked) return tItem;
+        return {
+          ...tItem,
+          manager,
+        };
+      })
+    );
+  };
+
+  const handleAcquireScoutPlayer = (rawPlayer: Player) => {
+    const player = mergePlayerWithPersistedState(
+      ensurePlayerTrainingDefaults(rawPlayer),
+      userProgress.playerStates?.[rawPlayer.playerId]
+    );
     soundManager.playFanfare();
     let targetTeam = activeTeam;
     if (activeTeam.players.length < 11) {
       handleDraftPlayer(player);
       targetTeam = activeTeam;
     } else {
-      const incompleteTeam = teams.find((t) => t.players.length < 11);
+      const incompleteTeam = teams.find((t) => t.players.length < 11 && !t.isLocked);
       if (incompleteTeam) {
         targetTeam = incompleteTeam;
         setActiveTeamId(incompleteTeam.teamId);
@@ -1455,10 +1529,17 @@ export default function App() {
         soundEnabled={soundEnabled}
         onToggleSound={handleToggleSound}
         onOpenGiftBox={() => setIsGiftBoxOpen(true)}
-        onOpenScoutModal={() => setIsRewardScoutOpen(true)}
+        onOpenScoutModal={() => {
+          setScoutInitialTicketType(null);
+          setIsRewardScoutOpen(true);
+        }}
+        onOpenItemBox={() => setIsItemBoxOpen(true)}
+        onOpenLoginBonus={() => setIsLoginBonusOpen(true)}
         onOpenSyncDebug={() => setIsSyncDebugOpen(true)}
         unclaimedGiftsCount={presents.filter((p) => !p.isClaimed).length}
         totalTicketsCount={getTotalTicketsCount(rewardTickets)}
+        itemBoxTotalCount={totalItemBoxCount}
+        canClaimLoginBonus={canClaimLoginBonus}
       />
 
       {/* Main App Body */}
@@ -1473,9 +1554,16 @@ export default function App() {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenUpdateNotes={() => setIsUpdateNotesOpen(true)}
             onOpenGiftBox={() => setIsGiftBoxOpen(true)}
-            onOpenScoutModal={() => setIsRewardScoutOpen(true)}
+            onOpenScoutModal={() => {
+              setScoutInitialTicketType(null);
+              setIsRewardScoutOpen(true);
+            }}
+            onOpenItemBox={() => setIsItemBoxOpen(true)}
+            onOpenLoginBonus={() => setIsLoginBonusOpen(true)}
             unclaimedGiftsCount={presents.filter((p) => !p.isClaimed).length}
             totalTicketsCount={getTotalTicketsCount(rewardTickets)}
+            itemBoxTotalCount={totalItemBoxCount}
+            canClaimLoginBonus={canClaimLoginBonus}
             teams={teams}
             activeTeam={activeTeam}
             myTeam={activeTeam.players}
@@ -1541,29 +1629,25 @@ export default function App() {
               </div>
             )}
 
-            {/* Squad Position Counts Bar + Quick Undo Strip (Always visible when squad has picks or drafting) */}
+            {/* Squad Position Counts Bar + Confirmed Roster Summary (Read-Only, No Undo) */}
             {(activeTeam.players.length > 0 || hasCurrentDraft) && (
               <div className="max-w-3xl mx-auto space-y-2.5">
                 <PositionCountsBar players={activeTeam.players} language={language} />
 
                 {activeTeam.players.length > 0 && (
                   <div
-                    id="draft-squad-undo-strip"
+                    id="draft-squad-status-strip"
                     className="bg-slate-900/75 border border-slate-800 rounded-xl p-2.5 sm:p-3 space-y-2"
                   >
                     <div className="flex items-center justify-between text-[11px] text-slate-400 px-0.5">
                       <span className="font-bold text-slate-300">
                         {language === 'ja'
-                          ? `📋 獲得済みメンバー (${activeTeam.players.length}/11)`
-                          : `📋 DRAFTED SQUAD (${activeTeam.players.length}/11)`}
+                          ? `📋 確定済みメンバー (${activeTeam.players.length}/11)`
+                          : `📋 CONFIRMED SQUAD (${activeTeam.players.length}/11)`}
                       </span>
-                      {!activeTeam.isLocked && (
-                        <span>
-                          {language === 'ja'
-                            ? '× クリックで選択取消（ポジション制限も即座に解除）'
-                            : 'Click × to undo pick'}
-                        </span>
-                      )}
+                      <span className="text-[10px] text-emerald-400/90 font-semibold">
+                        {language === 'ja' ? '選択後は即時確定' : 'Picks are final'}
+                      </span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {activeTeam.players.map((p) => (
@@ -1590,16 +1674,10 @@ export default function App() {
                           <span className="font-mono text-[10px] text-emerald-400 font-bold">
                             {p.rating}
                           </span>
-                          {!activeTeam.isLocked && (
-                            <button
-                              id={`btn-undo-pick-${p.playerId}`}
-                              type="button"
-                              onClick={() => handleRemovePlayer(p.playerId)}
-                              title={t.undoPick}
-                              className="ml-0.5 p-0.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                          {(p.level ?? 1) > 1 && (
+                            <span className="font-mono text-[9px] text-amber-300 font-bold">
+                              Lv.{p.level}
+                            </span>
                           )}
                         </div>
                       ))}
@@ -1765,7 +1843,6 @@ export default function App() {
             }}
             isLocked={activeTeam.isLocked}
             onToggleLock={handleToggleTeamLock}
-            onRemovePlayer={handleRemovePlayer}
             onOpenManagerDraft={handleOpenManagerDraft}
             language={language}
           />
@@ -1815,14 +1892,78 @@ export default function App() {
       {/* Reward Scout Modal */}
       <RewardScoutModal
         isOpen={isRewardScoutOpen}
-        onClose={() => setIsRewardScoutOpen(false)}
+        onClose={() => {
+          setIsRewardScoutOpen(false);
+          setScoutInitialTicketType(null);
+        }}
         language={language}
+        userId={effectiveUserId}
+        userTickets={rewardTickets}
+        timedLots={userProgress.timedLots}
+        initialTicketType={scoutInitialTicketType}
+        onScoutConsumed={(nextProg) => applyServerProgress(nextProg)}
         activeTeam={activeTeam}
         onOpenGiftBox={() => {
           setIsRewardScoutOpen(false);
           setIsGiftBoxOpen(true);
         }}
         onAcquirePlayer={handleAcquireScoutPlayer}
+      />
+
+      {/* 15-Day Login Bonus Modal */}
+      <LoginBonusModal
+        isOpen={isLoginBonusOpen}
+        onClose={() => setIsLoginBonusOpen(false)}
+        language={language}
+        userId={effectiveUserId}
+        loginBonus={userProgress.loginBonus}
+        onProgressUpdated={(nextProg) => applyServerProgress(nextProg)}
+      />
+
+      {/* 5-Category Item Box Modal */}
+      <ItemBoxModal
+        isOpen={isItemBoxOpen}
+        onClose={() => setIsItemBoxOpen(false)}
+        language={language}
+        userId={effectiveUserId}
+        progress={userProgress}
+        teams={teams}
+        activeTeamId={activeTeam.teamId}
+        onProgressUpdated={(nextProg) => applyServerProgress(nextProg)}
+        onPlayerUpdated={(updatedPlayer) =>
+          setTeams((prev) => updatePlayerAcrossTeams(prev, updatedPlayer))
+        }
+        onOpenScoutWithTicket={(ticketType) => {
+          setIsItemBoxOpen(false);
+          setScoutInitialTicketType(ticketType);
+          setIsRewardScoutOpen(true);
+        }}
+        onOpenManagerSelect={() => {
+          setIsItemBoxOpen(false);
+          setIsManagerSelectOpen(true);
+        }}
+        onOpenLoginBonus={() => {
+          setIsItemBoxOpen(false);
+          setIsLoginBonusOpen(true);
+        }}
+        onOpenGiftBox={() => {
+          setIsItemBoxOpen(false);
+          setIsGiftBoxOpen(true);
+        }}
+      />
+
+      {/* Manager Select Modal (Uses Manager Select Ticket, separate from 1-per-game Gacha) */}
+      <ManagerSelectModal
+        isOpen={isManagerSelectOpen}
+        onClose={() => setIsManagerSelectOpen(false)}
+        language={language}
+        userId={effectiveUserId}
+        ticketCount={userProgress.inventory.manager_select_ticket || 0}
+        ownedManagers={userProgress.ownedManagers}
+        teams={teams}
+        activeTeamId={activeTeam.teamId}
+        onProgressUpdated={(nextProg) => applyServerProgress(nextProg)}
+        onAssignManagerToTeam={handleAssignManagerToTeam}
       />
 
       {/* Mode Select Modal (Pop-up on "PLAY / SPIN DRAFT" or mode change) */}

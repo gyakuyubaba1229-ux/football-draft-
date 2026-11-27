@@ -398,6 +398,12 @@ function savePvPMatchesToDisk() {
 }
 
 // Server-side database / storage in memory with persistence simulation
+interface ServerGiftRewardEntry {
+  rewardType: string;
+  amount: number;
+  expiresInDays?: number;
+}
+
 interface ServerPresentItem {
   id: string; // key: `${week_id}_${user_id}_${reward_type}`
   weekId?: string;
@@ -406,18 +412,132 @@ interface ServerPresentItem {
   description: string;
   rewardType: string;
   amount: number;
+  rewards?: ServerGiftRewardEntry[];
   isClaimed: boolean;
   claimedAt?: number;
   createdAt: number;
+  expiresAt?: number;
   rank?: number;
 }
+
+interface ServerTimedTicketLot {
+  id: string;
+  ticketType: string;
+  initialAmount: number;
+  remaining: number;
+  grantedAt: number;
+  expiresAt?: number;
+  source: string;
+  expiredHandled?: boolean;
+}
+
+interface ServerLoginBonusState {
+  currentDay: number;
+  claimedDaysInCycle: number[];
+  lastClaimedJstDate: string | null;
+  lastClaimedAt?: number;
+  totalClaims: number;
+  cycleCount: number;
+}
+
+interface ServerOwnedManagerRecord {
+  managerId: string;
+  acquiredAt: number;
+  source: 'draft_gacha' | 'manager_select_ticket';
+}
+
+interface ServerPlayerState {
+  playerId: string;
+  baseRating: number;
+  baseStats: { pace: number; shooting: number; passing: number; dribbling: number; defending: number; physical: number };
+  level: number;
+  awakeningLevel: number;
+  addedPositions: string[];
+  updatedAt: number;
+}
+
+interface ServerItemUsageLogEntry {
+  id: string;
+  userId: string;
+  itemType: string;
+  action: 'claim_present' | 'claim_login_bonus' | 'use_item' | 'use_scout' | 'expired';
+  amount: number;
+  detailJa: string;
+  detailEn: string;
+  timestamp: number;
+}
+
+interface ServerUserProgress {
+  userId: string;
+  inventory: Record<string, number>;
+  timedLots: ServerTimedTicketLot[];
+  loginBonus: ServerLoginBonusState;
+  ownedManagers: ServerOwnedManagerRecord[];
+  playerStates: Record<string, ServerPlayerState>;
+  usageLogs: ServerItemUsageLogEntry[];
+  updatedAt: number;
+}
+
+const VALID_SCOUT_TICKETS = new Set([
+  'normal_ticket',
+  'legend_10',
+  'legend_20',
+  'legend_50',
+  'legend_guaranteed',
+  'purple_20',
+  'purple_50',
+  'purple_guaranteed',
+  'legend_purple_50',
+  'legend_purple_guaranteed',
+  'japan_star_guaranteed',
+  'japan_legend_50',
+  'japan_legend_guaranteed',
+]);
+
+const VALID_INVENTORY_ITEMS = new Set([
+  'training_chip',
+  'awakening_ticket',
+  'manager_select_ticket',
+  'position_plus',
+  ...VALID_SCOUT_TICKETS,
+]);
+
+const VALID_EFOOTBALL_POSITIONS = new Set([
+  'GK', 'CB', 'LB', 'RB', 'LWB', 'RWB', 'DMF', 'CMF', 'LMF', 'RMF', 'AMF', 'LWG', 'RWG', 'SS', 'CF',
+]);
+
+const LEVEL_OVR_BONUS = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5];
+
+const SERVER_LOGIN_BONUS_SCHEDULE: {
+  day: number;
+  rewards: { rewardType: string; amount: number; expiresInDays?: number }[];
+  labelJa: string;
+}[] = [
+  { day: 1, rewards: [{ rewardType: 'training_chip', amount: 1 }], labelJa: 'トレーニングチップ ×1' },
+  { day: 2, rewards: [{ rewardType: 'legend_10', amount: 2 }], labelJa: 'レジェンド10%スカウト ×2' },
+  { day: 3, rewards: [{ rewardType: 'purple_20', amount: 1 }], labelJa: '紫20%スカウト ×1' },
+  { day: 4, rewards: [{ rewardType: 'japan_legend_50', amount: 1 }], labelJa: '日本人レジェンド50%スカウト ×1' },
+  { day: 5, rewards: [{ rewardType: 'japan_star_guaranteed', amount: 1 }], labelJa: 'スター日本人選手確定ガチャチケット ×1' },
+  { day: 6, rewards: [{ rewardType: 'training_chip', amount: 2 }], labelJa: 'トレーニングチップ ×2' },
+  { day: 7, rewards: [{ rewardType: 'awakening_ticket', amount: 1 }], labelJa: '覚醒チケット ×1' },
+  { day: 8, rewards: [{ rewardType: 'legend_guaranteed', amount: 1, expiresInDays: 30 }], labelJa: 'レジェンド確定スカウト ×1（30日期限）' },
+  { day: 9, rewards: [{ rewardType: 'purple_guaranteed', amount: 1, expiresInDays: 30 }], labelJa: '紫確定スカウト ×1（30日期限）' },
+  { day: 10, rewards: [{ rewardType: 'awakening_ticket', amount: 3 }], labelJa: '覚醒チケット ×3' },
+  { day: 11, rewards: [{ rewardType: 'training_chip', amount: 7 }], labelJa: 'トレーニングチップ ×7' },
+  { day: 12, rewards: [{ rewardType: 'legend_20', amount: 5 }], labelJa: 'レジェンド20%スカウト ×5' },
+  { day: 13, rewards: [{ rewardType: 'normal_ticket', amount: 1 }], labelJa: 'ノーマルチケット ×1' },
+  { day: 14, rewards: [{ rewardType: 'position_plus', amount: 2 }], labelJa: 'ポジションplus ×2' },
+  { day: 15, rewards: [{ rewardType: 'legend_purple_guaranteed', amount: 1, expiresInDays: 10 }], labelJa: 'レジェンド・紫確定スカウト ×1（10日期限）' },
+];
 
 const serverPresentsDatabase: Map<string, ServerPresentItem> = new Map();
 const distributedRewardKeys: Set<string> = new Set();
 const userTicketsDatabase: Map<string, Record<string, number>> = new Map();
+const serverUserProgressMap: Map<string, ServerUserProgress> = new Map();
 
 const PRESENTS_FILE = path.join(DATA_DIR, 'presents.json');
 const USER_TICKETS_FILE = path.join(DATA_DIR, 'user_tickets.json');
+const USER_PROGRESS_FILE = path.join(DATA_DIR, 'user_progress.json');
 
 // Load presents from disk
 try {
@@ -446,6 +566,19 @@ try {
   console.error('Failed to read user_tickets.json', e);
 }
 
+// Load user progress from disk
+try {
+  if (fs.existsSync(USER_PROGRESS_FILE)) {
+    const raw = fs.readFileSync(USER_PROGRESS_FILE, 'utf-8');
+    const obj: Record<string, ServerUserProgress> = JSON.parse(raw);
+    Object.entries(obj).forEach(([userId, progress]) => {
+      serverUserProgressMap.set(userId, progress);
+    });
+  }
+} catch (e) {
+  console.error('Failed to read user_progress.json', e);
+}
+
 function savePresentsToDisk() {
   try {
     const list = Array.from(serverPresentsDatabase.values());
@@ -467,15 +600,277 @@ function saveUserTicketsToDisk() {
   }
 }
 
+function saveUserProgressToDisk() {
+  try {
+    const obj: Record<string, ServerUserProgress> = {};
+    serverUserProgressMap.forEach((val, key) => {
+      obj[key] = val;
+    });
+    fs.writeFileSync(USER_PROGRESS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write user_progress.json', e);
+  }
+}
+
+function isValidUserId(userId: unknown): userId is string {
+  return (
+    typeof userId === 'string' &&
+    userId.trim().length > 0 &&
+    userId.trim().length <= 128 &&
+    /^[a-zA-Z0-9._:@-]+$/.test(userId.trim())
+  );
+}
+
+function getServerJstDateKey(timestampMs: number = Date.now()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(timestampMs));
+  } catch {
+    return new Date(timestampMs + JST_OFFSET_MS).toISOString().slice(0, 10);
+  }
+}
+
+function createDefaultInventory(): Record<string, number> {
+  const inv: Record<string, number> = {};
+  VALID_INVENTORY_ITEMS.forEach((k) => {
+    inv[k] = 0;
+  });
+  return inv;
+}
+
+function extractScoutTicketsFromInventory(inv: Record<string, number>): Record<string, number> {
+  const res: Record<string, number> = {};
+  VALID_SCOUT_TICKETS.forEach((k) => {
+    res[k] = Math.max(0, Number(inv[k] || 0));
+  });
+  return res;
+}
+
+function getOrCreateUserProgress(userId: string): ServerUserProgress {
+  let progress = serverUserProgressMap.get(userId);
+  const existingTickets = userTicketsDatabase.get(userId);
+  if (!progress) {
+    const inv = createDefaultInventory();
+    if (existingTickets) {
+      Object.entries(existingTickets).forEach(([k, v]) => {
+        if (VALID_INVENTORY_ITEMS.has(k)) {
+          inv[k] = Math.max(0, Number(v || 0));
+        }
+      });
+    }
+    progress = {
+      userId,
+      inventory: inv,
+      timedLots: [],
+      loginBonus: {
+        currentDay: 1,
+        claimedDaysInCycle: [],
+        lastClaimedJstDate: null,
+        totalClaims: 0,
+        cycleCount: 1,
+      },
+      ownedManagers: [],
+      playerStates: {},
+      usageLogs: [],
+      updatedAt: Date.now(),
+    };
+    serverUserProgressMap.set(userId, progress);
+  } else {
+    progress.inventory = { ...createDefaultInventory(), ...progress.inventory };
+    if (existingTickets) {
+      VALID_SCOUT_TICKETS.forEach((k) => {
+        const legacyVal = Number(existingTickets[k] || 0);
+        if (legacyVal > (progress!.inventory[k] || 0) && progress!.timedLots.length === 0) {
+          progress!.inventory[k] = legacyVal;
+        }
+      });
+    }
+    if (!Array.isArray(progress.timedLots)) progress.timedLots = [];
+    if (!progress.loginBonus) {
+      progress.loginBonus = {
+        currentDay: 1,
+        claimedDaysInCycle: [],
+        lastClaimedJstDate: null,
+        totalClaims: 0,
+        cycleCount: 1,
+      };
+    }
+    if (!Array.isArray(progress.ownedManagers)) progress.ownedManagers = [];
+    if (!progress.playerStates) progress.playerStates = {};
+    if (!Array.isArray(progress.usageLogs)) progress.usageLogs = [];
+  }
+  return progress;
+}
+
+function appendUsageLog(
+  progress: ServerUserProgress,
+  entry: Omit<ServerItemUsageLogEntry, 'id' | 'userId'>
+) {
+  progress.usageLogs.unshift({
+    id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId: progress.userId,
+    ...entry,
+  });
+  if (progress.usageLogs.length > 150) {
+    progress.usageLogs = progress.usageLogs.slice(0, 150);
+  }
+}
+
+function pruneExpiredLotsForUser(progress: ServerUserProgress, nowMs: number = Date.now()): boolean {
+  let changed = false;
+  for (const lot of progress.timedLots) {
+    if (!lot.expiredHandled && lot.expiresAt && nowMs > lot.expiresAt) {
+      if (lot.remaining > 0) {
+        const deduct = Math.min(lot.remaining, Math.max(0, progress.inventory[lot.ticketType] || 0));
+        progress.inventory[lot.ticketType] = Math.max(0, (progress.inventory[lot.ticketType] || 0) - deduct);
+        appendUsageLog(progress, {
+          itemType: lot.ticketType,
+          action: 'expired',
+          amount: deduct,
+          detailJa: `有効期限切れにより ${lot.ticketType} ×${deduct} が失効しました`,
+          detailEn: `${lot.ticketType} ×${deduct} expired`,
+          timestamp: nowMs,
+        });
+        lot.remaining = 0;
+      }
+      lot.expiredHandled = true;
+      changed = true;
+    }
+  }
+  if (changed) {
+    progress.updatedAt = nowMs;
+    userTicketsDatabase.set(progress.userId, extractScoutTicketsFromInventory(progress.inventory));
+  }
+  return changed;
+}
+
+function grantItemToProgress(
+  progress: ServerUserProgress,
+  itemType: string,
+  amount: number,
+  source: string,
+  expiresAt?: number,
+  nowMs: number = Date.now()
+) {
+  if (!VALID_INVENTORY_ITEMS.has(itemType) || amount <= 0) return;
+  progress.inventory[itemType] = (progress.inventory[itemType] || 0) + amount;
+  if (expiresAt) {
+    progress.timedLots.push({
+      id: `lot_${nowMs}_${Math.random().toString(36).slice(2, 8)}`,
+      ticketType: itemType,
+      initialAmount: amount,
+      remaining: amount,
+      grantedAt: nowMs,
+      expiresAt,
+      source,
+    });
+  }
+  progress.updatedAt = nowMs;
+  userTicketsDatabase.set(progress.userId, extractScoutTicketsFromInventory(progress.inventory));
+}
+
+function ensureUserSystemPresentsOnServer(userId: string): boolean {
+  let updated = false;
+  const now = Date.now();
+
+  const ensureOne = (item: ServerPresentItem) => {
+    if (!distributedRewardKeys.has(item.id) && !serverPresentsDatabase.has(item.id)) {
+      distributedRewardKeys.add(item.id);
+      serverPresentsDatabase.set(item.id, item);
+      updated = true;
+    }
+  };
+
+  ensureOne({
+    id: `apology_gift_${userId}_legend20`,
+    userId,
+    title: '【運営からのお詫び】特別スカウト配布',
+    description: 'アップデートに伴うお詫びとして「レジェンド20%スカウト ×1」をお送りいたします。',
+    rewardType: 'legend_20',
+    amount: 1,
+    isClaimed: false,
+    createdAt: now - 4000,
+  });
+
+  ensureOne({
+    id: `apology_v131_legend_guaranteed_${userId}`,
+    userId,
+    title: '【1.3.1修正お詫び】レジェンド確定スカウト',
+    description:
+      '1.3.1修正アップデートのお詫びとして「レジェンド確定スカウト ×1」をお送りいたします。（有効期限: 2026年9月30日 23:59 JSTまで）',
+    rewardType: 'legend_guaranteed',
+    amount: 1,
+    isClaimed: false,
+    createdAt: now - 3000,
+    expiresAt: new Date('2026-09-30T23:59:59+09:00').getTime(),
+  });
+
+  ensureOne({
+    id: `v150_memorial_gift_${userId}`,
+    userId,
+    title: 'Ver.1.5.0 アップデート記念',
+    description: '1.5.0大型アップデートを記念して、特別なガチャチケットをプレゼント！',
+    rewardType: 'legend_purple_guaranteed',
+    amount: 2,
+    isClaimed: false,
+    createdAt: now - 2000,
+  });
+
+  ensureOne({
+    id: `moriyasu_thanks_japan_star_${userId}`,
+    userId,
+    title: '今までありがとう森保監督！',
+    description:
+      'これまで日本代表を率いてきた森保監督への感謝を込めて、特別なガチャチケットをプレゼント！',
+    rewardType: 'japan_star_guaranteed',
+    amount: 1,
+    isClaimed: false,
+    createdAt: now - 1000,
+  });
+
+  ensureOne({
+    id: `v160_apology_undo_removed_${userId}`,
+    userId,
+    title: '選択を取り消す機能の削除のお詫び',
+    description:
+      'ドラフトの選択取り消し機能の削除に伴うお詫びとして、レジェンド確定ガチャチケットをプレゼントいたします。',
+    rewardType: 'legend_guaranteed',
+    amount: 1,
+    isClaimed: false,
+    createdAt: now,
+  });
+
+  ensureOne({
+    id: `v160_training_campaign_${userId}`,
+    userId,
+    title: 'トレーニングチップ＆覚醒チケット実装キャンペーン',
+    description: '新しい選手育成システムの実装を記念して、特別な育成アイテムをプレゼント！',
+    rewardType: 'training_chip',
+    amount: 10,
+    rewards: [
+      { rewardType: 'training_chip', amount: 10 },
+      { rewardType: 'awakening_ticket', amount: 10 },
+    ],
+    isClaimed: false,
+    createdAt: now + 1,
+  });
+
+  return updated;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '4mb' }));
 
   // 1. Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', version: '1.4.0', timestamp: Date.now() });
+    res.json({ status: 'ok', version: '1.6.0', timestamp: Date.now() });
   });
 
   // ── SUPABASE ONLINE LEADERBOARD PROXY API ──
@@ -661,25 +1056,13 @@ async function startServer() {
     }
   });
 
-  // 4. Present Box API: Fetch presents for user (including one-time apology gift)
+  // 4. Present Box API: Fetch presents for user (including all Ver.1.3-1.6 system gifts)
   app.get('/api/presents/user/:userId', (req, res) => {
     const { userId } = req.params;
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!isValidUserId(userId)) return res.status(400).json({ error: 'Valid userId is required' });
 
-    // Ensure apology gift (legend_20 x1) exists for all users
-    const apologyKey = `apology_gift_${userId}_legend20`;
-    if (!distributedRewardKeys.has(apologyKey)) {
-      distributedRewardKeys.add(apologyKey);
-      serverPresentsDatabase.set(apologyKey, {
-        id: apologyKey,
-        userId,
-        title: '【運営からのお詫び】特別スカウト配布',
-        description: '大型アップデートに伴うお詫びとして「レジェンド20%スカウト ×1」をお贈りします。',
-        rewardType: 'legend_20',
-        amount: 1,
-        isClaimed: false,
-        createdAt: Date.now(),
-      });
+    const updated = ensureUserSystemPresentsOnServer(userId);
+    if (updated) {
       savePresentsToDisk();
     }
 
@@ -697,10 +1080,12 @@ async function startServer() {
     res.json({ success: true, presents });
   });
 
-  // 5. Present Box API: Claim reward
+  // 5. Present Box API: Claim reward (supports multi-reward presents & non-scout items)
   app.post('/api/presents/claim', (req, res) => {
     const { userId, presentId } = req.body;
-    if (!userId || !presentId) return res.status(400).json({ error: 'Missing userId or presentId' });
+    if (!isValidUserId(userId) || !presentId || typeof presentId !== 'string') {
+      return res.status(400).json({ error: 'Invalid userId or presentId' });
+    }
 
     const item = serverPresentsDatabase.get(presentId);
     if (!item) {
@@ -712,64 +1097,517 @@ async function startServer() {
     if (item.isClaimed) {
       return res.status(400).json({ error: 'Already claimed' });
     }
+    const now = Date.now();
+    if (item.expiresAt && now > item.expiresAt) {
+      return res.status(400).json({ error: 'Present expired' });
+    }
 
     item.isClaimed = true;
-    item.claimedAt = Date.now();
+    item.claimedAt = now;
 
-    // Credit ticket to user inventory
-    const userTickets = userTicketsDatabase.get(userId) || {
-      legend_20: 0,
-      legend_50: 0,
-      legend_guaranteed: 0,
-      purple_20: 0,
-      purple_50: 0,
-      purple_guaranteed: 0,
-      legend_purple_guaranteed: 0,
-      legend_purple_50: 0,
-    };
-    userTickets[item.rewardType] = (userTickets[item.rewardType] || 0) + item.amount;
+    const progress = getOrCreateUserProgress(userId);
+    pruneExpiredLotsForUser(progress, now);
+
+    const rewardsList =
+      Array.isArray(item.rewards) && item.rewards.length > 0
+        ? item.rewards
+        : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+
+    for (const r of rewardsList) {
+      const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+      grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
+      appendUsageLog(progress, {
+        itemType: r.rewardType,
+        action: 'claim_present',
+        amount: r.amount || 1,
+        detailJa: `プレゼント「${item.title}」から獲得`,
+        detailEn: `Claimed from present: ${item.title}`,
+        timestamp: now,
+      });
+    }
+
+    const userTickets = extractScoutTicketsFromInventory(progress.inventory);
     userTicketsDatabase.set(userId, userTickets);
+
     savePresentsToDisk();
     saveUserTicketsToDisk();
+    saveUserProgressToDisk();
 
     res.json({
       success: true,
       claimedItem: item,
       userTickets,
+      progress,
     });
   });
 
-  // 6. Reward Scout API: Verify and consume ticket
-  app.post('/api/scout/consume', (req, res) => {
-    const { userId, ticketType } = req.body;
-    if (!userId || !ticketType) return res.status(400).json({ error: 'Missing userId or ticketType' });
-
-    const userTickets = userTicketsDatabase.get(userId) || {
-      legend_20: 0,
-      legend_50: 0,
-      legend_guaranteed: 0,
-      purple_20: 0,
-      purple_50: 0,
-      purple_guaranteed: 0,
-      legend_purple_guaranteed: 0,
-      legend_purple_50: 0,
-    };
-
-    if (!userTickets[ticketType] || userTickets[ticketType] <= 0) {
-      return res.status(400).json({ error: 'No tickets available for this scout' });
+  // 5.5 Present Box API: Claim all unclaimed non-expired presents atomically
+  app.post('/api/presents/claim-all', (req, res) => {
+    const { userId } = req.body;
+    if (!isValidUserId(userId)) {
+      return res.status(400).json({ error: 'Invalid userId' });
     }
 
-    // Safely decrement ticket
-    userTickets[ticketType] -= 1;
+    ensureUserSystemPresentsOnServer(userId);
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    pruneExpiredLotsForUser(progress, now);
+
+    let claimedCount = 0;
+    const presentsForUser: ServerPresentItem[] = [];
+
+    serverPresentsDatabase.forEach((item) => {
+      if (item.userId !== userId) return;
+      if (!item.isClaimed && (!item.expiresAt || now <= item.expiresAt)) {
+        item.isClaimed = true;
+        item.claimedAt = now;
+        const rewardsList =
+          Array.isArray(item.rewards) && item.rewards.length > 0
+            ? item.rewards
+            : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+        for (const r of rewardsList) {
+          const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+          grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
+          appendUsageLog(progress, {
+            itemType: r.rewardType,
+            action: 'claim_present',
+            amount: r.amount || 1,
+            detailJa: `プレゼント「${item.title}」から獲得`,
+            detailEn: `Claimed from present: ${item.title}`,
+            timestamp: now,
+          });
+        }
+        claimedCount += 1;
+      }
+      presentsForUser.push(item);
+    });
+
+    presentsForUser.sort((a, b) => {
+      if (a.isClaimed !== b.isClaimed) return a.isClaimed ? 1 : -1;
+      return b.createdAt - a.createdAt;
+    });
+
+    const userTickets = extractScoutTicketsFromInventory(progress.inventory);
+    userTicketsDatabase.set(userId, userTickets);
+
+    savePresentsToDisk();
+    saveUserTicketsToDisk();
+    saveUserProgressToDisk();
+
+    res.json({
+      success: true,
+      claimedCount,
+      updatedPresents: presentsForUser,
+      userTickets,
+      progress,
+    });
+  });
+
+  // 6. Reward Scout API: Verify, prune expired lots, and consume ticket
+  app.post('/api/scout/consume', (req, res) => {
+    const { userId, ticketType } = req.body;
+    if (!isValidUserId(userId) || !ticketType || !VALID_SCOUT_TICKETS.has(ticketType)) {
+      return res.status(400).json({ error: 'Invalid userId or ticketType' });
+    }
+
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    const pruned = pruneExpiredLotsForUser(progress, now);
+    if (pruned) {
+      saveUserProgressToDisk();
+      saveUserTicketsToDisk();
+    }
+
+    if (!progress.inventory[ticketType] || progress.inventory[ticketType] <= 0) {
+      return res.status(400).json({ error: 'No active tickets available for this scout' });
+    }
+
+    // Consume soonest-expiring active timed lot first (FIFO by expiresAt)
+    const activeLots = progress.timedLots
+      .filter((l) => l.ticketType === ticketType && l.remaining > 0 && (!l.expiresAt || l.expiresAt > now))
+      .sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity));
+    if (activeLots.length > 0) {
+      activeLots[0].remaining -= 1;
+    }
+
+    progress.inventory[ticketType] = Math.max(0, (progress.inventory[ticketType] || 0) - 1);
+    progress.updatedAt = now;
+    appendUsageLog(progress, {
+      itemType: ticketType,
+      action: 'use_scout',
+      amount: 1,
+      detailJa: `スカウト実行 (${ticketType})`,
+      detailEn: `Executed scout (${ticketType})`,
+      timestamp: now,
+    });
+
+    const userTickets = extractScoutTicketsFromInventory(progress.inventory);
     userTicketsDatabase.set(userId, userTickets);
     saveUserTicketsToDisk();
+    saveUserProgressToDisk();
 
     res.json({
       success: true,
       ticketType,
       remainingTickets: userTickets[ticketType],
       userTickets,
+      progress,
     });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // 6.2 Ver.1.6.0 AUTHORITATIVE PROGRESS, LOGIN BONUS, TRAINING & ITEM APIs
+  // ═════════════════════════════════════════════════════════════════════════
+
+  app.get('/api/progress/:userId', (req, res) => {
+    const { userId } = req.params;
+    if (!isValidUserId(userId)) {
+      return res.status(400).json({ error: 'Valid userId is required' });
+    }
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    const pruned = pruneExpiredLotsForUser(progress, now);
+    if (pruned) {
+      saveUserProgressToDisk();
+      saveUserTicketsToDisk();
+    }
+    res.json({
+      success: true,
+      serverTimeMs: now,
+      todayJst: getServerJstDateKey(now),
+      progress,
+      userTickets: extractScoutTicketsFromInventory(progress.inventory),
+    });
+  });
+
+  // 15-Day Login Bonus Claim (JST midnight reset enforced server-side)
+  app.post('/api/progress/claim-login-bonus', (req, res) => {
+    const { userId } = req.body;
+    if (!isValidUserId(userId)) {
+      return res.status(400).json({ error: 'Valid userId is required' });
+    }
+
+    const now = Date.now();
+    const todayJst = getServerJstDateKey(now);
+    const progress = getOrCreateUserProgress(userId);
+    pruneExpiredLotsForUser(progress, now);
+
+    if (progress.loginBonus.lastClaimedJstDate === todayJst) {
+      return res.status(400).json({
+        success: false,
+        error: 'ALREADY_CLAIMED_TODAY',
+        todayJst,
+        progress,
+      });
+    }
+
+    let activeDay = progress.loginBonus.currentDay;
+    let claimedInCycle = [...(progress.loginBonus.claimedDaysInCycle || [])];
+    let cycleCount = progress.loginBonus.cycleCount || 1;
+    if (claimedInCycle.length >= 15 || activeDay < 1 || activeDay > 15) {
+      activeDay = 1;
+      claimedInCycle = [];
+      cycleCount += 1;
+    }
+
+    const dayDef = SERVER_LOGIN_BONUS_SCHEDULE[activeDay - 1];
+    const grantedRewards: { rewardType: string; amount: number; expiresAt?: number }[] = [];
+
+    for (const r of dayDef.rewards) {
+      const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+      grantItemToProgress(
+        progress,
+        r.rewardType,
+        r.amount,
+        `login_bonus_day_${activeDay}_cycle_${cycleCount}`,
+        expiresAt,
+        now
+      );
+      appendUsageLog(progress, {
+        itemType: r.rewardType,
+        action: 'claim_login_bonus',
+        amount: r.amount,
+        detailJa: `ログインボーナス DAY ${activeDay} 獲得 (${dayDef.labelJa})`,
+        detailEn: `Login Bonus DAY ${activeDay} claimed`,
+        timestamp: now,
+      });
+      grantedRewards.push({ rewardType: r.rewardType, amount: r.amount, expiresAt });
+    }
+
+    const completedCycle = activeDay >= 15;
+    const nextClaimed = Array.from(new Set([...claimedInCycle, activeDay])).sort((a, b) => a - b);
+    progress.loginBonus = {
+      currentDay: completedCycle ? 1 : activeDay + 1,
+      claimedDaysInCycle: completedCycle ? [] : nextClaimed,
+      lastClaimedJstDate: todayJst,
+      lastClaimedAt: now,
+      totalClaims: (progress.loginBonus.totalClaims || 0) + 1,
+      cycleCount: completedCycle ? cycleCount + 1 : cycleCount,
+    };
+    progress.updatedAt = now;
+
+    saveUserProgressToDisk();
+    saveUserTicketsToDisk();
+
+    res.json({
+      success: true,
+      claimedDay: activeDay,
+      rewards: grantedRewards,
+      todayJst,
+      progress,
+      userTickets: extractScoutTicketsFromInventory(progress.inventory),
+    });
+  });
+
+  // Training Chip: 5 chips -> +1 Level (max Lv.10, +5 OVR at Lv.10)
+  app.post('/api/items/train-player', (req, res) => {
+    const { userId, player } = req.body;
+    if (!isValidUserId(userId) || !player || typeof player.playerId !== 'string') {
+      return res.status(400).json({ error: 'Invalid userId or player' });
+    }
+
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    const chips = progress.inventory.training_chip || 0;
+    if (chips < 5) {
+      return res.status(400).json({ error: 'Insufficient Training Chips (need 5)' });
+    }
+
+    const existing = progress.playerStates[player.playerId];
+    const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
+    if (currentLevel >= 10) {
+      return res.status(400).json({ error: 'Player is already at Lv.10' });
+    }
+
+    const prevBonus = LEVEL_OVR_BONUS[currentLevel - 1] ?? 0;
+    const baseRating =
+      existing?.baseRating ??
+      (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - prevBonus));
+    const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
+    const nextLevel = currentLevel + 1;
+    const nextBonus = LEVEL_OVR_BONUS[nextLevel - 1] ?? 0;
+
+    progress.inventory.training_chip = chips - 5;
+    progress.playerStates[player.playerId] = {
+      playerId: player.playerId,
+      baseRating,
+      baseStats,
+      level: nextLevel,
+      awakeningLevel: existing?.awakeningLevel ?? Number(player.awakeningLevel ?? 0),
+      addedPositions: existing?.addedPositions ?? (Array.isArray(player.addedPositions) ? player.addedPositions : []),
+      updatedAt: now,
+    };
+    appendUsageLog(progress, {
+      itemType: 'training_chip',
+      action: 'use_item',
+      amount: 5,
+      detailJa: `${player.nameJa || player.playerName} を Lv.${nextLevel} に育成 (OVR ${baseRating + nextBonus})`,
+      detailEn: `Trained ${player.nameEn || player.playerName} to Lv.${nextLevel}`,
+      timestamp: now,
+    });
+    progress.updatedAt = now;
+    saveUserProgressToDisk();
+
+    res.json({
+      success: true,
+      playerState: progress.playerStates[player.playerId],
+      newRating: baseRating + nextBonus,
+      progress,
+    });
+  });
+
+  // Awakening Ticket: 1 ticket -> +1 Awakening (strictly requires Lv.10, max 7, zero OVR change)
+  app.post('/api/items/awaken-player', (req, res) => {
+    const { userId, player } = req.body;
+    if (!isValidUserId(userId) || !player || typeof player.playerId !== 'string') {
+      return res.status(400).json({ error: 'Invalid userId or player' });
+    }
+
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    const balance = progress.inventory.awakening_ticket || 0;
+    if (balance < 1) {
+      return res.status(400).json({ error: 'Insufficient Awakening Tickets' });
+    }
+
+    const existing = progress.playerStates[player.playerId];
+    const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
+    const currentAwakening = Math.max(0, Math.min(7, Number(existing?.awakeningLevel ?? player.awakeningLevel ?? 0)));
+
+    if (currentLevel < 10) {
+      return res.status(400).json({ error: 'Awakening requires player Lv.10' });
+    }
+    if (currentAwakening >= 7) {
+      return res.status(400).json({ error: 'Already at max Awakening Lv.7' });
+    }
+
+    const baseRating =
+      existing?.baseRating ??
+      (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - 5));
+    const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
+    const nextAwakening = currentAwakening + 1;
+
+    progress.inventory.awakening_ticket = balance - 1;
+    progress.playerStates[player.playerId] = {
+      playerId: player.playerId,
+      baseRating,
+      baseStats,
+      level: currentLevel,
+      awakeningLevel: nextAwakening,
+      addedPositions: existing?.addedPositions ?? (Array.isArray(player.addedPositions) ? player.addedPositions : []),
+      updatedAt: now,
+    };
+    appendUsageLog(progress, {
+      itemType: 'awakening_ticket',
+      action: 'use_item',
+      amount: 1,
+      detailJa: `${player.nameJa || player.playerName} を 覚醒 Lv.${nextAwakening} に覚醒`,
+      detailEn: `Awakened ${player.nameEn || player.playerName} to Lv.${nextAwakening}`,
+      timestamp: now,
+    });
+    progress.updatedAt = now;
+    saveUserProgressToDisk();
+
+    res.json({
+      success: true,
+      playerState: progress.playerStates[player.playerId],
+      progress,
+    });
+  });
+
+  // Position Plus: 1 item -> adds 1 non-duplicate valid eFootball position
+  app.post('/api/items/add-position', (req, res) => {
+    const { userId, player, targetPosition, currentVerifiedPositions } = req.body;
+    if (
+      !isValidUserId(userId) ||
+      !player ||
+      typeof player.playerId !== 'string' ||
+      typeof targetPosition !== 'string' ||
+      !VALID_EFOOTBALL_POSITIONS.has(targetPosition)
+    ) {
+      return res.status(400).json({ error: 'Invalid request parameters' });
+    }
+
+    if (player.position === 'GK' || targetPosition === 'GK') {
+      return res.status(400).json({ error: 'GK position mismatch not allowed' });
+    }
+
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    const balance = progress.inventory.position_plus || 0;
+    if (balance < 1) {
+      return res.status(400).json({ error: 'No Position Plus items available' });
+    }
+
+    const existing = progress.playerStates[player.playerId];
+    const prevAdded = Array.isArray(existing?.addedPositions)
+      ? existing.addedPositions
+      : Array.isArray(player.addedPositions)
+      ? player.addedPositions
+      : [];
+    const verifiedSet = new Set<string>([
+      ...(Array.isArray(currentVerifiedPositions) ? currentVerifiedPositions : []),
+      ...prevAdded,
+    ]);
+    if (verifiedSet.has(targetPosition)) {
+      return res.status(400).json({ error: 'Player already possesses this position proficiency' });
+    }
+
+    const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
+    const levelBonus = LEVEL_OVR_BONUS[currentLevel - 1] ?? 0;
+    const baseRating =
+      existing?.baseRating ??
+      (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - levelBonus));
+    const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
+
+    progress.inventory.position_plus = balance - 1;
+    progress.playerStates[player.playerId] = {
+      playerId: player.playerId,
+      baseRating,
+      baseStats,
+      level: currentLevel,
+      awakeningLevel: existing?.awakeningLevel ?? Number(player.awakeningLevel ?? 0),
+      addedPositions: [...prevAdded, targetPosition],
+      updatedAt: now,
+    };
+    appendUsageLog(progress, {
+      itemType: 'position_plus',
+      action: 'use_item',
+      amount: 1,
+      detailJa: `${player.nameJa || player.playerName} に ${targetPosition} 適正を追加`,
+      detailEn: `Added ${targetPosition} proficiency to ${player.nameEn || player.playerName}`,
+      timestamp: now,
+    });
+    progress.updatedAt = now;
+    saveUserProgressToDisk();
+
+    res.json({
+      success: true,
+      playerState: progress.playerStates[player.playerId],
+      progress,
+    });
+  });
+
+  // Manager Select Ticket: consume 1 ticket, add manager to ownedManagers (graceful duplicate notice)
+  app.post('/api/items/select-manager', (req, res) => {
+    const { userId, managerId, managerName } = req.body;
+    if (!isValidUserId(userId) || !managerId || typeof managerId !== 'string') {
+      return res.status(400).json({ error: 'Invalid userId or managerId' });
+    }
+
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    const balance = progress.inventory.manager_select_ticket || 0;
+    if (balance < 1) {
+      return res.status(400).json({ error: 'No Manager Select Tickets available' });
+    }
+
+    const alreadyOwned = progress.ownedManagers.some((m) => m.managerId === managerId);
+    progress.inventory.manager_select_ticket = balance - 1;
+    if (!alreadyOwned) {
+      progress.ownedManagers.push({
+        managerId,
+        acquiredAt: now,
+        source: 'manager_select_ticket',
+      });
+    }
+    appendUsageLog(progress, {
+      itemType: 'manager_select_ticket',
+      action: 'use_item',
+      amount: 1,
+      detailJa: `監督選択スカウトで「${managerName || managerId}」を獲得${alreadyOwned ? '（所持済み登録済み）' : ''}`,
+      detailEn: `Selected manager ${managerName || managerId} via Manager Select Ticket`,
+      timestamp: now,
+    });
+    progress.updatedAt = now;
+    saveUserProgressToDisk();
+
+    res.json({
+      success: true,
+      alreadyOwned,
+      ownedManagers: progress.ownedManagers,
+      progress,
+    });
+  });
+
+  // Record a manager acquired from 1-per-game Manager Draft gacha (free)
+  app.post('/api/managers/record-draft', (req, res) => {
+    const { userId, managerId } = req.body;
+    if (!isValidUserId(userId) || !managerId || typeof managerId !== 'string') {
+      return res.status(400).json({ error: 'Invalid userId or managerId' });
+    }
+    const now = Date.now();
+    const progress = getOrCreateUserProgress(userId);
+    if (!progress.ownedManagers.some((m) => m.managerId === managerId)) {
+      progress.ownedManagers.push({
+        managerId,
+        acquiredAt: now,
+        source: 'draft_gacha',
+      });
+      progress.updatedAt = now;
+      saveUserProgressToDisk();
+    }
+    res.json({ success: true, ownedManagers: progress.ownedManagers, progress });
   });
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -2363,7 +3201,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT} (v1.3.0)`);
+    console.log(`Server running on http://0.0.0.0:${PORT} (v1.6.0)`);
   });
 }
 

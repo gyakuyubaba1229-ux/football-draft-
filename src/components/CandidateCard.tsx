@@ -198,6 +198,22 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
               <span className="text-xs text-slate-400 font-medium">
                 {getLocalizedPosition(player.position, language)}
               </span>
+
+              {(player.level ?? 1) > 1 && (
+                <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  Lv.{player.level}
+                </span>
+              )}
+              {(player.awakeningLevel ?? 0) > 0 && (
+                <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  覚醒{player.awakeningLevel}
+                </span>
+              )}
+              {Array.isArray(player.addedPositions) && player.addedPositions.length > 0 && (
+                <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/40">
+                  +{player.addedPositions.join('/')}
+                </span>
+              )}
             </div>
 
             {/* Nationality Flag + Name */}

@@ -1796,8 +1796,15 @@ export function findOver100BlackBallCandidates(
   const disallowedSet = new Set<MainPosition>(disallowedPositions);
   const j1ClubIds = new Set(['kashima_antlers', 'vissel_kobe', 'kashiwa_reysol', 'jubilo_iwata', 'nagoya_grampus']);
 
+  const isPurpleTarget = (p: Player) =>
+    p.specialType === 'purple' ||
+    p.special_type === 'purple' ||
+    p.category === 'PURPLE_ACTIVE' ||
+    p.playerId.startsWith('purple_');
+
   const strictOver100 = allOver100Players.filter((p) => {
     if (p.rating < 100) return false;
+    if (isPurpleTarget(p)) return false;
     if (disallowedSet.has(p.position)) return false;
     if (excludePlayerIds.includes(p.playerId)) return false;
     const canonKey = getCanonicalPersonKey(p);
@@ -1822,7 +1829,7 @@ export function findOver100BlackBallCandidates(
   const pickedPersonKeys = new Set<string>();
 
   for (const player of sourcePool) {
-    if (player.rating < 100) continue;
+    if (player.rating < 100 || isPurpleTarget(player)) continue;
     const canonKey = getCanonicalPersonKey(player);
     if (!pickedPersonKeys.has(canonKey)) {
       picked.push(player);

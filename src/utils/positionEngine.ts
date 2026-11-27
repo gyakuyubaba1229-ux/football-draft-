@@ -113,7 +113,7 @@ export function normalizeRoleToEFootball(role: string): EFootballPosition {
 /**
  * Returns the set of verified playable positions for a player based on official records.
  */
-export function getVerifiedPositionsForPlayer(player: Player): EFootballPosition[] {
+function getBaseVerifiedPositionsForPlayer(player: Player): EFootballPosition[] {
   if (!player) return ['CMF'];
 
   // 1. Direct personId lookup
@@ -161,6 +161,19 @@ export function getVerifiedPositionsForPlayer(player: Player): EFootballPosition
   if (player.position === 'FW') return ['CF', 'LWG', 'RWG', 'SS'];
 
   return ['CMF'];
+}
+
+export function getVerifiedPositionsForPlayer(player: Player): EFootballPosition[] {
+  const base = getBaseVerifiedPositionsForPlayer(player);
+  const added = Array.isArray(player?.addedPositions) ? (player.addedPositions as EFootballPosition[]) : [];
+  if (added.length === 0) return base;
+  const merged = [...base];
+  for (const pos of added) {
+    if (pos && !merged.includes(pos)) {
+      merged.push(pos);
+    }
+  }
+  return merged;
 }
 
 /**

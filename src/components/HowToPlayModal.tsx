@@ -4,7 +4,7 @@ import { TRANSLATIONS } from '../utils/translations';
 import { soundManager } from '../utils/audio';
 import { HelpCircle, X, Zap, Crown, Sparkles } from 'lucide-react';
 import { getOver100Players } from '../data/playerDatabase';
-import { PURPLE_ACTIVE_PLAYERS } from '../data/purpleActivePlayers';
+import { PURPLE_ACTIVE_PLAYERS, isPurpleCard } from '../data/purpleActivePlayers';
 
 interface HowToPlayModalProps {
   isOpen: boolean;
@@ -144,6 +144,18 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                 <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <p className="leading-snug">{t.blackBallNotice}</p>
               </div>
+
+              {/* Ver.1.6.0 Item Box & Training notice */}
+              <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-emerald-200 text-xs space-y-1">
+                <div className="font-bold text-emerald-300">
+                  {language === 'ja' ? '🆕 Ver.1.6.0 選手育成・アイテムBOX・15日ログインボーナス' : '🆕 Ver.1.6.0 Training, Item Box & 15-Day Login Bonus'}
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  {language === 'ja'
+                    ? 'トレーニングチップ5枚で選手Lv.+1（Lv.10で初期OVR+5）。Lv.10到達後は覚醒チケットで最大7段階の覚醒が可能！またポジションplus・監督選択スカウト・15日ログインボーナスもITEM BOXから管理できます。'
+                    : 'Use 5 Training Chips per level (Lv.10 = +5 Base OVR), Awaken Lv.10 players up to 7 stages, add natural positions with Position Plus, and claim daily JST Login Bonuses!'}
+                </p>
+              </div>
             </>
           )}
 
@@ -265,7 +277,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                       ? player.nameEs || player.playerName
                       : player.nameEn || player.playerName;
 
-                  const isPurpleActive = player.playerId.startsWith('purple_') || Boolean(!player.isLegendary && player.rating <= 101);
+                  const isPurpleActive = isPurpleCard(player);
 
                   return (
                     <div

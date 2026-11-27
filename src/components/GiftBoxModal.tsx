@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { GiftBoxItem, Language, RewardTicketType } from '../types';
+import { GiftBoxItem, InventoryItemType, Language, RewardTicketType } from '../types';
 import { REWARD_SCOUT_DEFINITIONS } from '../utils/rewardScoutEngine';
+import { ITEM_CATALOG } from '../utils/itemBoxEngine';
 import { soundManager } from '../utils/audio';
 import {
   Gift,
@@ -172,8 +173,21 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
             </div>
           ) : (
             filteredItems.map((item) => {
-              const def = REWARD_SCOUT_DEFINITIONS[item.rewardType as RewardTicketType];
-              const badgeText = def ? def.nameJa : item.rewardType;
+              const rewardEntries =
+                item.rewards && item.rewards.length > 0
+                  ? item.rewards
+                  : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+
+              const formattedExpiry = item.expiresAt
+                ? `${new Date(item.expiresAt).toLocaleString('ja-JP', {
+                    timeZone: 'Asia/Tokyo',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })} JST`
+                : null;
 
               return (
                 <div
@@ -189,9 +203,23 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
                       <span className="font-heading font-black text-sm text-white">
                         {item.title}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                        {badgeText} ×{item.amount || 1}
-                      </span>
+                      {rewardEntries.map((rew, rIdx) => {
+                        const catalogEntry = ITEM_CATALOG[rew.rewardType as InventoryItemType];
+                        const scoutDef = REWARD_SCOUT_DEFINITIONS[rew.rewardType as RewardTicketType];
+                        const badgeText = catalogEntry
+                          ? catalogEntry.nameJa
+                          : scoutDef
+                          ? scoutDef.nameJa
+                          : String(rew.rewardType);
+                        return (
+                          <span
+                            key={`${item.id}_rew_${rIdx}`}
+                            className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          >
+                            {badgeText} ×{rew.amount || 1}
+                          </span>
+                        );
+                      })}
                       {item.isClaimed && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800 text-slate-400">
                           受取済み
@@ -204,11 +232,11 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
                     <div className="text-[10px] text-slate-500 font-mono flex items-center gap-3 flex-wrap">
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3 text-slate-500" />
-                        <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+                        <span>{new Date(item.createdAt).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })}</span>
                       </div>
-                      {item.expiresAt && (
+                      {formattedExpiry && item.expiresAt && (
                         <div className={`flex items-center gap-1 ${Date.now() > item.expiresAt ? 'text-rose-400 font-bold' : 'text-amber-400/80'}`}>
-                          <span>有効期限: 2026/09/30 23:59 JST</span>
+                          <span>有効期限: {formattedExpiry}</span>
                           {Date.now() > item.expiresAt && <span>(期限切れ)</span>}
                         </div>
                       )}

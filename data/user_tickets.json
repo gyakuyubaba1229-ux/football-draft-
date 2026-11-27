@@ -1,0 +1,32 @@
+{
+  "verify_user_1795786987000": {
+    "normal_ticket": 0,
+    "legend_10": 0,
+    "legend_20": 1,
+    "legend_50": 0,
+    "legend_guaranteed": 0,
+    "purple_20": 0,
+    "purple_50": 0,
+    "purple_guaranteed": 0,
+    "legend_purple_50": 0,
+    "legend_purple_guaranteed": 2,
+    "japan_star_guaranteed": 1,
+    "japan_legend_50": 0,
+    "japan_legend_guaranteed": 0
+  },
+  "verify_user_1795786998936": {
+    "normal_ticket": 0,
+    "legend_10": 0,
+    "legend_20": 1,
+    "legend_50": 0,
+    "legend_guaranteed": 0,
+    "purple_20": 0,
+    "purple_50": 0,
+    "purple_guaranteed": 0,
+    "legend_purple_50": 0,
+    "legend_purple_guaranteed": 2,
+    "japan_star_guaranteed": 1,
+    "japan_legend_50": 0,
+    "japan_legend_guaranteed": 0
+  }
+}

@@ -22,7 +22,7 @@ export type SpecialAnimationType = 'black' | 'gold' | 'purple';
 
 export type DraftRevealTier = 'normal' | 'high' | 'ultra' | 'supreme' | 'manager';
 
-export type RevealStagingEvent = 'blackball' | 'purple' | 'normal' | 'manager' | 'japan_star';
+export type RevealStagingEvent = 'blackball' | 'purple' | 'normal' | 'manager' | 'japan_star' | 'japan_legend';
 
 interface BlackBallAnimationProps {
   language: Language;
@@ -68,9 +68,10 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
   const isExplicitBlackBall = stagingEvent === 'blackball';
   const isExplicitPurple = stagingEvent === 'purple';
   const isExplicitJapanStar = stagingEvent === 'japan_star';
+  const isExplicitJapanLegend = stagingEvent === 'japan_legend';
   const isExplicitNormal = stagingEvent === 'normal';
 
-  // Authoritative unified rarity check when stagingEvent is not explicitly forcing normal/japan_star/blackball/purple
+  // Authoritative unified rarity check when stagingEvent is not explicitly forcing normal/japan_star/japan_legend/blackball/purple
   const effectiveRarity: UnifiedRarity | null =
     tier === 'manager' || stagingEvent === 'manager'
       ? null
@@ -78,6 +79,8 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
       ? 'black'
       : isExplicitPurple
       ? 'purple'
+      : isExplicitJapanLegend
+      ? 'legend'
       : isExplicitJapanStar
       ? 'star'
       : isExplicitNormal
@@ -99,6 +102,8 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
       ? 'supreme'
       : isExplicitPurple
       ? 'supreme'
+      : isExplicitJapanLegend
+      ? 'ultra'
       : isExplicitJapanStar
       ? 'high'
       : isExplicitNormal
@@ -186,9 +191,11 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
     (!isExplicitBlackBall &&
       !isExplicitNormal &&
       !isExplicitJapanStar &&
+      !isExplicitJapanLegend &&
       (effectiveRarity === 'purple' || player?.specialType === 'purple' || player?.special_type === 'purple'));
   const isBlackBallLuxury =
-    isExplicitBlackBall || (!isExplicitPurple && !isExplicitNormal && !isExplicitJapanStar && effectiveTier === 'ultra');
+    isExplicitBlackBall ||
+    (!isExplicitPurple && !isExplicitNormal && !isExplicitJapanStar && !isExplicitJapanLegend && effectiveTier === 'ultra');
   const isSupreme = effectiveTier === 'supreme';
   const isUltra = effectiveTier === 'ultra';
   const isHigh = effectiveTier === 'high';
@@ -208,6 +215,8 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
   // Visual theme tokens per tier
   const badgeText = isBlackBallLuxury
     ? 'ULTRA RARE • BLACK BALL (1.8% • OVR 100+)'
+    : isExplicitJapanLegend
+    ? 'SAMURAI LEGEND • JAPANESE LEGEND'
     : isSupreme
     ? isPurpleSpecial
       ? 'PURPLE SPECIAL (3.0%) • ACTIVE SUPERSTARS'
@@ -226,6 +235,10 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
     ? language === 'ja'
       ? '⚡ 超激レア・黒玉演出発動！ ⚡'
       : '⚡ ULTRA RARE BLACK BALL! ⚡'
+    : isExplicitJapanLegend
+    ? language === 'ja'
+      ? '🇯🇵 日本代表レジェンド降臨！ 👑'
+      : '🇯🇵 JAPANESE LEGEND ARRIVES! 👑'
     : isSupreme
     ? isPurpleSpecial
       ? language === 'ja'
@@ -464,6 +477,8 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
                 <span className="text-4xl sm:text-5xl drop-shadow-[0_0_16px_rgba(255,255,255,0.85)]">
                   {isBlackBallLuxury
                     ? '⚫'
+                    : isExplicitJapanLegend
+                    ? '🇯🇵'
                     : isSupreme
                     ? isPurpleSpecial
                       ? '🟣'
@@ -637,6 +652,8 @@ export const DraftRevealOverlay: React.FC<DraftRevealOverlayProps> = ({
           <p className="text-xs sm:text-sm text-slate-300 font-medium max-w-md">
             {isBlackBallLuxury
               ? '全員 OVR 100+ スター選手確定！最高峰の超激レア黒玉演出！'
+              : isExplicitJapanLegend
+              ? '日本サッカー史に名を刻む伝説のレジェンド選手が登場！'
               : isSupreme
               ? isPurpleSpecial
                 ? '最高峰の現役スーパースターが候補に降臨します！'

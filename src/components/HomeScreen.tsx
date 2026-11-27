@@ -18,6 +18,8 @@ import {
   Gift,
   Ticket,
   Trophy,
+  Package,
+  CalendarCheck,
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -29,8 +31,12 @@ interface HomeScreenProps {
   onOpenUpdateNotes?: () => void;
   onOpenGiftBox?: () => void;
   onOpenScoutModal?: () => void;
+  onOpenItemBox?: () => void;
+  onOpenLoginBonus?: () => void;
   unclaimedGiftsCount?: number;
   totalTicketsCount?: number;
+  itemBoxTotalCount?: number;
+  canClaimLoginBonus?: boolean;
   teams?: UserTeam[];
   activeTeam?: UserTeam;
   myTeam: Player[];
@@ -56,8 +62,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   hasActiveSpin,
   onOpenGiftBox,
   onOpenScoutModal,
+  onOpenItemBox,
+  onOpenLoginBonus,
   unclaimedGiftsCount = 0,
   totalTicketsCount = 0,
+  itemBoxTotalCount = 0,
+  canClaimLoginBonus = false,
 }) => {
   const t = TRANSLATIONS[language];
   const isInProgress = myTeam.length < 11 || hasActiveSpin;
@@ -358,6 +368,69 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
+
+        {/* 5.6 ITEM BOX & LOGIN BONUS ROW (Ver.1.6.0) */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* ITEM BOX */}
+          <button
+            id="btn-home-item-box"
+            onClick={() => {
+              soundManager.playButtonClick();
+              if (onOpenItemBox) onOpenItemBox();
+            }}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-950/90 to-slate-900 border border-cyan-500/40 hover:border-cyan-400 text-white font-heading font-bold text-sm tracking-wide transition-all flex items-center justify-between group shadow-lg shadow-cyan-950/30"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center border border-cyan-500/30 shrink-0">
+                <Package className="w-4 h-4 text-cyan-400" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-black leading-tight flex items-center gap-1.5">
+                  <span>ITEM BOX</span>
+                  {itemBoxTotalCount > 0 && (
+                    <span className="text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full bg-cyan-400 text-slate-950 shadow-sm">
+                      {itemBoxTotalCount}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-400 font-normal">
+                  アイテムBOX
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
+          {/* 15-DAY LOGIN BONUS */}
+          <button
+            id="btn-home-login-bonus"
+            onClick={() => {
+              soundManager.playButtonClick();
+              if (onOpenLoginBonus) onOpenLoginBonus();
+            }}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-950/80 to-slate-900 border border-emerald-500/40 hover:border-emerald-400 text-white font-heading font-bold text-sm tracking-wide transition-all flex items-center justify-between group shadow-lg shadow-emerald-950/30"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                <CalendarCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-black leading-tight flex items-center gap-1.5">
+                  <span>BONUS</span>
+                  {canClaimLoginBonus && (
+                    <span className="text-[9px] font-mono font-black px-1.5 py-0.2 rounded-full bg-rose-500 text-white shadow-sm animate-pulse">
+                      {language === 'ja' ? '受取可' : 'NEW'}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-400 font-normal">
+                  15日ボーナス
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-300 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
 

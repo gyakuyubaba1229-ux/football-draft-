@@ -1,9 +1,18 @@
-import { Player, RewardTicketType, GiftBoxItem, PastWeeklyRankingHistory, BetaStandingEntry, MainPosition } from '../types';
-import { PURPLE_ACTIVE_PLAYERS } from '../data/purpleActivePlayers';
+import {
+  Player,
+  RewardTicketType,
+  GiftBoxItem,
+  PastWeeklyRankingHistory,
+  BetaStandingEntry,
+  MainPosition,
+  InventoryItemType,
+} from '../types';
+import { PURPLE_ACTIVE_PLAYERS, isPurpleCard } from '../data/purpleActivePlayers';
 import { EUROPEAN_PLAYERS } from '../data/playersEurope';
 import { SPECIAL_BALLON_DOR_PLAYERS } from '../data/legendaryEraDatabase';
 import { ALL_PLAYERS } from '../data/playerDatabase';
-import { getCurrentJapanStarPool } from '../data/nationalEraDatabase';
+import { NATIONAL_ERA_PLAYERS, getCurrentJapanStarPool } from '../data/nationalEraDatabase';
+import { J1_LEGENDS_EXPANDED } from '../data/playersLegendsJ1';
 
 export type PresentBoxItem = GiftBoxItem;
 export type UserRewardTickets = Record<RewardTicketType, number>;
@@ -20,7 +29,7 @@ export interface RewardScoutDefinition {
   descriptionJa: string;
   descriptionEn: string;
   candidateCount: number;
-  guaranteedType?: 'legend' | 'purple' | 'both' | 'japan_star';
+  guaranteedType?: 'legend' | 'purple' | 'both' | 'japan_star' | 'normal' | 'japan_legend' | 'japan_legend_50';
   legendChance: number; // 0 - 1
   purpleChance: number; // 0 - 1
   badgeColor: string;
@@ -150,6 +159,61 @@ export const REWARD_SCOUT_DEFINITIONS: Record<RewardTicketType, RewardScoutDefin
     accentGradient: 'from-sky-600/30 via-blue-700/20 to-slate-900/40',
     iconName: 'Flag',
   },
+  normal_ticket: {
+    type: 'normal_ticket',
+    nameJa: 'ノーマルチケット',
+    nameEn: 'Normal Ticket',
+    descriptionJa: 'ノーマル選手のみが抽選対象になる専用スカウト。3名のノーマル選手から1名を獲得できます。',
+    descriptionEn: 'Normal-category players only (strictly excludes Star, Purple, Legend, and Black Ball players).',
+    candidateCount: 3,
+    guaranteedType: 'normal',
+    legendChance: 0.0,
+    purpleChance: 0.0,
+    badgeColor: 'bg-slate-500/20 text-slate-200 border-slate-400/40',
+    accentGradient: 'from-slate-600/30 via-slate-800/30 to-slate-950/50',
+    iconName: 'Ticket',
+  },
+  legend_10: {
+    type: 'legend_10',
+    nameJa: 'レジェンド10%スカウト',
+    nameEn: 'Legend 10% Scout',
+    descriptionJa: '10%の確率でレジェンド選手が出現するスカウト！3名の候補から1名を選択してMY TEAMへ。',
+    descriptionEn: '10% chance to summon a Legend! Choose 1 of 3 candidates for your MY TEAM.',
+    candidateCount: 3,
+    legendChance: 0.1,
+    purpleChance: 0.0,
+    badgeColor: 'bg-amber-700/20 text-amber-200 border-amber-500/40',
+    accentGradient: 'from-amber-800/30 via-stone-800/30 to-stone-950/50',
+    iconName: 'Star',
+  },
+  japan_legend_50: {
+    type: 'japan_legend_50',
+    nameJa: '日本人レジェンド50%スカウト',
+    nameEn: 'Japan Legend 50% Scout',
+    descriptionJa: '50%の確率で日本国籍のレジェンド選手のみが登場する特別スカウト！3名の候補から1名を選択。',
+    descriptionEn: '50% chance to draw exclusively from verified Japanese Legends! Pick 1 of 3 candidates.',
+    candidateCount: 3,
+    guaranteedType: 'japan_legend_50',
+    legendChance: 0.5,
+    purpleChance: 0.0,
+    badgeColor: 'bg-rose-500/20 text-rose-200 border-rose-400/40',
+    accentGradient: 'from-rose-700/30 via-amber-700/20 to-slate-950/50',
+    iconName: 'Award',
+  },
+  japan_legend_guaranteed: {
+    type: 'japan_legend_guaranteed',
+    nameJa: '日本人レジェンド確定スカウト',
+    nameEn: 'Japan Legend Guaranteed Scout',
+    descriptionJa: '日本国籍のレジェンド選手のみが確定で3名登場！日本サッカー史を彩ったレジェンドから1名を獲得！',
+    descriptionEn: 'Guaranteed 3 verified Japanese Legends! Pick 1 to add directly to MY TEAM.',
+    candidateCount: 3,
+    guaranteedType: 'japan_legend',
+    legendChance: 1.0,
+    purpleChance: 0.0,
+    badgeColor: 'bg-gradient-to-r from-rose-500/25 to-amber-500/25 text-amber-200 border-rose-400/50',
+    accentGradient: 'from-rose-600/30 via-amber-600/25 to-slate-950/50',
+    iconName: 'Crown',
+  },
 };
 
 // Storage Keys
@@ -158,6 +222,8 @@ const LOCAL_STORAGE_PRESENT_BOX = 'FOOTBALL_DRAFT_PRESENT_BOX_V130';
 const LOCAL_STORAGE_APOLOGY_CLAIMED = 'FOOTBALL_DRAFT_APOLOGY_GIFT_CLAIMED_V130';
 const LOCAL_STORAGE_V150_MEMORIAL_SENT_PREFIX = 'FOOTBALL_DRAFT_V150_MEMORIAL_SENT_';
 const LOCAL_STORAGE_MORIYASU_GIFT_SENT_PREFIX = 'FOOTBALL_DRAFT_MORIYASU_GIFT_SENT_';
+const LOCAL_STORAGE_V160_APOLOGY_SENT_PREFIX = 'FOOTBALL_DRAFT_V160_APOLOGY_SENT_';
+const LOCAL_STORAGE_V160_CAMPAIGN_SENT_PREFIX = 'FOOTBALL_DRAFT_V160_CAMPAIGN_SENT_';
 const LOCAL_STORAGE_PAST_RANKINGS = 'FOOTBALL_DRAFT_PAST_WEEKLY_RANKINGS_V130';
 
 /**
@@ -192,6 +258,79 @@ export function getAllPurplePool(): Player[] {
 }
 
 /**
+ * Strict Normal-only pool for normal_ticket:
+ * ONLY category === 'NORMAL', non-legend, non-purple, rating < 100, non-bd_special.
+ */
+export function getNormalOnlyPool(): Player[] {
+  const map = new Map<string, Player>();
+  for (const p of ALL_PLAYERS) {
+    if (
+      p.category === 'NORMAL' &&
+      !p.isLegendary &&
+      !isPurpleCard(p) &&
+      p.rating < 100 &&
+      !p.playerId.startsWith('bd_special_')
+    ) {
+      const pId = p.personId || p.playerId;
+      if (!map.has(pId)) map.set(pId, p);
+    }
+  }
+  return Array.from(map.values());
+}
+
+const ACTIVE_NON_LEGEND_JP_IDS = new Set([
+  'k_mitoma',
+  'j_ito',
+  'yuya_osako',
+  'mitoma_kawa_2020',
+  'ito_junya_kashiwa_2016',
+  'osako_vissel_2021',
+]);
+
+function canonicalJapanesePersonName(player: Player): string {
+  return (player.nameJa || player.playerName || '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/（[^）]*）/g, '')
+    .replace(/\s+/g, '')
+    .replace(/﨑/g, '崎')
+    .trim();
+}
+
+/**
+ * Strictly verified Japanese Legends pool:
+ * - Japanese nationality ONLY (excludes all foreign legends)
+ * - Genuine Legends ONLY (excludes active non-legends such as Mitoma, Junya Ito, Yuya Osako)
+ * - Deduplicated across J1 & National Era entries, preferring the higher-OVR card
+ */
+export function getJapaneseLegendPool(): Player[] {
+  const combined = [...ALL_PLAYERS, ...J1_LEGENDS_EXPANDED, ...NATIONAL_ERA_PLAYERS];
+  const byName = new Map<string, Player>();
+
+  for (const p of combined) {
+    const isJapanese =
+      p.nationality === 'Japan' ||
+      p.nationality === '日本' ||
+      p.nationalityJa === '日本' ||
+      p.nationalityEn === 'Japan' ||
+      p.nationalityFlag === '🇯🇵';
+    const isLegend = Boolean(p.isLegendary) || p.category === 'LEGEND';
+    if (!isJapanese || !isLegend) continue;
+    if (isPurpleCard(p)) continue;
+    if (ACTIVE_NON_LEGEND_JP_IDS.has(p.personId || '') || ACTIVE_NON_LEGEND_JP_IDS.has(p.playerId)) {
+      continue;
+    }
+
+    const canonName = canonicalJapanesePersonName(p) || p.personId || p.playerId;
+    const existing = byName.get(canonName);
+    if (!existing || p.rating > existing.rating) {
+      byName.set(canonName, p);
+    }
+  }
+
+  return Array.from(byName.values());
+}
+
+/**
  * Generate candidate players for a specific scout type
  * Strictly enforces no duplicate person IDs within the same candidate set!
  */
@@ -201,7 +340,7 @@ export function generateScoutCandidates(
   excludePersonIds: string[] = []
 ): {
   candidates: Player[];
-  stagingType: 'gold' | 'purple' | 'normal' | 'japan_star';
+  stagingType: 'gold' | 'purple' | 'normal' | 'japan_star' | 'japan_legend';
 } {
   const def = REWARD_SCOUT_DEFINITIONS[ticketType];
   const count = def.candidateCount;
@@ -209,9 +348,15 @@ export function generateScoutCandidates(
   const disallowedSet = new Set<MainPosition>(disallowedPositions);
   const excludedPersonSet = new Set(excludePersonIds.map((id) => id.toLowerCase()));
 
-  let stagingType: 'gold' | 'purple' | 'normal' | 'japan_star' = 'normal';
+  let stagingType: 'gold' | 'purple' | 'normal' | 'japan_star' | 'japan_legend' = 'normal';
   if (def.guaranteedType === 'japan_star') {
     stagingType = 'japan_star';
+  } else if (def.guaranteedType === 'japan_legend') {
+    stagingType = 'japan_legend';
+  } else if (def.guaranteedType === 'japan_legend_50') {
+    stagingType = rand < 0.5 ? 'japan_legend' : 'normal';
+  } else if (def.guaranteedType === 'normal') {
+    stagingType = 'normal';
   } else if (def.guaranteedType === 'legend') {
     stagingType = 'gold';
   } else if (def.guaranteedType === 'purple') {
@@ -219,7 +364,7 @@ export function generateScoutCandidates(
   } else if (def.guaranteedType === 'both') {
     stagingType = rand < 0.5 ? 'gold' : 'purple';
   } else {
-    // Probability based
+    // Probability based (legend_10, legend_20, legend_50, purple_20, purple_50, legend_purple_50)
     if (rand < def.legendChance) {
       stagingType = 'gold';
     } else if (rand < def.legendChance + def.purpleChance) {
@@ -231,9 +376,11 @@ export function generateScoutCandidates(
 
   const legendPool = getAllLegendPool().filter((p) => !disallowedSet.has(p.position));
   const purplePool = getAllPurplePool().filter((p) => !disallowedSet.has(p.position));
-  const normalPool = ALL_PLAYERS.filter(
-    (p) => !disallowedSet.has(p.position) && !p.isLegendary && p.rating >= 85 && !p.playerId.startsWith('purple_')
+  const strictNormalOnlyPool = getNormalOnlyPool().filter((p) => !disallowedSet.has(p.position));
+  const standardRewardNormalPool = ALL_PLAYERS.filter(
+    (p) => !disallowedSet.has(p.position) && !p.isLegendary && p.rating >= 85 && p.rating < 100 && !isPurpleCard(p)
   );
+  const japanLegendPool = getJapaneseLegendPool().filter((p) => !disallowedSet.has(p.position));
 
   const selectedCandidates: Player[] = [];
   const selectedPersonIds = new Set<string>();
@@ -261,6 +408,11 @@ export function generateScoutCandidates(
     );
     const drawPool = nonDuplicatePool.length > 0 ? nonDuplicatePool : basePool;
     addCandidateFromPool(drawPool);
+  } else if (stagingType === 'japan_legend') {
+    const fallbackPool = japanLegendPool.length >= count ? japanLegendPool : getJapaneseLegendPool();
+    while (selectedCandidates.length < count) {
+      if (!addCandidateFromPool(fallbackPool)) break;
+    }
   } else if (stagingType === 'gold') {
     while (selectedCandidates.length < count) {
       if (!addCandidateFromPool(legendPool)) break;
@@ -300,9 +452,13 @@ export function generateScoutCandidates(
       stagingType = 'gold';
     }
   } else {
-    // Normal staging: mix of high rated players
+    // Normal staging: normal_ticket uses strictly NORMAL category only!
+    const targetNormalPool =
+      ticketType === 'normal_ticket'
+        ? (strictNormalOnlyPool.length >= count ? strictNormalOnlyPool : getNormalOnlyPool())
+        : standardRewardNormalPool;
     while (selectedCandidates.length < count) {
-      if (!addCandidateFromPool(normalPool)) break;
+      if (!addCandidateFromPool(targetNormalPool)) break;
     }
   }
 
@@ -317,6 +473,8 @@ export function generateScoutCandidates(
  */
 export function getStoredUserTickets(): Record<RewardTicketType, number> {
   const defaultInventory: Record<RewardTicketType, number> = {
+    normal_ticket: 0,
+    legend_10: 0,
     legend_20: 0,
     legend_50: 0,
     legend_guaranteed: 0,
@@ -326,6 +484,8 @@ export function getStoredUserTickets(): Record<RewardTicketType, number> {
     legend_purple_guaranteed: 0,
     legend_purple_50: 0,
     japan_star_guaranteed: 0,
+    japan_legend_50: 0,
+    japan_legend_guaranteed: 0,
   };
 
   try {
@@ -506,6 +666,74 @@ export function ensureApologyGiftDistributed(userId: string): GiftBoxItem[] {
       updated = true;
     }
 
+    // 5. Ver.1.6.0 Apology Gift for Undo Removal (idempotent per user)
+    const v160ApologyId = `v160_apology_undo_removed_${userId}`;
+    const v160ApologyFlagKey = `${LOCAL_STORAGE_V160_APOLOGY_SENT_PREFIX}${userId}`;
+    const v160ApologySent =
+      typeof localStorage !== 'undefined' && localStorage.getItem(v160ApologyFlagKey) === '1';
+    const existsV160Apology =
+      v160ApologySent ||
+      allPresents.some(
+        (p) =>
+          p.id === v160ApologyId ||
+          (p.userId === userId && p.title === '選択を取り消す機能の削除のお詫び')
+      );
+
+    if (!existsV160Apology) {
+      const v160ApologyGift: GiftBoxItem = {
+        id: v160ApologyId,
+        userId,
+        title: '選択を取り消す機能の削除のお詫び',
+        description:
+          'ドラフトの選択取り消し機能の削除に伴うお詫びとして、レジェンド確定ガチャチケットをプレゼントいたします。',
+        rewardType: 'legend_guaranteed',
+        amount: 1,
+        isClaimed: false,
+        createdAt: Date.now(),
+      };
+      allPresents.unshift(v160ApologyGift);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(v160ApologyFlagKey, '1');
+      }
+      updated = true;
+    }
+
+    // 6. Ver.1.6.0 Training Chip & Awakening Ticket Campaign Gift (idempotent per user)
+    const v160CampaignId = `v160_training_campaign_${userId}`;
+    const v160CampaignFlagKey = `${LOCAL_STORAGE_V160_CAMPAIGN_SENT_PREFIX}${userId}`;
+    const v160CampaignSent =
+      typeof localStorage !== 'undefined' && localStorage.getItem(v160CampaignFlagKey) === '1';
+    const existsV160Campaign =
+      v160CampaignSent ||
+      allPresents.some(
+        (p) =>
+          p.id === v160CampaignId ||
+          (p.userId === userId && p.title === 'トレーニングチップ＆覚醒チケット実装キャンペーン')
+      );
+
+    if (!existsV160Campaign) {
+      const v160CampaignGift: GiftBoxItem = {
+        id: v160CampaignId,
+        userId,
+        title: 'トレーニングチップ＆覚醒チケット実装キャンペーン',
+        description:
+          '新しい選手育成システムの実装を記念して、特別な育成アイテムをプレゼント！',
+        rewardType: 'training_chip',
+        amount: 10,
+        rewards: [
+          { rewardType: 'training_chip', amount: 10 },
+          { rewardType: 'awakening_ticket', amount: 10 },
+        ],
+        isClaimed: false,
+        createdAt: Date.now(),
+      };
+      allPresents.unshift(v160CampaignGift);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(v160CampaignFlagKey, '1');
+      }
+      updated = true;
+    }
+
     if (updated) {
       saveAllPresents(allPresents);
     }
@@ -518,6 +746,23 @@ export function ensureApologyGiftDistributed(userId: string): GiftBoxItem[] {
 }
 
 export const ensureSystemGiftsDistributed = ensureApologyGiftDistributed;
+
+const SCOUT_TICKET_TYPE_SET = new Set<string>(Object.keys(REWARD_SCOUT_DEFINITIONS));
+
+function grantInventoryEntryLocally(rewardType: InventoryItemType, amount: number): void {
+  if (SCOUT_TICKET_TYPE_SET.has(rewardType)) {
+    addTicketToUser(rewardType as RewardTicketType, amount);
+  } else {
+    try {
+      const raw = localStorage.getItem('FOOTBALL_DRAFT_NON_SCOUT_INVENTORY_V160');
+      const current = raw ? JSON.parse(raw) : {};
+      current[rewardType] = (current[rewardType] || 0) + amount;
+      localStorage.setItem('FOOTBALL_DRAFT_NON_SCOUT_INVENTORY_V160', JSON.stringify(current));
+    } catch (e) {
+      console.warn('Failed to save non-scout reward locally:', e);
+    }
+  }
+}
 
 /**
  * Claim a gift from the present box
@@ -557,14 +802,20 @@ export function claimPresentBoxItem(presentId: string, userId: string): {
     target.claimedAt = Date.now();
     saveAllPresents(allPresents);
 
-    // Safely add ticket
-    const updatedTickets = addTicketToUser(target.rewardType, target.amount || 1);
+    // Grant either multi-rewards or single reward
+    if (Array.isArray(target.rewards) && target.rewards.length > 0) {
+      for (const r of target.rewards) {
+        grantInventoryEntryLocally(r.rewardType, r.amount || 1);
+      }
+    } else {
+      grantInventoryEntryLocally(target.rewardType, target.amount || 1);
+    }
 
     return {
       success: true,
       claimedItem: target,
       updatedPresents: allPresents.filter((p) => p.userId === userId),
-      updatedTickets,
+      updatedTickets: getStoredUserTickets(),
     };
   } catch (e) {
     console.warn('Error claiming present:', e);
@@ -599,7 +850,13 @@ export function claimAllPresentBoxItems(userId: string): {
         }
         item.isClaimed = true;
         item.claimedAt = now;
-        addTicketToUser(item.rewardType, item.amount || 1);
+        if (Array.isArray(item.rewards) && item.rewards.length > 0) {
+          for (const r of item.rewards) {
+            grantInventoryEntryLocally(r.rewardType, r.amount || 1);
+          }
+        } else {
+          grantInventoryEntryLocally(item.rewardType, item.amount || 1);
+        }
         claimedCount++;
       }
     }

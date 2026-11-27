@@ -132,6 +132,12 @@ export interface Player {
   eraDecade?: NationalDecade;
   nationalTeamId?: string;
   stats: PlayerStats;
+  // Ver.1.6.0 Player Training, Awakening & Position Plus
+  baseRating?: number;
+  baseStats?: PlayerStats;
+  level?: number; // 1 - 10 (Lv.10 = baseRating + 5)
+  awakeningLevel?: number; // 0 - 7 (Requires Lv.10; no OVR change)
+  addedPositions?: string[]; // Added playable EFootballPosition codes via ポジションplus
 }
 
 export type FormationType =
@@ -496,6 +502,9 @@ export interface DraftHistoryEntry {
   manager?: Manager;
   eraDecade?: NationalDecade;
   nationalTeamId?: string;
+  level?: number;
+  awakeningLevel?: number;
+  addedPositions?: string[];
 }
 
 export interface UserTeam {
@@ -679,6 +688,8 @@ export interface CurrentDraftState {
 }
 
 export type RewardTicketType =
+  | 'normal_ticket'
+  | 'legend_10'
   | 'legend_20'
   | 'legend_50'
   | 'legend_guaranteed'
@@ -687,7 +698,81 @@ export type RewardTicketType =
   | 'purple_guaranteed'
   | 'legend_purple_guaranteed'
   | 'legend_purple_50'
-  | 'japan_star_guaranteed';
+  | 'japan_star_guaranteed'
+  | 'japan_legend_50'
+  | 'japan_legend_guaranteed';
+
+export type NonScoutItemType =
+  | 'training_chip'
+  | 'awakening_ticket'
+  | 'position_plus'
+  | 'manager_select_ticket';
+
+export type InventoryItemType = RewardTicketType | NonScoutItemType;
+
+export type ItemBoxCategory = 'training' | 'scout' | 'manager' | 'position' | 'other';
+
+export type UserInventoryCounts = Record<InventoryItemType, number>;
+
+export interface TimedTicketLot {
+  id: string;
+  ticketType: InventoryItemType;
+  initialAmount?: number;
+  remaining: number;
+  grantedAt?: number;
+  expiresAt: number;
+  source: string;
+  expiredHandled?: boolean;
+}
+
+export interface ItemUsageLogEntry {
+  id: string;
+  userId?: string;
+  itemType: InventoryItemType;
+  action: 'claim_present' | 'claim_login_bonus' | 'use_item' | 'use_scout' | 'expired';
+  amount: number;
+  detailJa: string;
+  detailEn: string;
+  targetName?: string;
+  timestamp: number;
+}
+
+export interface OwnedManagerRecord {
+  managerId: string;
+  acquiredAt: number;
+  source: 'draft_gacha' | 'manager_draft' | 'manager_select_ticket';
+  count?: number;
+}
+
+export interface LoginBonusRewardEntry {
+  rewardType: InventoryItemType;
+  amount: number;
+  expiresInDays?: number;
+}
+
+export interface LoginBonusDayDefinition {
+  day: number; // 1 - 15
+  rewards: LoginBonusRewardEntry[];
+  labelJa: string;
+  labelEn: string;
+  expiryNoteJa?: string;
+  expiryNoteEn?: string;
+}
+
+export interface LoginBonusState {
+  currentDay: number; // Next day to claim (1 - 15)
+  cycleCount: number; // Completed 15-day cycles
+  lastClaimedJstDate: string | null; // YYYY-MM-DD in Asia/Tokyo
+  lastClaimedAt?: number;
+  totalClaims: number;
+  claimedDaysInCycle: number[];
+}
+
+export interface GiftBoxRewardEntry {
+  rewardType: InventoryItemType;
+  amount: number;
+  expiresInDays?: number;
+}
 
 export interface GiftBoxItem {
   id: string;
@@ -695,8 +780,9 @@ export interface GiftBoxItem {
   userId: string;
   title: string;
   description: string;
-  rewardType: RewardTicketType;
+  rewardType: InventoryItemType;
   amount: number;
+  rewards?: GiftBoxRewardEntry[];
   isClaimed: boolean;
   claimedAt?: number;
   createdAt: number;

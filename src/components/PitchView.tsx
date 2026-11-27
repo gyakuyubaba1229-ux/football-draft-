@@ -81,7 +81,6 @@ interface PitchViewProps {
   language: Language;
   isLocked?: boolean;
   onToggleLock?: (teamId: string, willLock: boolean) => void;
-  onRemovePlayer?: (playerId: string) => void;
   onOpenManagerDraft?: () => void;
 }
 
@@ -105,7 +104,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
   language,
   isLocked: propIsLocked,
   onToggleLock,
-  onRemovePlayer,
   onOpenManagerDraft,
 }) => {
   const t = TRANSLATIONS[language];
@@ -1456,7 +1454,7 @@ export const PitchView: React.FC<PitchViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Role & Slot Position Pill */}
+                        {/* Role & Slot Position Pill + Level/Awakening */}
                         <div className="w-full flex items-center justify-between pt-0.5 border-t border-slate-800/80 text-[7px] sm:text-[9px] font-mono">
                           <span
                             className={`font-bold ${
@@ -1465,7 +1463,13 @@ export const PitchView: React.FC<PitchViewProps> = ({
                           >
                             {displayedRole}
                           </span>
-                          <span className="text-slate-400 font-sans">{player.joiningYear}</span>
+                          {(player.awakeningLevel ?? 0) > 0 ? (
+                            <span className="text-cyan-300 font-black">✦{player.awakeningLevel}</span>
+                          ) : (player.level ?? 1) > 1 ? (
+                            <span className="text-emerald-300 font-black">Lv.{player.level}</span>
+                          ) : (
+                            <span className="text-slate-400 font-sans">{player.joiningYear}</span>
+                          )}
                         </div>
                       </div>
                     );
@@ -1583,28 +1587,23 @@ export const PitchView: React.FC<PitchViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2 flex-wrap justify-end">
+                    {(p.level ?? 1) > 1 && (
+                      <span className="text-[9px] font-mono font-black text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        Lv.{p.level}
+                      </span>
+                    )}
+                    {(p.awakeningLevel ?? 0) > 0 && (
+                      <span className="text-[9px] font-mono font-black text-cyan-300 bg-cyan-500/15 px-1.5 py-0.5 rounded border border-cyan-500/30">
+                        覚醒{p.awakeningLevel}
+                      </span>
+                    )}
                     <span className="font-mono font-black text-amber-400 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-700">
                       {p.rating}
                     </span>
                     <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded-md">
                       {slot?.role || p.position}
                     </span>
-                    {onRemovePlayer && !isTeamLocked && (
-                      <button
-                        type="button"
-                        title={t.undoPick}
-                        aria-label={t.undoPick}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          soundManager.playSkip();
-                          onRemovePlayer(p.playerId);
-                        }}
-                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -1620,8 +1619,6 @@ export const PitchView: React.FC<PitchViewProps> = ({
         isOpen={Boolean(selectedPlayerForDetail)}
         onClose={() => setSelectedPlayerForDetail(null)}
         language={language}
-        onRemovePlayer={onRemovePlayer}
-        isTeamLocked={isTeamLocked}
       />
 
       {/* 5.5 MANAGER PROFILE MODAL */}
