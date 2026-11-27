@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { InventoryItemType, Language, LoginBonusState, RewardTicketType } from '../types';
 import {
   LOGIN_BONUS_SCHEDULE,
@@ -42,6 +42,7 @@ export const LoginBonusModal: React.FC<LoginBonusModalProps> = ({
   const [isClaiming, setIsClaiming] = useState<boolean>(false);
   const [claimBanner, setClaimBanner] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const isClaimingRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -63,39 +64,45 @@ export const LoginBonusModal: React.FC<LoginBonusModalProps> = ({
   const countdownText = formatCountdownJa(msUntilReset);
 
   const handleClaimToday = async () => {
-    if (!canClaimToday || isClaiming) return;
+    if (!canClaimToday || isClaiming || isClaimingRef.current) return;
+    isClaimingRef.current = true;
     soundManager.playButtonClick();
     setIsClaiming(true);
     setErrorMsg(null);
 
-    const res = await claimLoginBonus(userId);
-    setIsClaiming(false);
+    try {
+      const res = await claimLoginBonus(userId);
+      setIsClaiming(false);
 
-    if (!res.success) {
-      soundManager.playError();
+      if (!res.success) {
+        soundManager.playError();
+        onProgressUpdated(res.progress);
+        setErrorMsg(
+          language === 'ja'
+            ? '本日のログインボーナスはすでに受け取り済みです（毎日 0:00 JST リセット）。'
+            : 'Today’s login bonus has already been claimed (resets daily at 00:00 JST).'
+        );
+        return;
+      }
+
       onProgressUpdated(res.progress);
-      setErrorMsg(
+      soundManager.playVictory();
+      confetti({
+        particleCount: 110,
+        spread: 80,
+        origin: { y: 0.55 },
+      });
+
+      const claimedDayDef = LOGIN_BONUS_SCHEDULE.find((d) => d.day === res.claimedDay);
+      setClaimBanner(
         language === 'ja'
-          ? '本日のログインボーナスはすでに受け取り済みです（毎日 0:00 JST リセット）。'
-          : 'Today’s login bonus has already been claimed (resets daily at 00:00 JST).'
+          ? `🎉 Day ${res.claimedDay} 報酬「${claimedDayDef?.labelJa || ''}」を受け取りました！`
+          : `🎉 Claimed Day ${res.claimedDay}: ${claimedDayDef?.labelEn || ''}!`
       );
-      return;
+    } finally {
+      isClaimingRef.current = false;
+      setIsClaiming(false);
     }
-
-    onProgressUpdated(res.progress);
-    soundManager.playVictory();
-    confetti({
-      particleCount: 110,
-      spread: 80,
-      origin: { y: 0.55 },
-    });
-
-    const claimedDayDef = LOGIN_BONUS_SCHEDULE.find((d) => d.day === res.claimedDay);
-    setClaimBanner(
-      language === 'ja'
-        ? `🎉 Day ${res.claimedDay} 報酬「${claimedDayDef?.labelJa || ''}」を受け取りました！`
-        : `🎉 Claimed Day ${res.claimedDay}: ${claimedDayDef?.labelEn || ''}!`
-    );
   };
 
   return (
@@ -196,7 +203,8 @@ export const LoginBonusModal: React.FC<LoginBonusModalProps> = ({
                   ? catalog?.nameJa || scoutDef?.nameJa || dayDef.labelJa
                   : catalog?.nameEn || scoutDef?.nameEn || dayDef.labelEn;
 
-              const isMilestone = dayDef.day === 8 || dayDef.day === 9 || dayDef.day === 14 || dayDef.day === 15;
+              const isDay15 = dayDef.day === 15;
+              const isMilestone = dayDef.day === 8 || dayDef.day === 9 || dayDef.day === 13 || isDay15;
 
               return (
                 <div
@@ -207,6 +215,8 @@ export const LoginBonusModal: React.FC<LoginBonusModalProps> = ({
                       ? 'bg-slate-950/50 border-slate-800 opacity-65'
                       : isHighlightedForClaim
                       ? 'bg-gradient-to-b from-amber-950/60 via-slate-900 to-emerald-950/40 border-2 border-amber-400 shadow-lg shadow-amber-500/20 ring-1 ring-amber-300/60'
+                      : isDay15
+                      ? 'bg-gradient-to-br from-amber-950/70 via-purple-950/60 to-slate-950 border-2 border-amber-400/70 shadow-lg shadow-purple-500/20'
                       : isMilestone
                       ? 'bg-gradient-to-b from-indigo-950/50 via-slate-900 to-slate-950 border-indigo-400/50'
                       : 'bg-slate-950/80 border-slate-800'
@@ -219,12 +229,14 @@ export const LoginBonusModal: React.FC<LoginBonusModalProps> = ({
                           ? 'bg-slate-800 text-slate-400'
                           : isHighlightedForClaim
                           ? 'bg-amber-400 text-slate-950'
+                          : isDay15
+                          ? 'bg-gradient-to-r from-amber-400 to-fuchsia-400 text-slate-950'
                           : isMilestone
                           ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/40'
                           : 'bg-slate-800 text-emerald-300'
                       }`}
                     >
-                      DAY {dayDef.day}
+                      {isDay15 ? '★ DAY 15' : `DAY ${dayDef.day}`}
                     </span>
                     {isClaimed ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />

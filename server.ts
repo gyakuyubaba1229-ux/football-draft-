@@ -13,6 +13,9 @@ if (!fs.existsSync(DATA_DIR)) {
   }
 }
 
+const SUPABASE_LEADERBOARD_URL = 'https://ihaiadukjycjdvaownpv.supabase.co';
+const SUPABASE_LEADERBOARD_KEY = 'sb_publishable_dEjgitW3rRtpyGnqaIFeZg_2ZONcI-l';
+
 // ── SERVER-SIDE PVP & RANKING PERSISTENCE ──
 export interface ServerPvPUser {
   userId: string;
@@ -483,6 +486,7 @@ const VALID_SCOUT_TICKETS = new Set([
   'legend_10',
   'legend_20',
   'legend_50',
+  'legend_70',
   'legend_guaranteed',
   'purple_20',
   'purple_50',
@@ -513,21 +517,21 @@ const SERVER_LOGIN_BONUS_SCHEDULE: {
   rewards: { rewardType: string; amount: number; expiresInDays?: number }[];
   labelJa: string;
 }[] = [
-  { day: 1, rewards: [{ rewardType: 'training_chip', amount: 1 }], labelJa: 'トレーニングチップ ×1' },
-  { day: 2, rewards: [{ rewardType: 'legend_10', amount: 2 }], labelJa: 'レジェンド10%スカウト ×2' },
-  { day: 3, rewards: [{ rewardType: 'purple_20', amount: 1 }], labelJa: '紫20%スカウト ×1' },
-  { day: 4, rewards: [{ rewardType: 'japan_legend_50', amount: 1 }], labelJa: '日本人レジェンド50%スカウト ×1' },
-  { day: 5, rewards: [{ rewardType: 'japan_star_guaranteed', amount: 1 }], labelJa: 'スター日本人選手確定ガチャチケット ×1' },
-  { day: 6, rewards: [{ rewardType: 'training_chip', amount: 2 }], labelJa: 'トレーニングチップ ×2' },
-  { day: 7, rewards: [{ rewardType: 'awakening_ticket', amount: 1 }], labelJa: '覚醒チケット ×1' },
-  { day: 8, rewards: [{ rewardType: 'legend_guaranteed', amount: 1, expiresInDays: 30 }], labelJa: 'レジェンド確定スカウト ×1（30日期限）' },
-  { day: 9, rewards: [{ rewardType: 'purple_guaranteed', amount: 1, expiresInDays: 30 }], labelJa: '紫確定スカウト ×1（30日期限）' },
+  { day: 1, rewards: [{ rewardType: 'training_chip', amount: 3 }], labelJa: 'トレーニングチップ ×3' },
+  { day: 2, rewards: [{ rewardType: 'awakening_ticket', amount: 1 }], labelJa: '覚醒チケット ×1' },
+  { day: 3, rewards: [{ rewardType: 'purple_20', amount: 1 }], labelJa: '紫20%ガチャ ×1' },
+  { day: 4, rewards: [{ rewardType: 'training_chip', amount: 3 }], labelJa: 'トレーニングチップ ×3' },
+  { day: 5, rewards: [{ rewardType: 'japan_legend_50', amount: 1 }], labelJa: 'レジェンド日本人50%ガチャ ×1' },
+  { day: 6, rewards: [{ rewardType: 'training_chip', amount: 6 }], labelJa: 'トレーニングチップ ×6' },
+  { day: 7, rewards: [{ rewardType: 'awakening_ticket', amount: 2 }], labelJa: '覚醒チケット ×2' },
+  { day: 8, rewards: [{ rewardType: 'legend_50', amount: 3 }], labelJa: 'レジェンド50%ガチャ ×3' },
+  { day: 9, rewards: [{ rewardType: 'purple_50', amount: 3 }], labelJa: '紫50%ガチャ ×3' },
   { day: 10, rewards: [{ rewardType: 'awakening_ticket', amount: 3 }], labelJa: '覚醒チケット ×3' },
-  { day: 11, rewards: [{ rewardType: 'training_chip', amount: 7 }], labelJa: 'トレーニングチップ ×7' },
-  { day: 12, rewards: [{ rewardType: 'legend_20', amount: 5 }], labelJa: 'レジェンド20%スカウト ×5' },
-  { day: 13, rewards: [{ rewardType: 'normal_ticket', amount: 1 }], labelJa: 'ノーマルチケット ×1' },
-  { day: 14, rewards: [{ rewardType: 'position_plus', amount: 2 }], labelJa: 'ポジションplus ×2' },
-  { day: 15, rewards: [{ rewardType: 'legend_purple_guaranteed', amount: 1, expiresInDays: 10 }], labelJa: 'レジェンド・紫確定スカウト ×1（10日期限）' },
+  { day: 11, rewards: [{ rewardType: 'training_chip', amount: 12 }], labelJa: 'トレーニングチップ ×12' },
+  { day: 12, rewards: [{ rewardType: 'position_plus', amount: 1 }], labelJa: 'ポジションplus ×1' },
+  { day: 13, rewards: [{ rewardType: 'legend_70', amount: 1 }], labelJa: 'レジェンド70%ガチャ ×1' },
+  { day: 14, rewards: [{ rewardType: 'training_chip', amount: 5 }], labelJa: 'トレーニングチップ ×5' },
+  { day: 15, rewards: [{ rewardType: 'legend_purple_guaranteed', amount: 1, expiresInDays: 10 }], labelJa: 'レジェンド・紫確定ガチャ ×1（10日期限）' },
 ];
 
 const serverPresentsDatabase: Map<string, ServerPresentItem> = new Map();
@@ -859,7 +863,258 @@ function ensureUserSystemPresentsOnServer(userId: string): boolean {
     createdAt: now + 1,
   });
 
+  ensureOne({
+    id: `v161_present_bug_apology_${userId}`,
+    userId,
+    title: 'プレゼントBOX不具合のお詫び',
+    description:
+      'プレゼントBOX受取不具合のお詫びとして、「レジェンド50%ガチャ ×1」「トレーニングチップ ×20」「覚醒チケット ×3」をお送りいたします。',
+    rewardType: 'legend_50',
+    amount: 1,
+    rewards: [
+      { rewardType: 'legend_50', amount: 1 },
+      { rewardType: 'training_chip', amount: 20 },
+      { rewardType: 'awakening_ticket', amount: 3 },
+    ],
+    isClaimed: false,
+    createdAt: now + 2,
+  });
+
   return updated;
+}
+
+// Per-user async serialization lock (prevents race conditions between Login Bonus, Present Box & Training)
+const userOperationLocks = new Map<string, Promise<unknown>>();
+function withUserLock<T>(userId: string, fn: () => Promise<T> | T): Promise<T> {
+  const prev = userOperationLocks.get(userId) || Promise.resolve();
+  const next = prev.then(
+    () => fn(),
+    () => fn()
+  );
+  const tail = next.catch(() => undefined);
+  userOperationLocks.set(userId, tail);
+  tail.finally(() => {
+    if (userOperationLocks.get(userId) === tail) {
+      userOperationLocks.delete(userId);
+    }
+  });
+  return next;
+}
+
+const hydratedProgressUsers = new Set<string>();
+const hydratedPresentsUsers = new Set<string>();
+
+function getSortedPresentsForUser(userId: string): ServerPresentItem[] {
+  const list: ServerPresentItem[] = [];
+  serverPresentsDatabase.forEach((p) => {
+    if (p.userId === userId) list.push(p);
+  });
+  list.sort((a, b) => {
+    if (a.isClaimed !== b.isClaimed) return a.isClaimed ? 1 : -1;
+    return b.createdAt - a.createdAt;
+  });
+  return list;
+}
+
+function mergePlayerStateSnapshots(
+  a?: ServerPlayerState,
+  b?: ServerPlayerState
+): ServerPlayerState | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const level = Math.max(a.level || 1, b.level || 1);
+  const awakeningLevel = Math.max(a.awakeningLevel || 0, b.awakeningLevel || 0);
+  const addedPositions = Array.from(new Set([...(a.addedPositions || []), ...(b.addedPositions || [])]));
+  return {
+    playerId: a.playerId,
+    baseRating: b.baseRating ?? a.baseRating,
+    baseStats: b.baseStats ?? a.baseStats,
+    level,
+    awakeningLevel,
+    addedPositions,
+    updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
+  };
+}
+
+async function hydrateUserProgressFromSupabase(userId: string): Promise<ServerUserProgress> {
+  const local = getOrCreateUserProgress(userId);
+  if (hydratedProgressUsers.has(userId)) {
+    return local;
+  }
+  hydratedProgressUsers.add(userId);
+  try {
+    const prefix = `USER_PROGRESS:${userId}:`;
+    const url = `${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard?select=player_name,created_at&player_name=like.${encodeURIComponent(prefix)}*&order=created_at.desc&limit=1`;
+    const resp = await fetch(url, {
+      headers: {
+        apikey: SUPABASE_LEADERBOARD_KEY,
+        Authorization: `Bearer ${SUPABASE_LEADERBOARD_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!resp.ok) return local;
+    const rows: any[] = await resp.json();
+    if (!Array.isArray(rows) || rows.length === 0) return local;
+    const rawName = String(rows[0]?.player_name || '');
+    if (!rawName.startsWith(prefix)) return local;
+    const remote = JSON.parse(rawName.slice(prefix.length)) as Partial<ServerUserProgress>;
+    if (!remote || remote.userId !== userId) return local;
+
+    const remoteUpdated = Number(remote.updatedAt || 0);
+    const localUpdated = Number(local.updatedAt || 0);
+
+    // Take fresher inventory & timedLots while merging playerStates, ownedManagers, and loginBonus safely
+    if (remoteUpdated > localUpdated && remote.inventory) {
+      local.inventory = { ...createDefaultInventory(), ...remote.inventory };
+      if (Array.isArray(remote.timedLots)) {
+        local.timedLots = remote.timedLots;
+      }
+      local.updatedAt = remoteUpdated;
+    }
+
+    const rLogin = remote.loginBonus;
+    if (rLogin && ((rLogin.totalClaims || 0) > (local.loginBonus.totalClaims || 0) || (rLogin.lastClaimedAt || 0) > (local.loginBonus.lastClaimedAt || 0))) {
+      local.loginBonus = rLogin;
+    }
+
+    if (Array.isArray(remote.ownedManagers)) {
+      const mgrMap = new Map<string, ServerOwnedManagerRecord>();
+      for (const m of local.ownedManagers) mgrMap.set(m.managerId, m);
+      for (const m of remote.ownedManagers) {
+        if (m && m.managerId && !mgrMap.has(m.managerId)) mgrMap.set(m.managerId, m);
+      }
+      local.ownedManagers = Array.from(mgrMap.values());
+    }
+
+    if (remote.playerStates && typeof remote.playerStates === 'object') {
+      const allPlayerIds = new Set([...Object.keys(local.playerStates), ...Object.keys(remote.playerStates)]);
+      for (const pid of allPlayerIds) {
+        const merged = mergePlayerStateSnapshots(local.playerStates[pid], remote.playerStates[pid]);
+        if (merged) local.playerStates[pid] = merged;
+      }
+    }
+
+    if (Array.isArray(remote.usageLogs)) {
+      const seen = new Set<string>();
+      const combined = [...local.usageLogs, ...remote.usageLogs].filter((l) => {
+        if (!l || !l.id || seen.has(l.id)) return false;
+        seen.add(l.id);
+        return true;
+      });
+      combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      local.usageLogs = combined.slice(0, 150);
+    }
+
+    userTicketsDatabase.set(userId, extractScoutTicketsFromInventory(local.inventory));
+    saveUserProgressToDisk();
+    saveUserTicketsToDisk();
+  } catch (e) {
+    console.warn('Supabase progress hydrate note:', (e as any)?.message || e);
+  }
+  return local;
+}
+
+async function pushUserProgressToSupabase(progress: ServerUserProgress): Promise<void> {
+  try {
+    const compact: ServerUserProgress = {
+      ...progress,
+      usageLogs: (progress.usageLogs || []).slice(0, 30),
+    };
+    const safeScore = Math.min(2147483647, Math.max(0, Math.floor((progress.updatedAt || Date.now()) / 1000)));
+    await fetch(`${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_LEADERBOARD_KEY,
+        Authorization: `Bearer ${SUPABASE_LEADERBOARD_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        player_name: `USER_PROGRESS:${progress.userId}:${JSON.stringify(compact)}`,
+        score: safeScore,
+      }),
+      signal: AbortSignal.timeout(3500),
+    });
+  } catch (e) {
+    console.warn('Supabase progress push note:', (e as any)?.message || e);
+  }
+}
+
+async function hydrateUserPresentsFromSupabase(userId: string): Promise<boolean> {
+  let changed = false;
+  if (!hydratedPresentsUsers.has(userId)) {
+    hydratedPresentsUsers.add(userId);
+    try {
+      const prefix = `USER_PRESENTS:${userId}:`;
+      const url = `${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard?select=player_name,created_at&player_name=like.${encodeURIComponent(prefix)}*&order=created_at.desc&limit=1`;
+      const resp = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_LEADERBOARD_KEY,
+          Authorization: `Bearer ${SUPABASE_LEADERBOARD_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(3500),
+      });
+      if (resp.ok) {
+        const rows: any[] = await resp.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          const rawName = String(rows[0]?.player_name || '');
+          if (rawName.startsWith(prefix)) {
+            const remoteList = JSON.parse(rawName.slice(prefix.length)) as ServerPresentItem[];
+            if (Array.isArray(remoteList)) {
+              for (const remoteItem of remoteList) {
+                if (!remoteItem || !remoteItem.id || remoteItem.userId !== userId) continue;
+                distributedRewardKeys.add(remoteItem.id);
+                const existing = serverPresentsDatabase.get(remoteItem.id);
+                if (!existing) {
+                  serverPresentsDatabase.set(remoteItem.id, remoteItem);
+                  changed = true;
+                } else if (remoteItem.isClaimed && !existing.isClaimed) {
+                  existing.isClaimed = true;
+                  existing.claimedAt = remoteItem.claimedAt || Date.now();
+                  changed = true;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase presents hydrate note:', (e as any)?.message || e);
+    }
+  }
+  if (ensureUserSystemPresentsOnServer(userId)) {
+    changed = true;
+  }
+  if (changed) {
+    savePresentsToDisk();
+    await pushUserPresentsToSupabase(userId);
+  }
+  return changed;
+}
+
+async function pushUserPresentsToSupabase(userId: string): Promise<void> {
+  try {
+    const presents = getSortedPresentsForUser(userId);
+    const safeScore = Math.min(2147483647, Math.max(0, Math.floor(Date.now() / 1000)));
+    await fetch(`${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_LEADERBOARD_KEY,
+        Authorization: `Bearer ${SUPABASE_LEADERBOARD_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        player_name: `USER_PRESENTS:${userId}:${JSON.stringify(presents)}`,
+        score: safeScore,
+      }),
+      signal: AbortSignal.timeout(3500),
+    });
+  } catch (e) {
+    console.warn('Supabase presents push note:', (e as any)?.message || e);
+  }
 }
 
 async function startServer() {
@@ -870,18 +1125,15 @@ async function startServer() {
 
   // 1. Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', version: '1.6.0', timestamp: Date.now() });
+    res.json({ status: 'ok', version: '1.6.1', timestamp: Date.now() });
   });
 
   // ── SUPABASE ONLINE LEADERBOARD PROXY API ──
-  const SUPABASE_LEADERBOARD_URL = 'https://ihaiadukjycjdvaownpv.supabase.co';
-  const SUPABASE_LEADERBOARD_KEY = 'sb_publishable_dEjgitW3rRtpyGnqaIFeZg_2ZONcI-l';
-
   // GET /api/leaderboard?limit=100
   app.get('/api/leaderboard', async (req, res) => {
     try {
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
-      const targetUrl = `${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard?select=id,created_at,player_name,score&player_name=not.like.PVP_MATCH*&player_name=not.like.TOURNAMENT_*&order=score.desc,created_at.asc&limit=${limit}`;
+      const targetUrl = `${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard?select=id,created_at,player_name,score&player_name=not.like.PVP_MATCH*&player_name=not.like.TOURNAMENT_*&player_name=not.like.USER_*&order=score.desc,created_at.asc&limit=${limit}`;
 
       const response = await fetch(targetUrl, {
         headers: {
@@ -959,7 +1211,7 @@ async function startServer() {
 
   // 3. Server-side Reward Distribution Endpoint (Idempotent & Secure)
   // Evaluates standings and awards Top 1, 2, and 3 users once aggregation ends (25:00 / 01:00 JST)
-  app.post('/api/ranking/distribute-rewards', (req, res) => {
+  app.post('/api/ranking/distribute-rewards', async (req, res) => {
     try {
       const { weekId, standings } = req.body;
       if (!weekId || !Array.isArray(standings)) {
@@ -1042,6 +1294,9 @@ async function startServer() {
 
       if (rewardsDistributed.length > 0) {
         savePresentsToDisk();
+        for (const rewardItem of rewardsDistributed) {
+          await pushUserPresentsToSupabase(rewardItem.userId);
+        }
       }
 
       res.json({
@@ -1056,221 +1311,254 @@ async function startServer() {
     }
   });
 
-  // 4. Present Box API: Fetch presents for user (including all Ver.1.3-1.6 system gifts)
-  app.get('/api/presents/user/:userId', (req, res) => {
+  // 4. Present Box API: Fetch presents for user (including all Ver.1.3-1.6.1 system gifts, Supabase synced)
+  app.get('/api/presents/user/:userId', async (req, res) => {
     const { userId } = req.params;
     if (!isValidUserId(userId)) return res.status(400).json({ error: 'Valid userId is required' });
 
-    const updated = ensureUserSystemPresentsOnServer(userId);
-    if (updated) {
-      savePresentsToDisk();
-    }
-
-    const presents: ServerPresentItem[] = [];
-    serverPresentsDatabase.forEach((p) => {
-      if (p.userId === userId) presents.push(p);
-    });
-
-    // Sort unclaimed first, newest first
-    presents.sort((a, b) => {
-      if (a.isClaimed !== b.isClaimed) return a.isClaimed ? 1 : -1;
-      return b.createdAt - a.createdAt;
+    const presents = await withUserLock(userId, async () => {
+      await hydrateUserPresentsFromSupabase(userId);
+      return getSortedPresentsForUser(userId);
     });
 
     res.json({ success: true, presents });
   });
 
-  // 5. Present Box API: Claim reward (supports multi-reward presents & non-scout items)
-  app.post('/api/presents/claim', (req, res) => {
+  // 5. Present Box API: Claim reward (supports multi-reward presents & non-scout items, independent from login bonus)
+  app.post('/api/presents/claim', async (req, res) => {
     const { userId, presentId } = req.body;
     if (!isValidUserId(userId) || !presentId || typeof presentId !== 'string') {
       return res.status(400).json({ error: 'Invalid userId or presentId' });
     }
 
-    const item = serverPresentsDatabase.get(presentId);
-    if (!item) {
-      return res.status(404).json({ error: 'Present not found' });
-    }
-    if (item.userId !== userId) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    if (item.isClaimed) {
-      return res.status(400).json({ error: 'Already claimed' });
-    }
-    const now = Date.now();
-    if (item.expiresAt && now > item.expiresAt) {
-      return res.status(400).json({ error: 'Present expired' });
-    }
+    const result = await withUserLock(userId, async () => {
+      await hydrateUserPresentsFromSupabase(userId);
+      const progress = await hydrateUserProgressFromSupabase(userId);
 
-    item.isClaimed = true;
-    item.claimedAt = now;
+      const item = serverPresentsDatabase.get(presentId);
+      if (!item) {
+        return { status: 404, body: { error: 'Present not found', updatedPresents: getSortedPresentsForUser(userId) } };
+      }
+      if (item.userId !== userId) {
+        return { status: 403, body: { error: 'Forbidden' } };
+      }
+      if (item.isClaimed) {
+        return {
+          status: 400,
+          body: { error: 'Already claimed', updatedPresents: getSortedPresentsForUser(userId), progress },
+        };
+      }
+      const now = Date.now();
+      if (item.expiresAt && now > item.expiresAt) {
+        return {
+          status: 400,
+          body: { error: 'Present expired', updatedPresents: getSortedPresentsForUser(userId), progress },
+        };
+      }
 
-    const progress = getOrCreateUserProgress(userId);
-    pruneExpiredLotsForUser(progress, now);
+      item.isClaimed = true;
+      item.claimedAt = now;
 
-    const rewardsList =
-      Array.isArray(item.rewards) && item.rewards.length > 0
-        ? item.rewards
-        : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+      pruneExpiredLotsForUser(progress, now);
 
-    for (const r of rewardsList) {
-      const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
-      grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
-      appendUsageLog(progress, {
-        itemType: r.rewardType,
-        action: 'claim_present',
-        amount: r.amount || 1,
-        detailJa: `プレゼント「${item.title}」から獲得`,
-        detailEn: `Claimed from present: ${item.title}`,
-        timestamp: now,
-      });
-    }
+      const rewardsList =
+        Array.isArray(item.rewards) && item.rewards.length > 0
+          ? item.rewards
+          : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
 
-    const userTickets = extractScoutTicketsFromInventory(progress.inventory);
-    userTicketsDatabase.set(userId, userTickets);
+      for (const r of rewardsList) {
+        const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+        grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
+        appendUsageLog(progress, {
+          itemType: r.rewardType,
+          action: 'claim_present',
+          amount: r.amount || 1,
+          detailJa: `プレゼント「${item.title}」から獲得`,
+          detailEn: `Claimed from present: ${item.title}`,
+          timestamp: now,
+        });
+      }
 
-    savePresentsToDisk();
-    saveUserTicketsToDisk();
-    saveUserProgressToDisk();
+      const userTickets = extractScoutTicketsFromInventory(progress.inventory);
+      userTicketsDatabase.set(userId, userTickets);
 
-    res.json({
-      success: true,
-      claimedItem: item,
-      userTickets,
-      progress,
+      savePresentsToDisk();
+      saveUserTicketsToDisk();
+      saveUserProgressToDisk();
+
+      await Promise.all([
+        pushUserPresentsToSupabase(userId),
+        pushUserProgressToSupabase(progress),
+      ]);
+
+      return {
+        status: 200,
+        body: {
+          success: true,
+          claimedItem: item,
+          updatedPresents: getSortedPresentsForUser(userId),
+          userTickets,
+          progress,
+        },
+      };
     });
+
+    res.status(result.status).json(result.body);
   });
 
   // 5.5 Present Box API: Claim all unclaimed non-expired presents atomically
-  app.post('/api/presents/claim-all', (req, res) => {
+  app.post('/api/presents/claim-all', async (req, res) => {
     const { userId } = req.body;
     if (!isValidUserId(userId)) {
       return res.status(400).json({ error: 'Invalid userId' });
     }
 
-    ensureUserSystemPresentsOnServer(userId);
-    const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    pruneExpiredLotsForUser(progress, now);
+    const result = await withUserLock(userId, async () => {
+      await hydrateUserPresentsFromSupabase(userId);
+      const progress = await hydrateUserProgressFromSupabase(userId);
+      const now = Date.now();
+      pruneExpiredLotsForUser(progress, now);
 
-    let claimedCount = 0;
-    const presentsForUser: ServerPresentItem[] = [];
+      let claimedCount = 0;
 
-    serverPresentsDatabase.forEach((item) => {
-      if (item.userId !== userId) return;
-      if (!item.isClaimed && (!item.expiresAt || now <= item.expiresAt)) {
-        item.isClaimed = true;
-        item.claimedAt = now;
-        const rewardsList =
-          Array.isArray(item.rewards) && item.rewards.length > 0
-            ? item.rewards
-            : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
-        for (const r of rewardsList) {
-          const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
-          grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
-          appendUsageLog(progress, {
-            itemType: r.rewardType,
-            action: 'claim_present',
-            amount: r.amount || 1,
-            detailJa: `プレゼント「${item.title}」から獲得`,
-            detailEn: `Claimed from present: ${item.title}`,
-            timestamp: now,
-          });
+      serverPresentsDatabase.forEach((item) => {
+        if (item.userId !== userId) return;
+        if (!item.isClaimed && (!item.expiresAt || now <= item.expiresAt)) {
+          item.isClaimed = true;
+          item.claimedAt = now;
+          const rewardsList =
+            Array.isArray(item.rewards) && item.rewards.length > 0
+              ? item.rewards
+              : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+          for (const r of rewardsList) {
+            const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+            grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
+            appendUsageLog(progress, {
+              itemType: r.rewardType,
+              action: 'claim_present',
+              amount: r.amount || 1,
+              detailJa: `プレゼント「${item.title}」から獲得`,
+              detailEn: `Claimed from present: ${item.title}`,
+              timestamp: now,
+            });
+          }
+          claimedCount += 1;
         }
-        claimedCount += 1;
+      });
+
+      const presentsForUser = getSortedPresentsForUser(userId);
+      const userTickets = extractScoutTicketsFromInventory(progress.inventory);
+      userTicketsDatabase.set(userId, userTickets);
+
+      if (claimedCount > 0) {
+        savePresentsToDisk();
+        saveUserTicketsToDisk();
+        saveUserProgressToDisk();
+        await Promise.all([
+          pushUserPresentsToSupabase(userId),
+          pushUserProgressToSupabase(progress),
+        ]);
       }
-      presentsForUser.push(item);
+
+      return {
+        success: true,
+        claimedCount,
+        updatedPresents: presentsForUser,
+        userTickets,
+        progress,
+      };
     });
 
-    presentsForUser.sort((a, b) => {
-      if (a.isClaimed !== b.isClaimed) return a.isClaimed ? 1 : -1;
-      return b.createdAt - a.createdAt;
-    });
-
-    const userTickets = extractScoutTicketsFromInventory(progress.inventory);
-    userTicketsDatabase.set(userId, userTickets);
-
-    savePresentsToDisk();
-    saveUserTicketsToDisk();
-    saveUserProgressToDisk();
-
-    res.json({
-      success: true,
-      claimedCount,
-      updatedPresents: presentsForUser,
-      userTickets,
-      progress,
-    });
+    res.json(result);
   });
 
   // 6. Reward Scout API: Verify, prune expired lots, and consume ticket
-  app.post('/api/scout/consume', (req, res) => {
+  app.post('/api/scout/consume', async (req, res) => {
     const { userId, ticketType } = req.body;
     if (!isValidUserId(userId) || !ticketType || !VALID_SCOUT_TICKETS.has(ticketType)) {
       return res.status(400).json({ error: 'Invalid userId or ticketType' });
     }
 
-    const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    const pruned = pruneExpiredLotsForUser(progress, now);
-    if (pruned) {
-      saveUserProgressToDisk();
+    const result = await withUserLock(userId, async () => {
+      const now = Date.now();
+      const progress = await hydrateUserProgressFromSupabase(userId);
+      const pruned = pruneExpiredLotsForUser(progress, now);
+      if (pruned) {
+        saveUserProgressToDisk();
+        saveUserTicketsToDisk();
+      }
+
+      if (!progress.inventory[ticketType] || progress.inventory[ticketType] <= 0) {
+        return {
+          status: 400,
+          body: {
+            error: 'No active tickets available for this scout',
+            userTickets: extractScoutTicketsFromInventory(progress.inventory),
+            progress,
+          },
+        };
+      }
+
+      // Consume soonest-expiring active timed lot first (FIFO by expiresAt)
+      const activeLots = progress.timedLots
+        .filter((l) => l.ticketType === ticketType && l.remaining > 0 && (!l.expiresAt || l.expiresAt > now))
+        .sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity));
+      if (activeLots.length > 0) {
+        activeLots[0].remaining -= 1;
+      }
+
+      progress.inventory[ticketType] = Math.max(0, (progress.inventory[ticketType] || 0) - 1);
+      progress.updatedAt = now;
+      appendUsageLog(progress, {
+        itemType: ticketType,
+        action: 'use_scout',
+        amount: 1,
+        detailJa: `スカウト実行 (${ticketType})`,
+        detailEn: `Executed scout (${ticketType})`,
+        timestamp: now,
+      });
+
+      const userTickets = extractScoutTicketsFromInventory(progress.inventory);
+      userTicketsDatabase.set(userId, userTickets);
       saveUserTicketsToDisk();
-    }
+      saveUserProgressToDisk();
+      await pushUserProgressToSupabase(progress);
 
-    if (!progress.inventory[ticketType] || progress.inventory[ticketType] <= 0) {
-      return res.status(400).json({ error: 'No active tickets available for this scout' });
-    }
-
-    // Consume soonest-expiring active timed lot first (FIFO by expiresAt)
-    const activeLots = progress.timedLots
-      .filter((l) => l.ticketType === ticketType && l.remaining > 0 && (!l.expiresAt || l.expiresAt > now))
-      .sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity));
-    if (activeLots.length > 0) {
-      activeLots[0].remaining -= 1;
-    }
-
-    progress.inventory[ticketType] = Math.max(0, (progress.inventory[ticketType] || 0) - 1);
-    progress.updatedAt = now;
-    appendUsageLog(progress, {
-      itemType: ticketType,
-      action: 'use_scout',
-      amount: 1,
-      detailJa: `スカウト実行 (${ticketType})`,
-      detailEn: `Executed scout (${ticketType})`,
-      timestamp: now,
+      return {
+        status: 200,
+        body: {
+          success: true,
+          ticketType,
+          remainingTickets: userTickets[ticketType],
+          userTickets,
+          progress,
+        },
+      };
     });
 
-    const userTickets = extractScoutTicketsFromInventory(progress.inventory);
-    userTicketsDatabase.set(userId, userTickets);
-    saveUserTicketsToDisk();
-    saveUserProgressToDisk();
-
-    res.json({
-      success: true,
-      ticketType,
-      remainingTickets: userTickets[ticketType],
-      userTickets,
-      progress,
-    });
+    res.status(result.status).json(result.body);
   });
 
   // ═════════════════════════════════════════════════════════════════════════
-  // 6.2 Ver.1.6.0 AUTHORITATIVE PROGRESS, LOGIN BONUS, TRAINING & ITEM APIs
+  // 6.2 Ver.1.6.1 AUTHORITATIVE PROGRESS, LOGIN BONUS, TRAINING & ITEM APIs
   // ═════════════════════════════════════════════════════════════════════════
 
-  app.get('/api/progress/:userId', (req, res) => {
+  app.get('/api/progress/:userId', async (req, res) => {
     const { userId } = req.params;
     if (!isValidUserId(userId)) {
       return res.status(400).json({ error: 'Valid userId is required' });
     }
     const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    const pruned = pruneExpiredLotsForUser(progress, now);
-    if (pruned) {
-      saveUserProgressToDisk();
-      saveUserTicketsToDisk();
-    }
+    const progress = await withUserLock(userId, async () => {
+      const p = await hydrateUserProgressFromSupabase(userId);
+      const pruned = pruneExpiredLotsForUser(p, now);
+      if (pruned) {
+        saveUserProgressToDisk();
+        saveUserTicketsToDisk();
+        await pushUserProgressToSupabase(p);
+      }
+      return p;
+    });
     res.json({
       success: true,
       serverTimeMs: now,
@@ -1280,203 +1568,251 @@ async function startServer() {
     });
   });
 
-  // 15-Day Login Bonus Claim (JST midnight reset enforced server-side)
-  app.post('/api/progress/claim-login-bonus', (req, res) => {
+  // 15-Day Login Bonus Claim (JST midnight reset enforced server-side, independent of Present Box)
+  app.post('/api/progress/claim-login-bonus', async (req, res) => {
     const { userId } = req.body;
     if (!isValidUserId(userId)) {
       return res.status(400).json({ error: 'Valid userId is required' });
     }
 
-    const now = Date.now();
-    const todayJst = getServerJstDateKey(now);
-    const progress = getOrCreateUserProgress(userId);
-    pruneExpiredLotsForUser(progress, now);
+    const result = await withUserLock(userId, async () => {
+      const now = Date.now();
+      const todayJst = getServerJstDateKey(now);
+      const progress = await hydrateUserProgressFromSupabase(userId);
+      pruneExpiredLotsForUser(progress, now);
 
-    if (progress.loginBonus.lastClaimedJstDate === todayJst) {
-      return res.status(400).json({
-        success: false,
-        error: 'ALREADY_CLAIMED_TODAY',
-        todayJst,
-        progress,
-      });
-    }
+      if (progress.loginBonus.lastClaimedJstDate === todayJst) {
+        return {
+          status: 400,
+          body: {
+            success: false,
+            error: 'ALREADY_CLAIMED_TODAY',
+            todayJst,
+            progress,
+          },
+        };
+      }
 
-    let activeDay = progress.loginBonus.currentDay;
-    let claimedInCycle = [...(progress.loginBonus.claimedDaysInCycle || [])];
-    let cycleCount = progress.loginBonus.cycleCount || 1;
-    if (claimedInCycle.length >= 15 || activeDay < 1 || activeDay > 15) {
-      activeDay = 1;
-      claimedInCycle = [];
-      cycleCount += 1;
-    }
+      let activeDay = progress.loginBonus.currentDay;
+      let claimedInCycle = [...(progress.loginBonus.claimedDaysInCycle || [])];
+      let cycleCount = progress.loginBonus.cycleCount || 1;
+      if (claimedInCycle.length >= 15 || activeDay < 1 || activeDay > 15) {
+        activeDay = 1;
+        claimedInCycle = [];
+        cycleCount += 1;
+      }
 
-    const dayDef = SERVER_LOGIN_BONUS_SCHEDULE[activeDay - 1];
-    const grantedRewards: { rewardType: string; amount: number; expiresAt?: number }[] = [];
+      const dayDef = SERVER_LOGIN_BONUS_SCHEDULE[activeDay - 1];
+      const grantedRewards: { rewardType: string; amount: number; expiresAt?: number }[] = [];
 
-    for (const r of dayDef.rewards) {
-      const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
-      grantItemToProgress(
-        progress,
-        r.rewardType,
-        r.amount,
-        `login_bonus_day_${activeDay}_cycle_${cycleCount}`,
-        expiresAt,
-        now
-      );
-      appendUsageLog(progress, {
-        itemType: r.rewardType,
-        action: 'claim_login_bonus',
-        amount: r.amount,
-        detailJa: `ログインボーナス DAY ${activeDay} 獲得 (${dayDef.labelJa})`,
-        detailEn: `Login Bonus DAY ${activeDay} claimed`,
-        timestamp: now,
-      });
-      grantedRewards.push({ rewardType: r.rewardType, amount: r.amount, expiresAt });
-    }
+      for (const r of dayDef.rewards) {
+        const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+        grantItemToProgress(
+          progress,
+          r.rewardType,
+          r.amount,
+          `login_bonus_day_${activeDay}_cycle_${cycleCount}`,
+          expiresAt,
+          now
+        );
+        appendUsageLog(progress, {
+          itemType: r.rewardType,
+          action: 'claim_login_bonus',
+          amount: r.amount,
+          detailJa: `ログインボーナス DAY ${activeDay} 獲得 (${dayDef.labelJa})`,
+          detailEn: `Login Bonus DAY ${activeDay} claimed`,
+          timestamp: now,
+        });
+        grantedRewards.push({ rewardType: r.rewardType, amount: r.amount, expiresAt });
+      }
 
-    const completedCycle = activeDay >= 15;
-    const nextClaimed = Array.from(new Set([...claimedInCycle, activeDay])).sort((a, b) => a - b);
-    progress.loginBonus = {
-      currentDay: completedCycle ? 1 : activeDay + 1,
-      claimedDaysInCycle: completedCycle ? [] : nextClaimed,
-      lastClaimedJstDate: todayJst,
-      lastClaimedAt: now,
-      totalClaims: (progress.loginBonus.totalClaims || 0) + 1,
-      cycleCount: completedCycle ? cycleCount + 1 : cycleCount,
-    };
-    progress.updatedAt = now;
+      const completedCycle = activeDay >= 15;
+      const nextClaimed = Array.from(new Set([...claimedInCycle, activeDay])).sort((a, b) => a - b);
+      progress.loginBonus = {
+        currentDay: completedCycle ? 1 : activeDay + 1,
+        claimedDaysInCycle: completedCycle ? [] : nextClaimed,
+        lastClaimedJstDate: todayJst,
+        lastClaimedAt: now,
+        totalClaims: (progress.loginBonus.totalClaims || 0) + 1,
+        cycleCount: completedCycle ? cycleCount + 1 : cycleCount,
+      };
+      progress.updatedAt = now;
 
-    saveUserProgressToDisk();
-    saveUserTicketsToDisk();
+      saveUserProgressToDisk();
+      saveUserTicketsToDisk();
+      await pushUserProgressToSupabase(progress);
 
-    res.json({
-      success: true,
-      claimedDay: activeDay,
-      rewards: grantedRewards,
-      todayJst,
-      progress,
-      userTickets: extractScoutTicketsFromInventory(progress.inventory),
+      return {
+        status: 200,
+        body: {
+          success: true,
+          claimedDay: activeDay,
+          rewards: grantedRewards,
+          todayJst,
+          progress,
+          userTickets: extractScoutTicketsFromInventory(progress.inventory),
+        },
+      };
     });
+
+    res.status(result.status).json(result.body);
   });
 
-  // Training Chip: 5 chips -> +1 Level (max Lv.10, +5 OVR at Lv.10)
-  app.post('/api/items/train-player', (req, res) => {
+  // Training Chip: 3 chips -> +1 Level (max Lv.10, +5 OVR at Lv.10)
+  app.post('/api/items/train-player', async (req, res) => {
     const { userId, player } = req.body;
     if (!isValidUserId(userId) || !player || typeof player.playerId !== 'string') {
       return res.status(400).json({ error: 'Invalid userId or player' });
     }
 
-    const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    const chips = progress.inventory.training_chip || 0;
-    if (chips < 5) {
-      return res.status(400).json({ error: 'Insufficient Training Chips (need 5)' });
-    }
+    const result = await withUserLock(userId, async () => {
+      const now = Date.now();
+      const progress = await hydrateUserProgressFromSupabase(userId);
+      const chips = progress.inventory.training_chip || 0;
+      if (chips < 3) {
+        return {
+          status: 400,
+          body: {
+            error: `トレーニングチップが不足しています（必要: 3個 / 所持: ${chips}個）`,
+            progress,
+          },
+        };
+      }
 
-    const existing = progress.playerStates[player.playerId];
-    const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
-    if (currentLevel >= 10) {
-      return res.status(400).json({ error: 'Player is already at Lv.10' });
-    }
+      const existing = progress.playerStates[player.playerId];
+      const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
+      if (currentLevel >= 10) {
+        return {
+          status: 400,
+          body: {
+            error: 'この選手はすでに最大レベル（Lv.10）に到達しています。',
+            progress,
+          },
+        };
+      }
 
-    const prevBonus = LEVEL_OVR_BONUS[currentLevel - 1] ?? 0;
-    const baseRating =
-      existing?.baseRating ??
-      (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - prevBonus));
-    const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
-    const nextLevel = currentLevel + 1;
-    const nextBonus = LEVEL_OVR_BONUS[nextLevel - 1] ?? 0;
+      const prevBonus = LEVEL_OVR_BONUS[currentLevel - 1] ?? 0;
+      const baseRating =
+        existing?.baseRating ??
+        (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - prevBonus));
+      const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
+      const nextLevel = currentLevel + 1;
+      const nextBonus = LEVEL_OVR_BONUS[nextLevel - 1] ?? 0;
 
-    progress.inventory.training_chip = chips - 5;
-    progress.playerStates[player.playerId] = {
-      playerId: player.playerId,
-      baseRating,
-      baseStats,
-      level: nextLevel,
-      awakeningLevel: existing?.awakeningLevel ?? Number(player.awakeningLevel ?? 0),
-      addedPositions: existing?.addedPositions ?? (Array.isArray(player.addedPositions) ? player.addedPositions : []),
-      updatedAt: now,
-    };
-    appendUsageLog(progress, {
-      itemType: 'training_chip',
-      action: 'use_item',
-      amount: 5,
-      detailJa: `${player.nameJa || player.playerName} を Lv.${nextLevel} に育成 (OVR ${baseRating + nextBonus})`,
-      detailEn: `Trained ${player.nameEn || player.playerName} to Lv.${nextLevel}`,
-      timestamp: now,
+      progress.inventory.training_chip = chips - 3;
+      progress.playerStates[player.playerId] = {
+        playerId: player.playerId,
+        baseRating,
+        baseStats,
+        level: nextLevel,
+        awakeningLevel: existing?.awakeningLevel ?? Number(player.awakeningLevel ?? 0),
+        addedPositions: existing?.addedPositions ?? (Array.isArray(player.addedPositions) ? player.addedPositions : []),
+        updatedAt: now,
+      };
+      appendUsageLog(progress, {
+        itemType: 'training_chip',
+        action: 'use_item',
+        amount: 3,
+        detailJa: `${player.nameJa || player.playerName} を Lv.${nextLevel} に育成 (OVR ${baseRating + nextBonus})`,
+        detailEn: `Trained ${player.nameEn || player.playerName} to Lv.${nextLevel}`,
+        timestamp: now,
+      });
+      progress.updatedAt = now;
+      saveUserProgressToDisk();
+      await pushUserProgressToSupabase(progress);
+
+      return {
+        status: 200,
+        body: {
+          success: true,
+          playerState: progress.playerStates[player.playerId],
+          newRating: baseRating + nextBonus,
+          progress,
+        },
+      };
     });
-    progress.updatedAt = now;
-    saveUserProgressToDisk();
 
-    res.json({
-      success: true,
-      playerState: progress.playerStates[player.playerId],
-      newRating: baseRating + nextBonus,
-      progress,
-    });
+    res.status(result.status).json(result.body);
   });
 
   // Awakening Ticket: 1 ticket -> +1 Awakening (strictly requires Lv.10, max 7, zero OVR change)
-  app.post('/api/items/awaken-player', (req, res) => {
+  app.post('/api/items/awaken-player', async (req, res) => {
     const { userId, player } = req.body;
     if (!isValidUserId(userId) || !player || typeof player.playerId !== 'string') {
       return res.status(400).json({ error: 'Invalid userId or player' });
     }
 
-    const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    const balance = progress.inventory.awakening_ticket || 0;
-    if (balance < 1) {
-      return res.status(400).json({ error: 'Insufficient Awakening Tickets' });
-    }
+    const result = await withUserLock(userId, async () => {
+      const now = Date.now();
+      const progress = await hydrateUserProgressFromSupabase(userId);
+      const balance = progress.inventory.awakening_ticket || 0;
+      if (balance < 1) {
+        return {
+          status: 400,
+          body: { error: '覚醒チケットを所持していません。', progress },
+        };
+      }
 
-    const existing = progress.playerStates[player.playerId];
-    const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
-    const currentAwakening = Math.max(0, Math.min(7, Number(existing?.awakeningLevel ?? player.awakeningLevel ?? 0)));
+      const existing = progress.playerStates[player.playerId];
+      const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
+      const currentAwakening = Math.max(0, Math.min(7, Number(existing?.awakeningLevel ?? player.awakeningLevel ?? 0)));
 
-    if (currentLevel < 10) {
-      return res.status(400).json({ error: 'Awakening requires player Lv.10' });
-    }
-    if (currentAwakening >= 7) {
-      return res.status(400).json({ error: 'Already at max Awakening Lv.7' });
-    }
+      if (currentLevel < 10) {
+        return {
+          status: 400,
+          body: { error: `覚醒はLv.10の選手のみ実行できます（現在 Lv.${currentLevel}）。`, progress },
+        };
+      }
+      if (currentAwakening >= 7) {
+        return {
+          status: 400,
+          body: { error: 'すでに最大覚醒段階（覚醒 Lv.7）に到達しています。', progress },
+        };
+      }
 
-    const baseRating =
-      existing?.baseRating ??
-      (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - 5));
-    const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
-    const nextAwakening = currentAwakening + 1;
+      const baseRating =
+        existing?.baseRating ??
+        (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - 5));
+      const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
+      const nextAwakening = currentAwakening + 1;
 
-    progress.inventory.awakening_ticket = balance - 1;
-    progress.playerStates[player.playerId] = {
-      playerId: player.playerId,
-      baseRating,
-      baseStats,
-      level: currentLevel,
-      awakeningLevel: nextAwakening,
-      addedPositions: existing?.addedPositions ?? (Array.isArray(player.addedPositions) ? player.addedPositions : []),
-      updatedAt: now,
-    };
-    appendUsageLog(progress, {
-      itemType: 'awakening_ticket',
-      action: 'use_item',
-      amount: 1,
-      detailJa: `${player.nameJa || player.playerName} を 覚醒 Lv.${nextAwakening} に覚醒`,
-      detailEn: `Awakened ${player.nameEn || player.playerName} to Lv.${nextAwakening}`,
-      timestamp: now,
+      progress.inventory.awakening_ticket = balance - 1;
+      progress.playerStates[player.playerId] = {
+        playerId: player.playerId,
+        baseRating,
+        baseStats,
+        level: currentLevel,
+        awakeningLevel: nextAwakening,
+        addedPositions: existing?.addedPositions ?? (Array.isArray(player.addedPositions) ? player.addedPositions : []),
+        updatedAt: now,
+      };
+      appendUsageLog(progress, {
+        itemType: 'awakening_ticket',
+        action: 'use_item',
+        amount: 1,
+        detailJa: `${player.nameJa || player.playerName} を 覚醒 Lv.${nextAwakening} に覚醒`,
+        detailEn: `Awakened ${player.nameEn || player.playerName} to Lv.${nextAwakening}`,
+        timestamp: now,
+      });
+      progress.updatedAt = now;
+      saveUserProgressToDisk();
+      await pushUserProgressToSupabase(progress);
+
+      return {
+        status: 200,
+        body: {
+          success: true,
+          playerState: progress.playerStates[player.playerId],
+          progress,
+        },
+      };
     });
-    progress.updatedAt = now;
-    saveUserProgressToDisk();
 
-    res.json({
-      success: true,
-      playerState: progress.playerStates[player.playerId],
-      progress,
-    });
+    res.status(result.status).json(result.body);
   });
 
   // Position Plus: 1 item -> adds 1 non-duplicate valid eFootball position
-  app.post('/api/items/add-position', (req, res) => {
+  app.post('/api/items/add-position', async (req, res) => {
     const { userId, player, targetPosition, currentVerifiedPositions } = req.body;
     if (
       !isValidUserId(userId) ||
@@ -1492,121 +1828,141 @@ async function startServer() {
       return res.status(400).json({ error: 'GK position mismatch not allowed' });
     }
 
-    const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    const balance = progress.inventory.position_plus || 0;
-    if (balance < 1) {
-      return res.status(400).json({ error: 'No Position Plus items available' });
-    }
+    const result = await withUserLock(userId, async () => {
+      const now = Date.now();
+      const progress = await hydrateUserProgressFromSupabase(userId);
+      const balance = progress.inventory.position_plus || 0;
+      if (balance < 1) {
+        return { status: 400, body: { error: 'No Position Plus items available', progress } };
+      }
 
-    const existing = progress.playerStates[player.playerId];
-    const prevAdded = Array.isArray(existing?.addedPositions)
-      ? existing.addedPositions
-      : Array.isArray(player.addedPositions)
-      ? player.addedPositions
-      : [];
-    const verifiedSet = new Set<string>([
-      ...(Array.isArray(currentVerifiedPositions) ? currentVerifiedPositions : []),
-      ...prevAdded,
-    ]);
-    if (verifiedSet.has(targetPosition)) {
-      return res.status(400).json({ error: 'Player already possesses this position proficiency' });
-    }
+      const existing = progress.playerStates[player.playerId];
+      const prevAdded = Array.isArray(existing?.addedPositions)
+        ? existing.addedPositions
+        : Array.isArray(player.addedPositions)
+        ? player.addedPositions
+        : [];
+      const verifiedSet = new Set<string>([
+        ...(Array.isArray(currentVerifiedPositions) ? currentVerifiedPositions : []),
+        ...prevAdded,
+      ]);
+      if (verifiedSet.has(targetPosition)) {
+        return { status: 400, body: { error: 'Player already possesses this position proficiency', progress } };
+      }
 
-    const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
-    const levelBonus = LEVEL_OVR_BONUS[currentLevel - 1] ?? 0;
-    const baseRating =
-      existing?.baseRating ??
-      (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - levelBonus));
-    const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
+      const currentLevel = Math.max(1, Math.min(10, Number(existing?.level ?? player.level ?? 1)));
+      const levelBonus = LEVEL_OVR_BONUS[currentLevel - 1] ?? 0;
+      const baseRating =
+        existing?.baseRating ??
+        (typeof player.baseRating === 'number' ? player.baseRating : Math.max(40, Number(player.rating) - levelBonus));
+      const baseStats = existing?.baseStats ?? player.baseStats ?? player.stats;
 
-    progress.inventory.position_plus = balance - 1;
-    progress.playerStates[player.playerId] = {
-      playerId: player.playerId,
-      baseRating,
-      baseStats,
-      level: currentLevel,
-      awakeningLevel: existing?.awakeningLevel ?? Number(player.awakeningLevel ?? 0),
-      addedPositions: [...prevAdded, targetPosition],
-      updatedAt: now,
-    };
-    appendUsageLog(progress, {
-      itemType: 'position_plus',
-      action: 'use_item',
-      amount: 1,
-      detailJa: `${player.nameJa || player.playerName} に ${targetPosition} 適正を追加`,
-      detailEn: `Added ${targetPosition} proficiency to ${player.nameEn || player.playerName}`,
-      timestamp: now,
+      progress.inventory.position_plus = balance - 1;
+      progress.playerStates[player.playerId] = {
+        playerId: player.playerId,
+        baseRating,
+        baseStats,
+        level: currentLevel,
+        awakeningLevel: existing?.awakeningLevel ?? Number(player.awakeningLevel ?? 0),
+        addedPositions: [...prevAdded, targetPosition],
+        updatedAt: now,
+      };
+      appendUsageLog(progress, {
+        itemType: 'position_plus',
+        action: 'use_item',
+        amount: 1,
+        detailJa: `${player.nameJa || player.playerName} に ${targetPosition} 適正を追加`,
+        detailEn: `Added ${targetPosition} proficiency to ${player.nameEn || player.playerName}`,
+        timestamp: now,
+      });
+      progress.updatedAt = now;
+      saveUserProgressToDisk();
+      await pushUserProgressToSupabase(progress);
+
+      return {
+        status: 200,
+        body: {
+          success: true,
+          playerState: progress.playerStates[player.playerId],
+          progress,
+        },
+      };
     });
-    progress.updatedAt = now;
-    saveUserProgressToDisk();
 
-    res.json({
-      success: true,
-      playerState: progress.playerStates[player.playerId],
-      progress,
-    });
+    res.status(result.status).json(result.body);
   });
 
   // Manager Select Ticket: consume 1 ticket, add manager to ownedManagers (graceful duplicate notice)
-  app.post('/api/items/select-manager', (req, res) => {
+  app.post('/api/items/select-manager', async (req, res) => {
     const { userId, managerId, managerName } = req.body;
     if (!isValidUserId(userId) || !managerId || typeof managerId !== 'string') {
       return res.status(400).json({ error: 'Invalid userId or managerId' });
     }
 
-    const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    const balance = progress.inventory.manager_select_ticket || 0;
-    if (balance < 1) {
-      return res.status(400).json({ error: 'No Manager Select Tickets available' });
-    }
+    const result = await withUserLock(userId, async () => {
+      const now = Date.now();
+      const progress = await hydrateUserProgressFromSupabase(userId);
+      const balance = progress.inventory.manager_select_ticket || 0;
+      if (balance < 1) {
+        return { status: 400, body: { error: 'No Manager Select Tickets available', progress } };
+      }
 
-    const alreadyOwned = progress.ownedManagers.some((m) => m.managerId === managerId);
-    progress.inventory.manager_select_ticket = balance - 1;
-    if (!alreadyOwned) {
-      progress.ownedManagers.push({
-        managerId,
-        acquiredAt: now,
-        source: 'manager_select_ticket',
+      const alreadyOwned = progress.ownedManagers.some((m) => m.managerId === managerId);
+      progress.inventory.manager_select_ticket = balance - 1;
+      if (!alreadyOwned) {
+        progress.ownedManagers.push({
+          managerId,
+          acquiredAt: now,
+          source: 'manager_select_ticket',
+        });
+      }
+      appendUsageLog(progress, {
+        itemType: 'manager_select_ticket',
+        action: 'use_item',
+        amount: 1,
+        detailJa: `監督選択スカウトで「${managerName || managerId}」を獲得${alreadyOwned ? '（所持済み登録済み）' : ''}`,
+        detailEn: `Selected manager ${managerName || managerId} via Manager Select Ticket`,
+        timestamp: now,
       });
-    }
-    appendUsageLog(progress, {
-      itemType: 'manager_select_ticket',
-      action: 'use_item',
-      amount: 1,
-      detailJa: `監督選択スカウトで「${managerName || managerId}」を獲得${alreadyOwned ? '（所持済み登録済み）' : ''}`,
-      detailEn: `Selected manager ${managerName || managerId} via Manager Select Ticket`,
-      timestamp: now,
-    });
-    progress.updatedAt = now;
-    saveUserProgressToDisk();
+      progress.updatedAt = now;
+      saveUserProgressToDisk();
+      await pushUserProgressToSupabase(progress);
 
-    res.json({
-      success: true,
-      alreadyOwned,
-      ownedManagers: progress.ownedManagers,
-      progress,
+      return {
+        status: 200,
+        body: {
+          success: true,
+          alreadyOwned,
+          ownedManagers: progress.ownedManagers,
+          progress,
+        },
+      };
     });
+
+    res.status(result.status).json(result.body);
   });
 
   // Record a manager acquired from 1-per-game Manager Draft gacha (free)
-  app.post('/api/managers/record-draft', (req, res) => {
+  app.post('/api/managers/record-draft', async (req, res) => {
     const { userId, managerId } = req.body;
     if (!isValidUserId(userId) || !managerId || typeof managerId !== 'string') {
       return res.status(400).json({ error: 'Invalid userId or managerId' });
     }
-    const now = Date.now();
-    const progress = getOrCreateUserProgress(userId);
-    if (!progress.ownedManagers.some((m) => m.managerId === managerId)) {
-      progress.ownedManagers.push({
-        managerId,
-        acquiredAt: now,
-        source: 'draft_gacha',
-      });
-      progress.updatedAt = now;
-      saveUserProgressToDisk();
-    }
+    const progress = await withUserLock(userId, async () => {
+      const now = Date.now();
+      const p = await hydrateUserProgressFromSupabase(userId);
+      if (!p.ownedManagers.some((m) => m.managerId === managerId)) {
+        p.ownedManagers.push({
+          managerId,
+          acquiredAt: now,
+          source: 'draft_gacha',
+        });
+        p.updatedAt = now;
+        saveUserProgressToDisk();
+        await pushUserProgressToSupabase(p);
+      }
+      return p;
+    });
     res.json({ success: true, ownedManagers: progress.ownedManagers, progress });
   });
 
@@ -3201,7 +3557,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT} (v1.6.0)`);
+    console.log(`Server running on http://0.0.0.0:${PORT} (v1.6.1)`);
   });
 }
 

@@ -341,7 +341,7 @@ export const OnlineSyncDebugModal: React.FC<OnlineSyncDebugModalProps> = ({
 
         {/* Footer */}
         <div className="px-5 py-3.5 bg-slate-950 border-t border-emerald-500/20 flex items-center justify-between text-xs text-slate-400">
-          <span>FOOTBALL DRAFT v1.6.0 (Online Authoritative DB)</span>
+          <span>FOOTBALL DRAFT v1.6.1 (Online Authoritative DB)</span>
           <button
             id="close-sync-debug-footer-btn"
             onClick={onClose}

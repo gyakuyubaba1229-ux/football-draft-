@@ -93,6 +93,19 @@ export const REWARD_SCOUT_DEFINITIONS: Record<RewardTicketType, RewardScoutDefin
     accentGradient: 'from-indigo-600/30 via-purple-600/20 to-slate-900/40',
     iconName: 'Zap',
   },
+  legend_70: {
+    type: 'legend_70',
+    nameJa: 'レジェンド70%ガチャ',
+    nameEn: 'Legend 70% Scout',
+    descriptionJa: '70%の確率でレジェンド選手が出現する超激アツ特別スカウト！3名の候補から1名を選択。',
+    descriptionEn: '70% chance to trigger a Legendary staging! Choose 1 of 3 candidates.',
+    candidateCount: 3,
+    legendChance: 0.7,
+    purpleChance: 0.0,
+    badgeColor: 'bg-amber-400/20 text-amber-200 border-amber-400/50',
+    accentGradient: 'from-amber-500/35 via-yellow-600/25 to-stone-900/40',
+    iconName: 'Crown',
+  },
   legend_50: {
     type: 'legend_50',
     nameJa: 'レジェンド50%スカウト',
@@ -477,6 +490,7 @@ export function getStoredUserTickets(): Record<RewardTicketType, number> {
     legend_10: 0,
     legend_20: 0,
     legend_50: 0,
+    legend_70: 0,
     legend_guaranteed: 0,
     purple_20: 0,
     purple_50: 0,
@@ -734,6 +748,43 @@ export function ensureApologyGiftDistributed(userId: string): GiftBoxItem[] {
       updated = true;
     }
 
+    // 7. Ver.1.6.1 Present Box Bug Apology Gift (idempotent per user)
+    const v161ApologyId = `v161_present_bug_apology_${userId}`;
+    const v161ApologyFlagKey = `FOOTBALL_DRAFT_V161_PRESENT_APOLOGY_SENT_${userId}`;
+    const v161ApologySent =
+      typeof localStorage !== 'undefined' && localStorage.getItem(v161ApologyFlagKey) === '1';
+    const existsV161Apology =
+      v161ApologySent ||
+      allPresents.some(
+        (p) =>
+          p.id === v161ApologyId ||
+          (p.userId === userId && p.title === 'プレゼントBOX不具合のお詫び')
+      );
+
+    if (!existsV161Apology) {
+      const v161ApologyGift: GiftBoxItem = {
+        id: v161ApologyId,
+        userId,
+        title: 'プレゼントBOX不具合のお詫び',
+        description:
+          'プレゼントBOX受取不具合のお詫びとして、「レジェンド50%ガチャ ×1」「トレーニングチップ ×20」「覚醒チケット ×3」をお送りいたします。',
+        rewardType: 'legend_50',
+        amount: 1,
+        rewards: [
+          { rewardType: 'legend_50', amount: 1 },
+          { rewardType: 'training_chip', amount: 20 },
+          { rewardType: 'awakening_ticket', amount: 3 },
+        ],
+        isClaimed: false,
+        createdAt: Date.now(),
+      };
+      allPresents.unshift(v161ApologyGift);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(v161ApologyFlagKey, '1');
+      }
+      updated = true;
+    }
+
     if (updated) {
       saveAllPresents(allPresents);
     }
@@ -749,7 +800,7 @@ export const ensureSystemGiftsDistributed = ensureApologyGiftDistributed;
 
 const SCOUT_TICKET_TYPE_SET = new Set<string>(Object.keys(REWARD_SCOUT_DEFINITIONS));
 
-function grantInventoryEntryLocally(rewardType: InventoryItemType, amount: number): void {
+function grantInventoryEntryLocally(rewardType: InventoryItemType, amount: number, userId?: string): void {
   if (SCOUT_TICKET_TYPE_SET.has(rewardType)) {
     addTicketToUser(rewardType as RewardTicketType, amount);
   } else {
@@ -760,6 +811,21 @@ function grantInventoryEntryLocally(rewardType: InventoryItemType, amount: numbe
       localStorage.setItem('FOOTBALL_DRAFT_NON_SCOUT_INVENTORY_V160', JSON.stringify(current));
     } catch (e) {
       console.warn('Failed to save non-scout reward locally:', e);
+    }
+  }
+  if (userId) {
+    try {
+      const key = `FOOTBALL_DRAFT_USER_PROGRESS_V160_${userId}`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        parsed.inventory = parsed.inventory || {};
+        parsed.inventory[rewardType] = (parsed.inventory[rewardType] || 0) + amount;
+        parsed.updatedAt = Date.now();
+        localStorage.setItem(key, JSON.stringify(parsed));
+      }
+    } catch {
+      // ignore local progress mirror error
     }
   }
 }
@@ -805,10 +871,10 @@ export function claimPresentBoxItem(presentId: string, userId: string): {
     // Grant either multi-rewards or single reward
     if (Array.isArray(target.rewards) && target.rewards.length > 0) {
       for (const r of target.rewards) {
-        grantInventoryEntryLocally(r.rewardType, r.amount || 1);
+        grantInventoryEntryLocally(r.rewardType, r.amount || 1, userId);
       }
     } else {
-      grantInventoryEntryLocally(target.rewardType, target.amount || 1);
+      grantInventoryEntryLocally(target.rewardType, target.amount || 1, userId);
     }
 
     return {
@@ -852,10 +918,10 @@ export function claimAllPresentBoxItems(userId: string): {
         item.claimedAt = now;
         if (Array.isArray(item.rewards) && item.rewards.length > 0) {
           for (const r of item.rewards) {
-            grantInventoryEntryLocally(r.rewardType, r.amount || 1);
+            grantInventoryEntryLocally(r.rewardType, r.amount || 1, userId);
           }
         } else {
-          grantInventoryEntryLocally(item.rewardType, item.amount || 1);
+          grantInventoryEntryLocally(item.rewardType, item.amount || 1, userId);
         }
         claimedCount++;
       }

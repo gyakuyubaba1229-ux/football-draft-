@@ -692,6 +692,7 @@ export type RewardTicketType =
   | 'legend_10'
   | 'legend_20'
   | 'legend_50'
+  | 'legend_70'
   | 'legend_guaranteed'
   | 'purple_20'
   | 'purple_50'

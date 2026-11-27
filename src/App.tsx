@@ -463,6 +463,7 @@ export default function App() {
       legend_10: nextProgress.inventory.legend_10 || 0,
       legend_20: nextProgress.inventory.legend_20 || 0,
       legend_50: nextProgress.inventory.legend_50 || 0,
+      legend_70: nextProgress.inventory.legend_70 || 0,
       legend_guaranteed: nextProgress.inventory.legend_guaranteed || 0,
       purple_20: nextProgress.inventory.purple_20 || 0,
       purple_50: nextProgress.inventory.purple_50 || 0,
@@ -526,26 +527,60 @@ export default function App() {
     return cleanup;
   }, []);
 
+  const refreshPresentsFromServer = useCallback(async () => {
+    const serverPresents = await fetchUserPresents(effectiveUserId);
+    setPresents(serverPresents);
+  }, [effectiveUserId]);
+
   const handleClaimGift = async (giftId: string) => {
     const res = await claimPresent(effectiveUserId, giftId);
-    setPresents(res.updatedPresents || getStoredPresents(effectiveUserId));
+    if (Array.isArray(res.updatedPresents)) {
+      setPresents(res.updatedPresents);
+    }
     if (res.progress) {
       applyServerProgress(res.progress);
-    } else {
+    } else if (res.success) {
       const refreshed = await fetchUserProgress(effectiveUserId);
       applyServerProgress(refreshed.progress);
     }
+    if (!res.success) {
+      return {
+        ok: false,
+        message: res.error || 'プレゼントの受け取りに失敗しました。',
+      };
+    }
+    return {
+      ok: true,
+      message: res.claimedItem ? `「${res.claimedItem.title}」を受け取りました！` : 'プレゼントを受け取りました！',
+    };
   };
 
   const handleClaimAllGifts = async () => {
     const res = await claimAllPresents(effectiveUserId);
-    setPresents(res.updatedPresents || getStoredPresents(effectiveUserId));
+    if (Array.isArray(res.updatedPresents)) {
+      setPresents(res.updatedPresents);
+    }
     if (res.progress) {
       applyServerProgress(res.progress);
-    } else {
+    } else if (res.success) {
       const refreshed = await fetchUserProgress(effectiveUserId);
       applyServerProgress(refreshed.progress);
     }
+    if (!res.success) {
+      return {
+        ok: false,
+        claimedCount: 0,
+        message: res.error || '一括受取に失敗しました。',
+      };
+    }
+    return {
+      ok: true,
+      claimedCount: res.claimedCount,
+      message:
+        res.claimedCount > 0
+          ? `${res.claimedCount}件のプレゼントを一括で受け取りました！`
+          : '受取可能なプレゼントはありません。',
+    };
   };
 
   // Language & Sound handlers
@@ -1536,7 +1571,7 @@ export default function App() {
         onOpenItemBox={() => setIsItemBoxOpen(true)}
         onOpenLoginBonus={() => setIsLoginBonusOpen(true)}
         onOpenSyncDebug={() => setIsSyncDebugOpen(true)}
-        unclaimedGiftsCount={presents.filter((p) => !p.isClaimed).length}
+        unclaimedGiftsCount={presents.filter((p) => !p.isClaimed && (!p.expiresAt || Date.now() <= p.expiresAt)).length}
         totalTicketsCount={getTotalTicketsCount(rewardTickets)}
         itemBoxTotalCount={totalItemBoxCount}
         canClaimLoginBonus={canClaimLoginBonus}
@@ -1560,7 +1595,7 @@ export default function App() {
             }}
             onOpenItemBox={() => setIsItemBoxOpen(true)}
             onOpenLoginBonus={() => setIsLoginBonusOpen(true)}
-            unclaimedGiftsCount={presents.filter((p) => !p.isClaimed).length}
+            unclaimedGiftsCount={presents.filter((p) => !p.isClaimed && (!p.expiresAt || Date.now() <= p.expiresAt)).length}
             totalTicketsCount={getTotalTicketsCount(rewardTickets)}
             itemBoxTotalCount={totalItemBoxCount}
             canClaimLoginBonus={canClaimLoginBonus}
@@ -1882,6 +1917,7 @@ export default function App() {
         presents={Array.isArray(presents) ? presents : []}
         onClaimItem={handleClaimGift}
         onClaimAll={handleClaimAllGifts}
+        onRefresh={refreshPresentsFromServer}
         onOpenScoutModal={() => {
           setIsGiftBoxOpen(false);
           setIsRewardScoutOpen(true);

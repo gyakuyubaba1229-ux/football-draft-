@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   InventoryItemType,
   ItemBoxCategory,
@@ -88,7 +88,12 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [selectedTargetPos, setSelectedTargetPos] = useState<EFootballPosition | ''>('');
   const [isBusy, setIsBusy] = useState<boolean>(false);
+  const isExecutingRef = useRef<boolean>(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    kind: 'training_chip' | 'awakening_ticket';
+    player: Player;
+  } | null>(null);
 
   const categoryItems = useMemo(() => {
     return ALL_INVENTORY_ITEM_TYPES.filter(
@@ -136,81 +141,96 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
     soundManager.playButtonClick();
     setActiveCategory(cat);
     setFeedback(null);
+    setPendingConfirm(null);
     const first = ALL_INVENTORY_ITEM_TYPES.find((t) => ITEM_CATALOG[t].category === cat);
     if (first) setSelectedItemType(first);
   };
 
-  const handleTrainPlayer = async () => {
-    if (!selectedPlayer || isBusy) return;
+  const handleTrainPlayer = async (targetPlayer: Player) => {
+    if (!targetPlayer || isExecutingRef.current) return;
+    isExecutingRef.current = true;
     soundManager.playButtonClick();
     setIsBusy(true);
     setFeedback(null);
 
-    const res = await trainPlayerWithChip(userId, selectedPlayer);
-    setIsBusy(false);
+    try {
+      const res = await trainPlayerWithChip(userId, targetPlayer);
+      if (!res.success || !res.updatedPlayer || !res.progress) {
+        soundManager.playError();
+        setFeedback({ ok: false, text: res.error || '育成に失敗しました。' });
+        return;
+      }
 
-    if (!res.success || !res.updatedPlayer || !res.progress) {
-      soundManager.playError();
-      setFeedback({ ok: false, text: res.error || '育成に失敗しました。' });
-      return;
+      onProgressUpdated(res.progress);
+      onPlayerUpdated(res.updatedPlayer);
+      setPendingConfirm(null);
+      soundManager.playDraftAcquired();
+      setFeedback({
+        ok: true,
+        text: `${getLocalizedPlayerName(res.updatedPlayer, language)} が Lv.${res.updatedPlayer.level} (OVR ${res.updatedPlayer.rating}) に成長しました！`,
+      });
+    } finally {
+      isExecutingRef.current = false;
+      setIsBusy(false);
     }
-
-    onProgressUpdated(res.progress);
-    onPlayerUpdated(res.updatedPlayer);
-    soundManager.playDraftAcquired();
-    setFeedback({
-      ok: true,
-      text: `${getLocalizedPlayerName(res.updatedPlayer, language)} が Lv.${res.updatedPlayer.level} (OVR ${res.updatedPlayer.rating}) に成長しました！`,
-    });
   };
 
-  const handleAwakenPlayer = async () => {
-    if (!selectedPlayer || isBusy) return;
+  const handleAwakenPlayer = async (targetPlayer: Player) => {
+    if (!targetPlayer || isExecutingRef.current) return;
+    isExecutingRef.current = true;
     soundManager.playButtonClick();
     setIsBusy(true);
     setFeedback(null);
 
-    const res = await awakenPlayerWithTicket(userId, selectedPlayer);
-    setIsBusy(false);
+    try {
+      const res = await awakenPlayerWithTicket(userId, targetPlayer);
+      if (!res.success || !res.updatedPlayer || !res.progress) {
+        soundManager.playError();
+        setFeedback({ ok: false, text: res.error || '覚醒に失敗しました。' });
+        return;
+      }
 
-    if (!res.success || !res.updatedPlayer || !res.progress) {
-      soundManager.playError();
-      setFeedback({ ok: false, text: res.error || '覚醒に失敗しました。' });
-      return;
+      onProgressUpdated(res.progress);
+      onPlayerUpdated(res.updatedPlayer);
+      setPendingConfirm(null);
+      soundManager.playVictory();
+      setFeedback({
+        ok: true,
+        text: `✨ ${getLocalizedPlayerName(res.updatedPlayer, language)} が覚醒 Lv.${res.updatedPlayer.awakeningLevel}/7 に到達しました！`,
+      });
+    } finally {
+      isExecutingRef.current = false;
+      setIsBusy(false);
     }
-
-    onProgressUpdated(res.progress);
-    onPlayerUpdated(res.updatedPlayer);
-    soundManager.playVictory();
-    setFeedback({
-      ok: true,
-      text: `✨ ${getLocalizedPlayerName(res.updatedPlayer, language)} が覚醒 Lv.${res.updatedPlayer.awakeningLevel}/7 に到達しました！`,
-    });
   };
 
-  const handleAddPosition = async () => {
-    if (!selectedPlayer || !selectedTargetPos || isBusy) return;
+  const handleAddPosition = async (posToAdd: EFootballPosition) => {
+    if (!selectedPlayer || !posToAdd || isExecutingRef.current) return;
+    isExecutingRef.current = true;
     soundManager.playButtonClick();
     setIsBusy(true);
     setFeedback(null);
 
-    const res = await addPositionPlusToPlayer(userId, selectedPlayer, selectedTargetPos);
-    setIsBusy(false);
+    try {
+      const res = await addPositionPlusToPlayer(userId, selectedPlayer, posToAdd);
+      if (!res.success || !res.updatedPlayer || !res.progress) {
+        soundManager.playError();
+        setFeedback({ ok: false, text: res.error || 'ポジション追加に失敗しました。' });
+        return;
+      }
 
-    if (!res.success || !res.updatedPlayer || !res.progress) {
-      soundManager.playError();
-      setFeedback({ ok: false, text: res.error || 'ポジション追加に失敗しました。' });
-      return;
+      onProgressUpdated(res.progress);
+      onPlayerUpdated(res.updatedPlayer);
+      setSelectedTargetPos('');
+      soundManager.playDraftAcquired();
+      setFeedback({
+        ok: true,
+        text: `🧭 ${getLocalizedPlayerName(res.updatedPlayer, language)} に適正ポジション「${posToAdd}」を追加しました！`,
+      });
+    } finally {
+      isExecutingRef.current = false;
+      setIsBusy(false);
     }
-
-    onProgressUpdated(res.progress);
-    onPlayerUpdated(res.updatedPlayer);
-    setSelectedTargetPos('');
-    soundManager.playDraftAcquired();
-    setFeedback({
-      ok: true,
-      text: `🧭 ${getLocalizedPlayerName(res.updatedPlayer, language)} に適正ポジション「${selectedTargetPos}」を追加しました！`,
-    });
   };
 
   const eligiblePositions = selectedPlayer ? getEligiblePositionPlusOptions(selectedPlayer) : [];
@@ -240,7 +260,7 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
                   ITEM BOX
                 </h3>
                 <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                  Ver.1.6.0
+                  Ver.1.6.1
                 </span>
               </div>
               <p className="text-xs text-slate-400">
@@ -606,6 +626,52 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
                       </div>
                     ) : (
                       <>
+                        {(() => {
+                          const hasEligibleInCurrent =
+                            effectiveSelectedItem === 'awakening_ticket'
+                              ? teamPlayers.some(
+                                  (p) =>
+                                    (p.level ?? 1) >= MAX_PLAYER_LEVEL &&
+                                    (p.awakeningLevel ?? 0) < MAX_AWAKENING_LEVEL
+                                )
+                              : effectiveSelectedItem === 'training_chip'
+                              ? teamPlayers.some((p) => (p.level ?? 1) < MAX_PLAYER_LEVEL)
+                              : true;
+                          const altTeam = !hasEligibleInCurrent
+                            ? teams.find((t) =>
+                                t.teamId !== targetTeam?.teamId &&
+                                t.players.some((raw) => {
+                                  const p = ensurePlayerTrainingDefaults(raw);
+                                  return effectiveSelectedItem === 'awakening_ticket'
+                                    ? (p.level ?? 1) >= MAX_PLAYER_LEVEL &&
+                                        (p.awakeningLevel ?? 0) < MAX_AWAKENING_LEVEL
+                                    : (p.level ?? 1) < MAX_PLAYER_LEVEL;
+                                })
+                              )
+                            : undefined;
+                          if (!altTeam) return null;
+                          return (
+                            <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-center justify-between gap-2 text-xs">
+                              <span className="text-amber-200">
+                                {effectiveSelectedItem === 'awakening_ticket'
+                                  ? `「${altTeam.name}」に対象（Lv.10）の選手がいます。`
+                                  : `「${altTeam.name}」に育成可能な選手がいます。`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  soundManager.playButtonClick();
+                                  setSelectedTeamId(altTeam.teamId);
+                                  setSelectedPlayerId('');
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer"
+                              >
+                                チームを切替
+                              </button>
+                            </div>
+                          );
+                        })()}
+
                         {/* Player Selector Grid */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
                           {teamPlayers.map((p) => {
@@ -639,10 +705,13 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
                                   <div className="text-xs font-bold text-white truncate">
                                     {p.nationalityFlag} {getLocalizedPlayerName(p, language)}
                                   </div>
-                                  <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5">
+                                  <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 flex-wrap">
                                     <span>{p.position}</span>
                                     <span>Lv.{curLv}/10</span>
                                     {curAw > 0 && <span className="text-cyan-300">覚醒{curAw}/7</span>}
+                                    {effectiveSelectedItem === 'awakening_ticket' && curLv < MAX_PLAYER_LEVEL && (
+                                      <span className="text-rose-300">Lv.10必須</span>
+                                    )}
                                   </div>
                                 </div>
                                 <span className="font-mono font-black text-sm text-amber-300 shrink-0">
@@ -677,7 +746,13 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
                                 id="btn-execute-training-chip"
                                 type="button"
                                 disabled={!check.allowed || isBusy}
-                                onClick={handleTrainPlayer}
+                                onClick={() => {
+                                  soundManager.playButtonClick();
+                                  setPendingConfirm({
+                                    kind: 'training_chip',
+                                    player: selectedPlayer,
+                                  });
+                                }}
                                 className={`w-full py-2.5 rounded-xl font-heading font-black text-xs tracking-wider flex items-center justify-center gap-1.5 min-h-[44px] ${
                                   check.allowed && !isBusy
                                     ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 cursor-pointer'
@@ -688,7 +763,7 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
                                 <span>
                                   {isBusy
                                     ? '育成中...'
-                                    : `トレーニングチップ ${CHIPS_PER_LEVEL}枚で強化する`}
+                                    : `トレーニングチップ ${CHIPS_PER_LEVEL}個で強化する`}
                                 </span>
                               </button>
                             </div>
@@ -715,7 +790,13 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
                                 id="btn-execute-awaken"
                                 type="button"
                                 disabled={!check.allowed || isBusy}
-                                onClick={handleAwakenPlayer}
+                                onClick={() => {
+                                  soundManager.playButtonClick();
+                                  setPendingConfirm({
+                                    kind: 'awakening_ticket',
+                                    player: selectedPlayer,
+                                  });
+                                }}
                                 className={`w-full py-2.5 rounded-xl font-heading font-black text-xs tracking-wider flex items-center justify-center gap-1.5 min-h-[44px] ${
                                   check.allowed && !isBusy
                                     ? 'bg-gradient-to-r from-cyan-400 to-sky-500 hover:from-cyan-300 hover:to-sky-400 text-slate-950 cursor-pointer'
@@ -783,7 +864,7 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
                                   id="btn-execute-position-plus"
                                   type="button"
                                   disabled={selectedCount <= 0 || !effectiveTargetPos || isBusy}
-                                  onClick={handleAddPosition}
+                                  onClick={() => effectiveTargetPos && handleAddPosition(effectiveTargetPos)}
                                   className={`w-full py-2.5 rounded-xl font-heading font-black text-xs tracking-wider flex items-center justify-center gap-1.5 min-h-[44px] ${
                                     selectedCount > 0 && effectiveTargetPos && !isBusy
                                       ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white cursor-pointer'
@@ -810,6 +891,146 @@ export const ItemBoxModal: React.FC<ItemBoxModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal for Training Chips & Awakening Tickets */}
+      {pendingConfirm && (() => {
+        const target = ensurePlayerTrainingDefaults(pendingConfirm.player);
+        const isTraining = pendingConfirm.kind === 'training_chip';
+        const curLv = target.level ?? 1;
+        const nextLv = Math.min(MAX_PLAYER_LEVEL, curLv + 1);
+        const curAw = target.awakeningLevel ?? 0;
+        const nextAw = Math.min(MAX_AWAKENING_LEVEL, curAw + 1);
+        const baseOvr = target.baseRating ?? target.rating;
+        const curOvr = target.rating;
+        const nextOvr = isTraining ? baseOvr + getOvrBonusForLevel(nextLv) : curOvr;
+        const cost = isTraining ? CHIPS_PER_LEVEL : 1;
+        const currentQty = isTraining
+          ? inventory.training_chip || 0
+          : inventory.awakening_ticket || 0;
+        const afterQty = Math.max(0, currentQty - cost);
+
+        return (
+          <div
+            id="item-confirm-modal-overlay"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div
+              id="item-confirm-modal"
+              className="w-full max-w-md bg-slate-900 border-2 border-emerald-400/50 rounded-3xl p-5 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h4 className="font-heading font-black text-base sm:text-lg text-white">
+                  {isTraining ? 'レベル強化の確認' : '選手覚醒の確認'}
+                </h4>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    setPendingConfirm(null);
+                  }}
+                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-400">対象選手</span>
+                  <span className="font-bold text-white">
+                    {target.nationalityFlag} {getLocalizedPlayerName(target, language)} ({target.position})
+                  </span>
+                </div>
+
+                {isTraining ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-400">選手レベル</span>
+                      <span className="font-mono font-black text-emerald-300">
+                        Lv.{curLv} → Lv.{nextLv}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-400">OVR変化</span>
+                      <span className="font-mono font-black text-amber-300">
+                        OVR {curOvr} → {nextOvr}
+                        {nextOvr > curOvr ? ` (+${nextOvr - curOvr})` : ' (変動なし)'}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-400">覚醒段階</span>
+                      <span className="font-mono font-black text-cyan-300">
+                        覚醒 Lv.{curAw} → Lv.{nextAw}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-400">OVR変化</span>
+                      <span className="font-mono font-bold text-slate-300">
+                        変動なし (OVR {curOvr})
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                <div className="border-t border-slate-800 pt-2 flex items-center justify-between gap-2">
+                  <span className="text-slate-400">消費アイテム</span>
+                  <span className="font-mono font-black text-rose-300">
+                    {isTraining
+                      ? `トレーニングチップ ×${cost}個`
+                      : `覚醒チケット ×${cost}枚`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-400">所持数の変化</span>
+                  <span className="font-mono font-bold text-slate-200">
+                    {currentQty} → {afterQty}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 pt-1">
+                <button
+                  id="btn-item-confirm-cancel"
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    setPendingConfirm(null);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs min-h-[44px] cursor-pointer"
+                >
+                  キャンセル
+                </button>
+                <button
+                  id="btn-item-confirm-execute"
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() =>
+                    isTraining
+                      ? handleTrainPlayer(target)
+                      : handleAwakenPlayer(target)
+                  }
+                  className={`flex-1 py-2.5 rounded-xl font-heading font-black text-xs min-h-[44px] cursor-pointer ${
+                    isTraining
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950'
+                      : 'bg-gradient-to-r from-cyan-400 to-sky-500 hover:from-cyan-300 hover:to-sky-400 text-slate-950'
+                  }`}
+                >
+                  {isBusy
+                    ? '処理中...'
+                    : isTraining
+                    ? '強化を実行する'
+                    : '覚醒を実行する'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

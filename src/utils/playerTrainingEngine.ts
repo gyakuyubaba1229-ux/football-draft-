@@ -4,7 +4,7 @@ import { getVerifiedPositionsForPlayer } from './positionEngine';
 
 export const MAX_PLAYER_LEVEL = 10;
 export const MIN_PLAYER_LEVEL = 1;
-export const CHIPS_PER_LEVEL = 5;
+export const CHIPS_PER_LEVEL = 3;
 export const MAX_AWAKENING_LEVEL = 7;
 
 // 1-indexed via [level - 1]: Level 1 gives +0 OVR, Level 10 guarantees +5 OVR

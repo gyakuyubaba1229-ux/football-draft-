@@ -29,13 +29,42 @@ export interface VersionConfig {
  * =========================================================================
  */
 
-export const CURRENT_VERSION = '1.6.0';
+export const CURRENT_VERSION = '1.6.1';
 
 export const UPDATE_NOTES_HISTORY: UpdateNote[] = [
   {
-    version: '1.6.0',
+    version: '1.6.1',
     releaseDate: '2026.11.27',
     isLatest: true,
+    titleJa: 'FOOTBALL DRAFT Ver.1.6.1 不具合修正＆仕様改善アップデート',
+    titleEn: 'FOOTBALL DRAFT Ver.1.6.1 BUG FIX & BALANCE UPDATE',
+    titleEs: 'FOOTBALL DRAFT Ver.1.6.1 CORRECCIÓN Y MEJORAS',
+    notesJa: [
+      '【不具合修正】トレーニングチップと覚醒チケットが使用できない不具合を修正（実行前の確認画面・二重押下防止・Supabase同期を追加）',
+      '【不具合修正】プレゼントBOXの「一括受取」「個別受取」およびログインボーナス受取後にプレゼントを受け取れない不具合を根本修正（Supabase同期＆独立処理化）',
+      '【仕様変更】トレーニングチップの必要個数を「3個で1レベル上昇」に変更（最大Lv.10で初期OVR+5／覚醒はLv.10到達選手のみ最大7段階）',
+      '【仕様変更】15日間ログインボーナスの報酬内容を全面刷新（Day13に新チケット「レジェンド70%ガチャ ×1」を追加、Day15「レジェンド・紫確定ガチャ ×1」は受取から10日間有効）',
+      '【新報酬】全ユーザー（既存・新規）へ「プレゼントBOX不具合のお詫び」（レジェンド50%ガチャ ×1、トレーニングチップ ×20、覚醒チケット ×3）をプレゼントBOXへ配布',
+    ],
+    notesEn: [
+      '[Bug Fix] Fixed critical issues preventing Training Chips & Awakening Tickets from working; added confirmation dialog, double-click lock, and Supabase persistence',
+      '[Bug Fix] Fixed Present Box individual claim, Claim All, and post-login-bonus claiming failures with full Supabase synchronization and decoupled processing',
+      '[Spec Change] Reduced Training Chip cost from 5 to 3 chips per +1 level (max Lv.10 = Base OVR +5; Awakening remains Lv.10 exclusive up to stage 7)',
+      '[Spec Change] Revamped 15-Day Login Bonus rewards including new Legend 70% Scout on Day 13 and 10-day timed Legend/Purple Guaranteed Scout on Day 15',
+      '[New Reward] Distributed Present Box Apology Gift to all users (Legend 50% Scout ×1, Training Chip ×20, Awakening Ticket ×3)',
+    ],
+    notesEs: [
+      '[Corrección] Solucionado el error al usar Fichas de Entrenamiento y Tickets de Despertar, añadiendo pantalla de confirmación y sincronización con Supabase',
+      '[Corrección] Solucionados los errores de recepción individual, recepción masiva y tras el bonus diario en la Caja de Regalos',
+      '[Cambio] Reducido el coste de Fichas de Entrenamiento de 5 a 3 por nivel (Nv.10 = +5 OVR base)',
+      '[Cambio] Renovado el Bonus de 15 Días incluyendo Ojeador Leyenda 70% (Día 13) y Leyenda/Morado Garantizado de 10 días (Día 15)',
+      '[Nueva Recompensa] Compensación para todos los usuarios (Ojeador Leyenda 50% ×1, 20 Fichas de Entrenamiento, 3 Tickets de Despertar)',
+    ],
+  },
+  {
+    version: '1.6.0',
+    releaseDate: '2026.11.27',
+    isLatest: false,
     titleJa: 'FOOTBALL DRAFT Ver.1.6.0 大型アップデート',
     titleEn: 'FOOTBALL DRAFT Ver.1.6.0 MAJOR UPDATE',
     titleEs: 'FOOTBALL DRAFT Ver.1.6.0 GRAN ACTUALIZACIÓN',

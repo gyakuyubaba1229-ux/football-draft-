@@ -75,6 +75,7 @@ function syncProgressToLocalStorage(progress: ServerUserProgressPayload): void {
       legend_10: progress.inventory.legend_10 || 0,
       legend_20: progress.inventory.legend_20 || 0,
       legend_50: progress.inventory.legend_50 || 0,
+      legend_70: progress.inventory.legend_70 || 0,
       legend_guaranteed: progress.inventory.legend_guaranteed || 0,
       purple_20: progress.inventory.purple_20 || 0,
       purple_50: progress.inventory.purple_50 || 0,
@@ -208,6 +209,7 @@ export async function claimPresent(
   updatedPresents: GiftBoxItem[];
   updatedTickets: Record<RewardTicketType, number>;
   progress?: ServerUserProgressPayload;
+  error?: string;
 }> {
   try {
     const res = await fetch('/api/presents/claim', {
@@ -215,23 +217,41 @@ export async function claimPresent(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, presentId }),
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        if (data.progress) {
-          syncProgressToLocalStorage(data.progress);
-        } else if (data.userTickets) {
-          saveUserTickets(data.userTickets);
-        }
-        const refreshedPresents = await fetchUserPresents(userId);
-        return {
-          success: true,
-          claimedItem: data.claimedItem,
-          updatedPresents: refreshedPresents,
-          updatedTickets: data.userTickets,
-          progress: data.progress,
-        };
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      if (data.progress) {
+        syncProgressToLocalStorage(data.progress);
+      } else if (data.userTickets) {
+        saveUserTickets(data.userTickets);
       }
+      const nextPresents = Array.isArray(data.updatedPresents)
+        ? data.updatedPresents
+        : await fetchUserPresents(userId);
+      saveAllPresents(nextPresents);
+      return {
+        success: true,
+        claimedItem: data.claimedItem,
+        updatedPresents: nextPresents,
+        updatedTickets: data.userTickets || getStoredUserTickets(),
+        progress: data.progress,
+      };
+    }
+    if (res.status >= 400 && res.status < 500) {
+      if (Array.isArray(data.updatedPresents)) {
+        saveAllPresents(data.updatedPresents);
+      }
+      if (data.progress) {
+        syncProgressToLocalStorage(data.progress);
+      }
+      return {
+        success: false,
+        updatedPresents: Array.isArray(data.updatedPresents)
+          ? data.updatedPresents
+          : await fetchUserPresents(userId),
+        updatedTickets: getStoredUserTickets(),
+        progress: data.progress,
+        error: data.error || 'プレゼントの受け取りに失敗しました。',
+      };
     }
   } catch (e) {
     console.warn('Backend claim error, using local fallback:', e);
@@ -249,6 +269,7 @@ export async function claimAllPresents(userId: string): Promise<{
   updatedPresents: GiftBoxItem[];
   updatedTickets: Record<RewardTicketType, number>;
   progress?: ServerUserProgressPayload;
+  error?: string;
 }> {
   try {
     const res = await fetch('/api/presents/claim-all', {
@@ -256,23 +277,30 @@ export async function claimAllPresents(userId: string): Promise<{
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        if (data.progress) {
-          syncProgressToLocalStorage(data.progress);
-        }
-        if (Array.isArray(data.updatedPresents)) {
-          saveAllPresents(data.updatedPresents);
-        }
-        return {
-          success: true,
-          claimedCount: data.claimedCount || 0,
-          updatedPresents: data.updatedPresents || [],
-          updatedTickets: data.userTickets || getStoredUserTickets(),
-          progress: data.progress,
-        };
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      if (data.progress) {
+        syncProgressToLocalStorage(data.progress);
       }
+      if (Array.isArray(data.updatedPresents)) {
+        saveAllPresents(data.updatedPresents);
+      }
+      return {
+        success: true,
+        claimedCount: data.claimedCount || 0,
+        updatedPresents: data.updatedPresents || [],
+        updatedTickets: data.userTickets || getStoredUserTickets(),
+        progress: data.progress,
+      };
+    }
+    if (res.status >= 400 && res.status < 500) {
+      return {
+        success: false,
+        claimedCount: 0,
+        updatedPresents: await fetchUserPresents(userId),
+        updatedTickets: getStoredUserTickets(),
+        error: data.error || '一括受取に失敗しました。',
+      };
     }
   } catch (e) {
     console.warn('Backend claim-all error, using local fallback:', e);
@@ -437,7 +465,7 @@ export async function claimLoginBonus(userId: string): Promise<{
 }
 
 /**
- * Consume 5 Training Chips to level up a player (+1 Level, up to Lv.10 = +5 OVR)
+ * Consume 3 Training Chips to level up a player (+1 Level, up to Lv.10 = +5 OVR)
  */
 export async function trainPlayerWithChip(
   userId: string,
@@ -460,15 +488,20 @@ export async function trainPlayerWithChip(
       const updated = applyTrainingChipToPlayer(player);
       return { success: true, updatedPlayer: updated, progress: data.progress };
     }
-    return { success: false, error: data.error || 'Failed to train player' };
+    if (res.status >= 400 && res.status < 500) {
+      if (data.progress) syncProgressToLocalStorage(data.progress);
+      return { success: false, progress: data.progress, error: data.error || '育成に失敗しました。' };
+    }
+    return { success: false, error: data.error || '育成に失敗しました。' };
   } catch {
     const cached = getCachedUserProgress(userId);
-    if ((cached.inventory.training_chip || 0) < 5) {
-      return { success: false, error: 'Insufficient Training Chips' };
+    if ((cached.inventory.training_chip || 0) < 3) {
+      return { success: false, error: 'トレーニングチップが不足しています（必要: 3個）。' };
     }
     const updated = applyTrainingChipToPlayer(player);
-    cached.inventory.training_chip -= 5;
+    cached.inventory.training_chip -= 3;
     cached.playerStates[player.playerId] = extractPersistedPlayerState(updated);
+    cached.updatedAt = Date.now();
     syncProgressToLocalStorage(cached);
     return { success: true, updatedPlayer: updated, progress: cached };
   }
@@ -498,15 +531,20 @@ export async function awakenPlayerWithTicket(
       const updated = applyAwakeningToPlayer(player);
       return { success: true, updatedPlayer: updated, progress: data.progress };
     }
-    return { success: false, error: data.error || 'Failed to awaken player' };
+    if (res.status >= 400 && res.status < 500) {
+      if (data.progress) syncProgressToLocalStorage(data.progress);
+      return { success: false, progress: data.progress, error: data.error || '覚醒に失敗しました。' };
+    }
+    return { success: false, error: data.error || '覚醒に失敗しました。' };
   } catch {
     const cached = getCachedUserProgress(userId);
     if ((cached.inventory.awakening_ticket || 0) < 1) {
-      return { success: false, error: 'Insufficient Awakening Tickets' };
+      return { success: false, error: '覚醒チケットを所持していません。' };
     }
     const updated = applyAwakeningToPlayer(player);
     cached.inventory.awakening_ticket -= 1;
     cached.playerStates[player.playerId] = extractPersistedPlayerState(updated);
+    cached.updatedAt = Date.now();
     syncProgressToLocalStorage(cached);
     return { success: true, updatedPlayer: updated, progress: cached };
   }
@@ -538,15 +576,20 @@ export async function addPositionPlusToPlayer(
       const updated = applyPositionPlusToPlayer(player, targetPosition);
       return { success: true, updatedPlayer: updated, progress: data.progress };
     }
-    return { success: false, error: data.error || 'Failed to add position' };
+    if (res.status >= 400 && res.status < 500) {
+      if (data.progress) syncProgressToLocalStorage(data.progress);
+      return { success: false, progress: data.progress, error: data.error || 'ポジション追加に失敗しました。' };
+    }
+    return { success: false, error: data.error || 'ポジション追加に失敗しました。' };
   } catch {
     const cached = getCachedUserProgress(userId);
     if ((cached.inventory.position_plus || 0) < 1) {
-      return { success: false, error: 'No Position Plus available' };
+      return { success: false, error: 'ポジションplusを所持していません。' };
     }
     const updated = applyPositionPlusToPlayer(player, targetPosition);
     cached.inventory.position_plus -= 1;
     cached.playerStates[player.playerId] = extractPersistedPlayerState(updated);
+    cached.updatedAt = Date.now();
     syncProgressToLocalStorage(cached);
     return { success: true, updatedPlayer: updated, progress: cached };
   }
@@ -582,7 +625,10 @@ export async function selectManagerWithTicket(
         progress: data.progress,
       };
     }
-    return { success: false, error: data.error || 'Failed to select manager' };
+    if (data.progress) {
+      syncProgressToLocalStorage(data.progress);
+    }
+    return { success: false, progress: data.progress, error: data.error || 'Failed to select manager' };
   } catch {
     const cached = getCachedUserProgress(userId);
     if ((cached.inventory.manager_select_ticket || 0) < 1) {

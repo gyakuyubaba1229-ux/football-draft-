@@ -110,6 +110,7 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
           'purple_guaranteed',
           'legend_purple_50',
           'japan_legend_50',
+          'legend_70',
           'legend_50',
           'purple_50',
           'legend_20',
@@ -286,6 +287,8 @@ export const RewardScoutModal: React.FC<RewardScoutModalProps> = ({
         return <Award className="w-5 h-5 text-yellow-300" />;
       case 'legend_purple_50':
         return <Zap className="w-5 h-5 text-indigo-300" />;
+      case 'legend_70':
+        return <Crown className="w-5 h-5 text-amber-300" />;
       case 'legend_50':
         return <Star className="w-5 h-5 text-yellow-400" />;
       case 'legend_20':

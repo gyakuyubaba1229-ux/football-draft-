@@ -8,7 +8,7 @@ import {
   UserTeam,
 } from '../types';
 import { REWARD_SCOUT_DEFINITIONS } from './rewardScoutEngine';
-import { MAX_AWAKENING_LEVEL, MAX_PLAYER_LEVEL } from './playerTrainingEngine';
+import { CHIPS_PER_LEVEL, MAX_AWAKENING_LEVEL, MAX_PLAYER_LEVEL } from './playerTrainingEngine';
 
 export interface ItemCatalogEntry {
   type: InventoryItemType;
@@ -31,6 +31,7 @@ export const ALL_INVENTORY_ITEM_TYPES: readonly InventoryItemType[] = [
   'legend_10',
   'legend_20',
   'legend_50',
+  'legend_70',
   'legend_guaranteed',
   'purple_20',
   'purple_50',
@@ -52,6 +53,7 @@ export function createEmptyInventoryCounts(): UserInventoryCounts {
     legend_10: 0,
     legend_20: 0,
     legend_50: 0,
+    legend_70: 0,
     legend_guaranteed: 0,
     purple_20: 0,
     purple_50: 0,
@@ -84,11 +86,11 @@ export const ITEM_CATALOG: Record<InventoryItemType, ItemCatalogEntry> = {
     nameJa: 'トレーニングチップ',
     nameEn: 'Training Chip',
     descriptionJa:
-      '選手育成に使用する専用アイテム。5枚消費で対象選手のレベルを+1（最大Lv.10）上げ、Lv.10到達時にOVRが初期値から+5上昇します。',
+      '選手育成に使用する専用アイテム。3個消費で対象選手のレベルを+1（最大Lv.10）上げ、Lv.10到達時にOVRが初期値から+5上昇します。',
     descriptionEn:
-      'Use 5 Training Chips to raise a player level by +1 (max Lv.10). At Lv.10, OVR increases by +5 from base.',
-    usageHintJa: 'MY TEAM所属選手に対して5枚単位で使用します。',
-    usageHintEn: 'Consume 5 chips on a player in MY TEAM.',
+      'Use 3 Training Chips to raise a player level by +1 (max Lv.10). At Lv.10, OVR increases by +5 from base.',
+    usageHintJa: 'MY TEAM所属選手に対して3個単位で使用します。',
+    usageHintEn: 'Consume 3 chips on a player in MY TEAM.',
     accentColor: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
     badgeText: '育成',
     iconKey: 'Cpu',
@@ -159,6 +161,19 @@ export const ITEM_CATALOG: Record<InventoryItemType, ItemCatalogEntry> = {
     accentColor: REWARD_SCOUT_DEFINITIONS.legend_50.badgeColor,
     badgeText: '50%',
     iconKey: 'Star',
+  },
+  legend_70: {
+    type: 'legend_70',
+    category: 'scout',
+    nameJa: REWARD_SCOUT_DEFINITIONS.legend_70.nameJa,
+    nameEn: REWARD_SCOUT_DEFINITIONS.legend_70.nameEn,
+    descriptionJa: REWARD_SCOUT_DEFINITIONS.legend_70.descriptionJa,
+    descriptionEn: REWARD_SCOUT_DEFINITIONS.legend_70.descriptionEn,
+    usageHintJa: '報酬スカウト画面から1枚消費して抽選を実行します。',
+    usageHintEn: 'Redeem in Reward Scout for a 70% Legend draw.',
+    accentColor: REWARD_SCOUT_DEFINITIONS.legend_70.badgeColor,
+    badgeText: '70%',
+    iconKey: 'Crown',
   },
   legend_guaranteed: {
     type: 'legend_guaranteed',
@@ -330,11 +345,11 @@ export function evaluateItemUsability(
   const allDraftedPlayers = teams.flatMap((t) => t.players || []);
 
   if (itemType === 'training_chip') {
-    if (ownedCount < 5) {
+    if (ownedCount < CHIPS_PER_LEVEL) {
       return {
         usable: false,
-        reasonJa: `トレーニングチップが5枚以上必要です（現在 ${ownedCount}枚）`,
-        reasonEn: `Need at least 5 Training Chips (currently ${ownedCount})`,
+        reasonJa: `トレーニングチップが${CHIPS_PER_LEVEL}個以上必要です（現在 ${ownedCount}個）`,
+        reasonEn: `Need at least ${CHIPS_PER_LEVEL} Training Chips (currently ${ownedCount})`,
       };
     }
     const hasTrainable = allDraftedPlayers.some((p) => (p.level ?? 1) < MAX_PLAYER_LEVEL);
