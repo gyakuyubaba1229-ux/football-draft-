@@ -178,23 +178,46 @@ export async function triggerServerRewardDistribution(
   return false;
 }
 
+function translatePresentError(error?: string): string {
+  if (!error) return 'プレゼントの受け取りに失敗しました。';
+  if (error === 'Already claimed') return 'このプレゼントはすでに受取済みです。';
+  if (error === 'Present expired') return '有効期限が切れているため受け取れません。';
+  if (error === 'Present not found') return '対象のプレゼントが見つかりませんでした。最新状態に更新してお試しください。';
+  return error;
+}
+
 /**
  * Fetch present box items for user
  */
 export async function fetchUserPresents(userId: string): Promise<GiftBoxItem[]> {
+  const localPresents = ensureApologyGiftDistributed(userId);
   try {
     const res = await fetch(`/api/presents/user/${encodeURIComponent(userId)}`);
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.presents)) {
-        saveAllPresents(data.presents);
-        return data.presents;
+        const mergedMap = new Map<string, GiftBoxItem>();
+        for (const item of data.presents as GiftBoxItem[]) {
+          mergedMap.set(item.id, item);
+        }
+        // Preserve any locally created unclaimed ranking rewards not yet on server
+        for (const lp of localPresents) {
+          if (lp.userId === userId && !lp.isClaimed && lp.id.startsWith('ranking_reward_') && !mergedMap.has(lp.id)) {
+            mergedMap.set(lp.id, lp);
+          }
+        }
+        const merged = Array.from(mergedMap.values()).sort((a, b) => {
+          if (a.isClaimed !== b.isClaimed) return a.isClaimed ? 1 : -1;
+          return b.createdAt - a.createdAt;
+        });
+        saveAllPresents(merged);
+        return merged;
       }
     }
   } catch {
     // fallback to local storage
   }
-  return ensureApologyGiftDistributed(userId);
+  return localPresents;
 }
 
 /**
@@ -202,7 +225,8 @@ export async function fetchUserPresents(userId: string): Promise<GiftBoxItem[]> 
  */
 export async function claimPresent(
   userId: string,
-  presentId: string
+  presentId: string,
+  knownPresents?: GiftBoxItem[]
 ): Promise<{
   success: boolean;
   claimedItem?: GiftBoxItem;
@@ -211,11 +235,14 @@ export async function claimPresent(
   progress?: ServerUserProgressPayload;
   error?: string;
 }> {
+  const presentSnapshot = Array.isArray(knownPresents)
+    ? knownPresents.find((p) => p.id === presentId)
+    : undefined;
   try {
     const res = await fetch('/api/presents/claim', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, presentId }),
+      body: JSON.stringify({ userId, presentId, presentSnapshot }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.success) {
@@ -250,20 +277,23 @@ export async function claimPresent(
           : await fetchUserPresents(userId),
         updatedTickets: getStoredUserTickets(),
         progress: data.progress,
-        error: data.error || 'プレゼントの受け取りに失敗しました。',
+        error: translatePresentError(data.error),
       };
     }
   } catch (e) {
     console.warn('Backend claim error, using local fallback:', e);
   }
 
-  return claimPresentBoxItem(presentId, userId);
+  return claimPresentBoxItem(presentId, userId, knownPresents);
 }
 
 /**
  * Claim all unclaimed non-expired presents at once
  */
-export async function claimAllPresents(userId: string): Promise<{
+export async function claimAllPresents(
+  userId: string,
+  knownPresents?: GiftBoxItem[]
+): Promise<{
   success: boolean;
   claimedCount: number;
   updatedPresents: GiftBoxItem[];
@@ -271,11 +301,14 @@ export async function claimAllPresents(userId: string): Promise<{
   progress?: ServerUserProgressPayload;
   error?: string;
 }> {
+  const unclaimedSnapshots = Array.isArray(knownPresents)
+    ? knownPresents.filter((p) => p.userId === userId && !p.isClaimed)
+    : [];
   try {
     const res = await fetch('/api/presents/claim-all', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId, knownPresents: unclaimedSnapshots }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.success) {
@@ -294,19 +327,28 @@ export async function claimAllPresents(userId: string): Promise<{
       };
     }
     if (res.status >= 400 && res.status < 500) {
+      if (Array.isArray(data.updatedPresents)) {
+        saveAllPresents(data.updatedPresents);
+      }
+      if (data.progress) {
+        syncProgressToLocalStorage(data.progress);
+      }
       return {
         success: false,
         claimedCount: 0,
-        updatedPresents: await fetchUserPresents(userId),
+        updatedPresents: Array.isArray(data.updatedPresents)
+          ? data.updatedPresents
+          : await fetchUserPresents(userId),
         updatedTickets: getStoredUserTickets(),
-        error: data.error || '一括受取に失敗しました。',
+        progress: data.progress,
+        error: translatePresentError(data.error || '一括受取に失敗しました。'),
       };
     }
   } catch (e) {
     console.warn('Backend claim-all error, using local fallback:', e);
   }
 
-  return claimAllPresentBoxItems(userId);
+  return claimAllPresentBoxItems(userId, knownPresents);
 }
 
 /**

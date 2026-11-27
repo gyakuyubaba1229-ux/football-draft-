@@ -1844,5 +1844,280 @@
       }
     ],
     "updatedAt": 1795789957134
+  },
+  "usr_m1abc_2scs2": {
+    "userId": "usr_m1abc_2scs2",
+    "inventory": {
+      "training_chip": 30,
+      "awakening_ticket": 13,
+      "manager_select_ticket": 0,
+      "position_plus": 0,
+      "normal_ticket": 0,
+      "legend_10": 0,
+      "legend_20": 1,
+      "legend_50": 1,
+      "legend_70": 0,
+      "legend_guaranteed": 1,
+      "purple_20": 0,
+      "purple_50": 0,
+      "purple_guaranteed": 0,
+      "legend_purple_50": 0,
+      "legend_purple_guaranteed": 2,
+      "japan_star_guaranteed": 1,
+      "japan_legend_50": 0,
+      "japan_legend_guaranteed": 0
+    },
+    "timedLots": [],
+    "loginBonus": {
+      "currentDay": 1,
+      "claimedDaysInCycle": [],
+      "lastClaimedJstDate": null,
+      "totalClaims": 0,
+      "cycleCount": 1
+    },
+    "ownedManagers": [],
+    "playerStates": {},
+    "usageLogs": [
+      {
+        "id": "log_1795791098052_u3nc54",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "awakening_ticket",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795791098052
+      },
+      {
+        "id": "log_1795791098052_dqbli2",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "training_chip",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795791098052
+      },
+      {
+        "id": "log_1795791098052_04qmjt",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "legend_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「選択を取り消す機能の削除のお詫び」から獲得",
+        "detailEn": "Claimed from present: 選択を取り消す機能の削除のお詫び",
+        "timestamp": 1795791098052
+      },
+      {
+        "id": "log_1795791098052_t3na48",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "japan_star_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「今までありがとう森保監督！」から獲得",
+        "detailEn": "Claimed from present: 今までありがとう森保監督！",
+        "timestamp": 1795791098052
+      },
+      {
+        "id": "log_1795791098052_tmcdyw",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "legend_purple_guaranteed",
+        "action": "claim_present",
+        "amount": 2,
+        "detailJa": "プレゼント「Ver.1.5.0 アップデート記念」から獲得",
+        "detailEn": "Claimed from present: Ver.1.5.0 アップデート記念",
+        "timestamp": 1795791098052
+      },
+      {
+        "id": "log_1795791098052_nzykim",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "legend_20",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「【運営からのお詫び】特別スカウト配布」から獲得",
+        "detailEn": "Claimed from present: 【運営からのお詫び】特別スカウト配布",
+        "timestamp": 1795791098052
+      },
+      {
+        "id": "log_1795791097996_5y1fle",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "awakening_ticket",
+        "action": "claim_present",
+        "amount": 3,
+        "detailJa": "プレゼント「プレゼントBOX不具合のお詫び」から獲得",
+        "detailEn": "Claimed from present: プレゼントBOX不具合のお詫び",
+        "timestamp": 1795791097996
+      },
+      {
+        "id": "log_1795791097996_pph0mk",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "training_chip",
+        "action": "claim_present",
+        "amount": 20,
+        "detailJa": "プレゼント「プレゼントBOX不具合のお詫び」から獲得",
+        "detailEn": "Claimed from present: プレゼントBOX不具合のお詫び",
+        "timestamp": 1795791097996
+      },
+      {
+        "id": "log_1795791097996_8lpna0",
+        "userId": "usr_m1abc_2scs2",
+        "itemType": "legend_50",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「プレゼントBOX不具合のお詫び」から獲得",
+        "detailEn": "Claimed from present: プレゼントBOX不具合のお詫び",
+        "timestamp": 1795791097996
+      }
+    ],
+    "updatedAt": 1795791098052
+  },
+  "usr_fix_verify_1795791285225": {
+    "userId": "usr_fix_verify_1795791285225",
+    "inventory": {
+      "training_chip": 33,
+      "awakening_ticket": 13,
+      "manager_select_ticket": 0,
+      "position_plus": 0,
+      "normal_ticket": 0,
+      "legend_10": 0,
+      "legend_20": 1,
+      "legend_50": 1,
+      "legend_70": 0,
+      "legend_guaranteed": 2,
+      "purple_20": 0,
+      "purple_50": 0,
+      "purple_guaranteed": 0,
+      "legend_purple_50": 0,
+      "legend_purple_guaranteed": 2,
+      "japan_star_guaranteed": 1,
+      "japan_legend_50": 0,
+      "japan_legend_guaranteed": 0
+    },
+    "timedLots": [],
+    "loginBonus": {
+      "currentDay": 2,
+      "claimedDaysInCycle": [
+        1
+      ],
+      "lastClaimedJstDate": "2026-11-27",
+      "lastClaimedAt": 1795791285448,
+      "totalClaims": 1,
+      "cycleCount": 1
+    },
+    "ownedManagers": [],
+    "playerStates": {},
+    "usageLogs": [
+      {
+        "id": "log_1795791285516_mrdqer",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "awakening_ticket",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795791285515
+      },
+      {
+        "id": "log_1795791285516_ptm8bt",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "training_chip",
+        "action": "claim_present",
+        "amount": 10,
+        "detailJa": "プレゼント「トレーニングチップ＆覚醒チケット実装キャンペーン」から獲得",
+        "detailEn": "Claimed from present: トレーニングチップ＆覚醒チケット実装キャンペーン",
+        "timestamp": 1795791285515
+      },
+      {
+        "id": "log_1795791285516_fg0l4z",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "legend_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「選択を取り消す機能の削除のお詫び」から獲得",
+        "detailEn": "Claimed from present: 選択を取り消す機能の削除のお詫び",
+        "timestamp": 1795791285515
+      },
+      {
+        "id": "log_1795791285515_qhflid",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "japan_star_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「今までありがとう森保監督！」から獲得",
+        "detailEn": "Claimed from present: 今までありがとう森保監督！",
+        "timestamp": 1795791285515
+      },
+      {
+        "id": "log_1795791285515_5ej7o4",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "legend_purple_guaranteed",
+        "action": "claim_present",
+        "amount": 2,
+        "detailJa": "プレゼント「Ver.1.5.0 アップデート記念」から獲得",
+        "detailEn": "Claimed from present: Ver.1.5.0 アップデート記念",
+        "timestamp": 1795791285515
+      },
+      {
+        "id": "log_1795791285515_uod5z4",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "legend_20",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「【運営からのお詫び】特別スカウト配布」から獲得",
+        "detailEn": "Claimed from present: 【運営からのお詫び】特別スカウト配布",
+        "timestamp": 1795791285515
+      },
+      {
+        "id": "log_1795791285501_fhabz7",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "legend_guaranteed",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「【第1週ランキング確定報酬】第1位」から獲得",
+        "detailEn": "Claimed from present: 【第1週ランキング確定報酬】第1位",
+        "timestamp": 1795791285501
+      },
+      {
+        "id": "log_1795791285485_repob9",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "awakening_ticket",
+        "action": "claim_present",
+        "amount": 3,
+        "detailJa": "プレゼント「プレゼントBOX不具合のお詫び」から獲得",
+        "detailEn": "Claimed from present: プレゼントBOX不具合のお詫び",
+        "timestamp": 1795791285485
+      },
+      {
+        "id": "log_1795791285485_aqm64h",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "training_chip",
+        "action": "claim_present",
+        "amount": 20,
+        "detailJa": "プレゼント「プレゼントBOX不具合のお詫び」から獲得",
+        "detailEn": "Claimed from present: プレゼントBOX不具合のお詫び",
+        "timestamp": 1795791285485
+      },
+      {
+        "id": "log_1795791285485_japuzw",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "legend_50",
+        "action": "claim_present",
+        "amount": 1,
+        "detailJa": "プレゼント「プレゼントBOX不具合のお詫び」から獲得",
+        "detailEn": "Claimed from present: プレゼントBOX不具合のお詫び",
+        "timestamp": 1795791285485
+      },
+      {
+        "id": "log_1795791285475_810v3v",
+        "userId": "usr_fix_verify_1795791285225",
+        "itemType": "training_chip",
+        "action": "claim_login_bonus",
+        "amount": 3,
+        "detailJa": "ログインボーナス DAY 1 獲得 (トレーニングチップ ×3)",
+        "detailEn": "Login Bonus DAY 1 claimed",
+        "timestamp": 1795791285448
+      }
+    ],
+    "updatedAt": 1795791285515
   }
 }

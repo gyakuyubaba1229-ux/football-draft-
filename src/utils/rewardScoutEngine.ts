@@ -800,7 +800,70 @@ export const ensureSystemGiftsDistributed = ensureApologyGiftDistributed;
 
 const SCOUT_TICKET_TYPE_SET = new Set<string>(Object.keys(REWARD_SCOUT_DEFINITIONS));
 
-function grantInventoryEntryLocally(rewardType: InventoryItemType, amount: number, userId?: string): void {
+function buildOrUpdateLocalProgressMirror(
+  userId: string,
+  grants: { rewardType: InventoryItemType; amount: number; title: string; expiresAt?: number }[],
+  nowMs: number = Date.now()
+): any {
+  try {
+    const key = `FOOTBALL_DRAFT_USER_PROGRESS_V160_${userId}`;
+    const raw = localStorage.getItem(key);
+    const parsed = raw
+      ? JSON.parse(raw)
+      : {
+          userId,
+          inventory: {},
+          timedLots: [],
+          loginBonus: {
+            currentDay: 1,
+            claimedDaysInCycle: [],
+            lastClaimedJstDate: null,
+            totalClaims: 0,
+            cycleCount: 1,
+          },
+          ownedManagers: [],
+          playerStates: {},
+          usageLogs: [],
+          updatedAt: nowMs,
+        };
+    parsed.inventory = parsed.inventory || {};
+    parsed.timedLots = Array.isArray(parsed.timedLots) ? parsed.timedLots : [];
+    parsed.usageLogs = Array.isArray(parsed.usageLogs) ? parsed.usageLogs : [];
+
+    for (const g of grants) {
+      parsed.inventory[g.rewardType] = (parsed.inventory[g.rewardType] || 0) + g.amount;
+      if (g.expiresAt) {
+        parsed.timedLots.push({
+          id: `lot_${nowMs}_${Math.random().toString(36).slice(2, 8)}`,
+          ticketType: g.rewardType,
+          initialAmount: g.amount,
+          remaining: g.amount,
+          grantedAt: nowMs,
+          expiresAt: g.expiresAt,
+          source: 'present_local_fallback',
+        });
+      }
+      parsed.usageLogs.unshift({
+        id: `log_${nowMs}_${Math.random().toString(36).slice(2, 8)}`,
+        userId,
+        itemType: g.rewardType,
+        action: 'claim_present',
+        amount: g.amount,
+        detailJa: `プレゼント「${g.title}」から獲得`,
+        detailEn: `Claimed from present: ${g.title}`,
+        timestamp: nowMs,
+      });
+    }
+    parsed.usageLogs = parsed.usageLogs.slice(0, 150);
+    parsed.updatedAt = nowMs;
+    localStorage.setItem(key, JSON.stringify(parsed));
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+function grantInventoryEntryLocally(rewardType: InventoryItemType, amount: number): void {
   if (SCOUT_TICKET_TYPE_SET.has(rewardType)) {
     addTicketToUser(rewardType as RewardTicketType, amount);
   } else {
@@ -813,75 +876,92 @@ function grantInventoryEntryLocally(rewardType: InventoryItemType, amount: numbe
       console.warn('Failed to save non-scout reward locally:', e);
     }
   }
-  if (userId) {
-    try {
-      const key = `FOOTBALL_DRAFT_USER_PROGRESS_V160_${userId}`;
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        parsed.inventory = parsed.inventory || {};
-        parsed.inventory[rewardType] = (parsed.inventory[rewardType] || 0) + amount;
-        parsed.updatedAt = Date.now();
-        localStorage.setItem(key, JSON.stringify(parsed));
-      }
-    } catch {
-      // ignore local progress mirror error
-    }
-  }
 }
 
 /**
  * Claim a gift from the present box
  * Returns updated list of presents
  */
-export function claimPresentBoxItem(presentId: string, userId: string): {
+export function claimPresentBoxItem(
+  presentId: string,
+  userId: string,
+  fallbackPresents?: GiftBoxItem[]
+): {
   success: boolean;
   claimedItem?: GiftBoxItem;
   updatedPresents: GiftBoxItem[];
   updatedTickets: Record<RewardTicketType, number>;
+  progress?: any;
+  error?: string;
 } {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_PRESENT_BOX);
     const allPresents: GiftBoxItem[] = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(fallbackPresents)) {
+      for (const fp of fallbackPresents) {
+        if (fp && fp.userId === userId && !allPresents.some((p) => p.id === fp.id)) {
+          allPresents.push({ ...fp });
+        }
+      }
+    }
     const target = allPresents.find((p) => p.id === presentId && p.userId === userId);
 
-    if (!target || target.isClaimed) {
+    if (!target) {
       return {
         success: false,
         updatedPresents: allPresents.filter((p) => p.userId === userId),
         updatedTickets: getStoredUserTickets(),
+        error: '対象のプレゼントが見つかりませんでした。',
       };
     }
 
+    if (target.isClaimed) {
+      return {
+        success: false,
+        updatedPresents: allPresents.filter((p) => p.userId === userId),
+        updatedTickets: getStoredUserTickets(),
+        error: 'このプレゼントはすでに受取済みです。',
+      };
+    }
+
+    const now = Date.now();
     // Check expiration
-    if (target.expiresAt && Date.now() > target.expiresAt) {
+    if (target.expiresAt && now > target.expiresAt) {
       console.warn('Item is expired and cannot be claimed:', target.id);
       return {
         success: false,
         updatedPresents: allPresents.filter((p) => p.userId === userId),
         updatedTickets: getStoredUserTickets(),
+        error: '有効期限が切れているため受け取れません。',
       };
     }
 
     // Mark claimed
     target.isClaimed = true;
-    target.claimedAt = Date.now();
+    target.claimedAt = now;
     saveAllPresents(allPresents);
 
-    // Grant either multi-rewards or single reward
-    if (Array.isArray(target.rewards) && target.rewards.length > 0) {
-      for (const r of target.rewards) {
-        grantInventoryEntryLocally(r.rewardType, r.amount || 1, userId);
-      }
-    } else {
-      grantInventoryEntryLocally(target.rewardType, target.amount || 1, userId);
+    const grants: { rewardType: InventoryItemType; amount: number; title: string; expiresAt?: number }[] = [];
+    const rewardsList =
+      Array.isArray(target.rewards) && target.rewards.length > 0
+        ? target.rewards
+        : [{ rewardType: target.rewardType, amount: target.amount || 1 }];
+
+    for (const r of rewardsList) {
+      const amt = r.amount || 1;
+      const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+      grantInventoryEntryLocally(r.rewardType, amt);
+      grants.push({ rewardType: r.rewardType, amount: amt, title: target.title, expiresAt });
     }
+
+    const progress = buildOrUpdateLocalProgressMirror(userId, grants, now);
 
     return {
       success: true,
       claimedItem: target,
       updatedPresents: allPresents.filter((p) => p.userId === userId),
       updatedTickets: getStoredUserTickets(),
+      progress,
     };
   } catch (e) {
     console.warn('Error claiming present:', e);
@@ -889,6 +969,7 @@ export function claimPresentBoxItem(presentId: string, userId: string): {
       success: false,
       updatedPresents: getStoredPresents(userId),
       updatedTickets: getStoredUserTickets(),
+      error: 'プレゼントの受け取り処理でエラーが発生しました。',
     };
   }
 }
@@ -896,17 +977,30 @@ export function claimPresentBoxItem(presentId: string, userId: string): {
 /**
  * Claim all unclaimed gifts in the present box at once
  */
-export function claimAllPresentBoxItems(userId: string): {
+export function claimAllPresentBoxItems(
+  userId: string,
+  fallbackPresents?: GiftBoxItem[]
+): {
   success: boolean;
   claimedCount: number;
   updatedPresents: GiftBoxItem[];
   updatedTickets: Record<RewardTicketType, number>;
+  progress?: any;
+  error?: string;
 } {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_PRESENT_BOX);
     const allPresents: GiftBoxItem[] = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(fallbackPresents)) {
+      for (const fp of fallbackPresents) {
+        if (fp && fp.userId === userId && !allPresents.some((p) => p.id === fp.id)) {
+          allPresents.push({ ...fp });
+        }
+      }
+    }
     const now = Date.now();
     let claimedCount = 0;
+    const grants: { rewardType: InventoryItemType; amount: number; title: string; expiresAt?: number }[] = [];
 
     for (const item of allPresents) {
       if (item.userId === userId && !item.isClaimed) {
@@ -916,19 +1010,24 @@ export function claimAllPresentBoxItems(userId: string): {
         }
         item.isClaimed = true;
         item.claimedAt = now;
-        if (Array.isArray(item.rewards) && item.rewards.length > 0) {
-          for (const r of item.rewards) {
-            grantInventoryEntryLocally(r.rewardType, r.amount || 1, userId);
-          }
-        } else {
-          grantInventoryEntryLocally(item.rewardType, item.amount || 1, userId);
+        const rewardsList =
+          Array.isArray(item.rewards) && item.rewards.length > 0
+            ? item.rewards
+            : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+        for (const r of rewardsList) {
+          const amt = r.amount || 1;
+          const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+          grantInventoryEntryLocally(r.rewardType, amt);
+          grants.push({ rewardType: r.rewardType, amount: amt, title: item.title, expiresAt });
         }
         claimedCount++;
       }
     }
 
+    let progress: any;
     if (claimedCount > 0) {
       saveAllPresents(allPresents);
+      progress = buildOrUpdateLocalProgressMirror(userId, grants, now);
     }
 
     return {
@@ -936,6 +1035,7 @@ export function claimAllPresentBoxItems(userId: string): {
       claimedCount,
       updatedPresents: allPresents.filter((p) => p.userId === userId),
       updatedTickets: getStoredUserTickets(),
+      progress,
     };
   } catch (e) {
     console.warn('Error claiming all presents:', e);
@@ -944,6 +1044,7 @@ export function claimAllPresentBoxItems(userId: string): {
       claimedCount: 0,
       updatedPresents: getStoredPresents(userId),
       updatedTickets: getStoredUserTickets(),
+      error: '一括受取処理でエラーが発生しました。',
     };
   }
 }

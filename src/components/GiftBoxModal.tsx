@@ -46,17 +46,25 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const isProcessingRef = useRef(false);
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+      setIsRefreshing(false);
+      return;
+    }
     setFeedback(null);
-    if (onRefresh) {
+    const refreshFn = onRefreshRef.current;
+    if (refreshFn) {
       setIsRefreshing(true);
-      Promise.resolve(onRefresh())
+      Promise.resolve(refreshFn())
         .catch((e) => console.warn('Gift box refresh note:', e))
         .finally(() => setIsRefreshing(false));
     }
-  }, [isOpen, onRefresh]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -251,7 +259,7 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
               type="button"
               disabled={isProcessing}
               onClick={handleClaimAll}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-heading font-black text-xs tracking-wider shadow-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95 min-h-[40px]"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-heading font-black text-xs tracking-wider shadow-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95 min-h-[40px] touch-manipulation"
             >
               <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
               <span>{isProcessing ? '受取処理中...' : `一括受取 (${claimableItems.length}件)`}</span>
@@ -360,7 +368,7 @@ export const GiftBoxModal: React.FC<GiftBoxModalProps> = ({
                         type="button"
                         disabled={isProcessing}
                         onClick={() => handleClaim(item.id)}
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-heading font-black text-xs tracking-wider shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 flex items-center gap-1 min-h-[40px]"
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-heading font-black text-xs tracking-wider shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 flex items-center gap-1 min-h-[40px] touch-manipulation"
                       >
                         <Gift className="w-3.5 h-3.5" />
                         <span>{isProcessing ? '処理中...' : '受け取る'}</span>

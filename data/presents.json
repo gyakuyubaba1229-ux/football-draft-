@@ -756,5 +756,219 @@
     "isClaimed": true,
     "createdAt": 1795789956408,
     "claimedAt": 1795789956521
+  },
+  {
+    "id": "apology_gift_usr_m1abc_2scs2_legend20",
+    "userId": "usr_m1abc_2scs2",
+    "title": "【運営からのお詫び】特別スカウト配布",
+    "description": "アップデートに伴うお詫びとして「レジェンド20%スカウト ×1」をお送りいたします。",
+    "rewardType": "legend_20",
+    "amount": 1,
+    "isClaimed": true,
+    "createdAt": 1795791093849,
+    "claimedAt": 1795791098052
+  },
+  {
+    "id": "apology_v131_legend_guaranteed_usr_m1abc_2scs2",
+    "userId": "usr_m1abc_2scs2",
+    "title": "【1.3.1修正お詫び】レジェンド確定スカウト",
+    "description": "1.3.1修正アップデートのお詫びとして「レジェンド確定スカウト ×1」をお送りいたします。（有効期限: 2026年9月30日 23:59 JSTまで）",
+    "rewardType": "legend_guaranteed",
+    "amount": 1,
+    "isClaimed": false,
+    "createdAt": 1795791094849,
+    "expiresAt": 1790780399000
+  },
+  {
+    "id": "v150_memorial_gift_usr_m1abc_2scs2",
+    "userId": "usr_m1abc_2scs2",
+    "title": "Ver.1.5.0 アップデート記念",
+    "description": "1.5.0大型アップデートを記念して、特別なガチャチケットをプレゼント！",
+    "rewardType": "legend_purple_guaranteed",
+    "amount": 2,
+    "isClaimed": true,
+    "createdAt": 1795791095849,
+    "claimedAt": 1795791098052
+  },
+  {
+    "id": "moriyasu_thanks_japan_star_usr_m1abc_2scs2",
+    "userId": "usr_m1abc_2scs2",
+    "title": "今までありがとう森保監督！",
+    "description": "これまで日本代表を率いてきた森保監督への感謝を込めて、特別なガチャチケットをプレゼント！",
+    "rewardType": "japan_star_guaranteed",
+    "amount": 1,
+    "isClaimed": true,
+    "createdAt": 1795791096849,
+    "claimedAt": 1795791098052
+  },
+  {
+    "id": "v160_apology_undo_removed_usr_m1abc_2scs2",
+    "userId": "usr_m1abc_2scs2",
+    "title": "選択を取り消す機能の削除のお詫び",
+    "description": "ドラフトの選択取り消し機能の削除に伴うお詫びとして、レジェンド確定ガチャチケットをプレゼントいたします。",
+    "rewardType": "legend_guaranteed",
+    "amount": 1,
+    "isClaimed": true,
+    "createdAt": 1795791097849,
+    "claimedAt": 1795791098052
+  },
+  {
+    "id": "v160_training_campaign_usr_m1abc_2scs2",
+    "userId": "usr_m1abc_2scs2",
+    "title": "トレーニングチップ＆覚醒チケット実装キャンペーン",
+    "description": "新しい選手育成システムの実装を記念して、特別な育成アイテムをプレゼント！",
+    "rewardType": "training_chip",
+    "amount": 10,
+    "rewards": [
+      {
+        "rewardType": "training_chip",
+        "amount": 10
+      },
+      {
+        "rewardType": "awakening_ticket",
+        "amount": 10
+      }
+    ],
+    "isClaimed": true,
+    "createdAt": 1795791097850,
+    "claimedAt": 1795791098052
+  },
+  {
+    "id": "v161_present_bug_apology_usr_m1abc_2scs2",
+    "userId": "usr_m1abc_2scs2",
+    "title": "プレゼントBOX不具合のお詫び",
+    "description": "プレゼントBOX受取不具合のお詫びとして、「レジェンド50%ガチャ ×1」「トレーニングチップ ×20」「覚醒チケット ×3」をお送りいたします。",
+    "rewardType": "legend_50",
+    "amount": 1,
+    "rewards": [
+      {
+        "rewardType": "legend_50",
+        "amount": 1
+      },
+      {
+        "rewardType": "training_chip",
+        "amount": 20
+      },
+      {
+        "rewardType": "awakening_ticket",
+        "amount": 3
+      }
+    ],
+    "isClaimed": true,
+    "createdAt": 1795791097851,
+    "claimedAt": 1795791097996
+  },
+  {
+    "id": "apology_gift_usr_fix_verify_1795791285225_legend20",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "【運営からのお詫び】特別スカウト配布",
+    "description": "アップデートに伴うお詫びとして「レジェンド20%スカウト ×1」をお送りいたします。",
+    "rewardType": "legend_20",
+    "amount": 1,
+    "isClaimed": true,
+    "createdAt": 1795791281393,
+    "claimedAt": 1795791285515
+  },
+  {
+    "id": "apology_v131_legend_guaranteed_usr_fix_verify_1795791285225",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "【1.3.1修正お詫び】レジェンド確定スカウト",
+    "description": "1.3.1修正アップデートのお詫びとして「レジェンド確定スカウト ×1」をお送りいたします。（有効期限: 2026年9月30日 23:59 JSTまで）",
+    "rewardType": "legend_guaranteed",
+    "amount": 1,
+    "isClaimed": false,
+    "createdAt": 1795791282393,
+    "expiresAt": 1790780399000
+  },
+  {
+    "id": "v150_memorial_gift_usr_fix_verify_1795791285225",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "Ver.1.5.0 アップデート記念",
+    "description": "1.5.0大型アップデートを記念して、特別なガチャチケットをプレゼント！",
+    "rewardType": "legend_purple_guaranteed",
+    "amount": 2,
+    "isClaimed": true,
+    "createdAt": 1795791283393,
+    "claimedAt": 1795791285515
+  },
+  {
+    "id": "moriyasu_thanks_japan_star_usr_fix_verify_1795791285225",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "今までありがとう森保監督！",
+    "description": "これまで日本代表を率いてきた森保監督への感謝を込めて、特別なガチャチケットをプレゼント！",
+    "rewardType": "japan_star_guaranteed",
+    "amount": 1,
+    "isClaimed": true,
+    "createdAt": 1795791284393,
+    "claimedAt": 1795791285515
+  },
+  {
+    "id": "v160_apology_undo_removed_usr_fix_verify_1795791285225",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "選択を取り消す機能の削除のお詫び",
+    "description": "ドラフトの選択取り消し機能の削除に伴うお詫びとして、レジェンド確定ガチャチケットをプレゼントいたします。",
+    "rewardType": "legend_guaranteed",
+    "amount": 1,
+    "isClaimed": true,
+    "createdAt": 1795791285393,
+    "claimedAt": 1795791285515
+  },
+  {
+    "id": "v160_training_campaign_usr_fix_verify_1795791285225",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "トレーニングチップ＆覚醒チケット実装キャンペーン",
+    "description": "新しい選手育成システムの実装を記念して、特別な育成アイテムをプレゼント！",
+    "rewardType": "training_chip",
+    "amount": 10,
+    "rewards": [
+      {
+        "rewardType": "training_chip",
+        "amount": 10
+      },
+      {
+        "rewardType": "awakening_ticket",
+        "amount": 10
+      }
+    ],
+    "isClaimed": true,
+    "createdAt": 1795791285394,
+    "claimedAt": 1795791285515
+  },
+  {
+    "id": "v161_present_bug_apology_usr_fix_verify_1795791285225",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "プレゼントBOX不具合のお詫び",
+    "description": "プレゼントBOX受取不具合のお詫びとして、「レジェンド50%ガチャ ×1」「トレーニングチップ ×20」「覚醒チケット ×3」をお送りいたします。",
+    "rewardType": "legend_50",
+    "amount": 1,
+    "rewards": [
+      {
+        "rewardType": "legend_50",
+        "amount": 1
+      },
+      {
+        "rewardType": "training_chip",
+        "amount": 20
+      },
+      {
+        "rewardType": "awakening_ticket",
+        "amount": 3
+      }
+    ],
+    "isClaimed": true,
+    "createdAt": 1795791285395,
+    "claimedAt": 1795791285485
+  },
+  {
+    "id": "ranking_reward_2026-W48_rank1_usr_fix_verify_1795791285225",
+    "weekId": "2026-W48",
+    "userId": "usr_fix_verify_1795791285225",
+    "title": "【第1週ランキング確定報酬】第1位",
+    "description": "週間ランキング1位報酬",
+    "rewardType": "legend_guaranteed",
+    "amount": 1,
+    "isClaimed": true,
+    "createdAt": 1795791285497,
+    "claimedAt": 1795791285501
   }
 ]

@@ -16,6 +16,19 @@ if (!fs.existsSync(DATA_DIR)) {
 const SUPABASE_LEADERBOARD_URL = 'https://ihaiadukjycjdvaownpv.supabase.co';
 const SUPABASE_LEADERBOARD_KEY = 'sb_publishable_dEjgitW3rRtpyGnqaIFeZg_2ZONcI-l';
 
+let supabaseQuotaBlockedUntil = 0;
+function isSupabaseCooldownActive(): boolean {
+  return Date.now() < supabaseQuotaBlockedUntil;
+}
+function markSupabaseQuotaBlockedIfNeeded(status: number): void {
+  if (status === 402 || status === 429) {
+    if (!isSupabaseCooldownActive()) {
+      console.warn(`[Supabase] Entering 5m cooldown after HTTP ${status} response.`);
+    }
+    supabaseQuotaBlockedUntil = Date.now() + 5 * 60 * 1000;
+  }
+}
+
 // ── SERVER-SIDE PVP & RANKING PERSISTENCE ──
 export interface ServerPvPUser {
   userId: string;
@@ -621,8 +634,68 @@ function isValidUserId(userId: unknown): userId is string {
     typeof userId === 'string' &&
     userId.trim().length > 0 &&
     userId.trim().length <= 128 &&
-    /^[a-zA-Z0-9._:@-]+$/.test(userId.trim())
+    /^[a-zA-Z0-9._:@+=-]+$/.test(userId.trim())
   );
+}
+
+const RECOVERABLE_CLIENT_PRESENT_PREFIXES = [
+  'apology_gift_',
+  'v150_memorial_gift_',
+  'moriyasu_thanks_japan_star_',
+  'v160_apology_undo_removed_',
+  'v160_training_campaign_',
+  'v161_present_bug_apology_',
+  'ranking_reward_',
+];
+
+function tryRecoverClientPresent(userId: string, raw: any): ServerPresentItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.id !== 'string' || raw.id.length === 0 || raw.id.length > 200) return null;
+  if (raw.userId !== userId || raw.isClaimed) return null;
+  if (serverPresentsDatabase.has(raw.id) || distributedRewardKeys.has(raw.id)) return null;
+  const hasAllowedPrefix = RECOVERABLE_CLIENT_PRESENT_PREFIXES.some((p) => raw.id.startsWith(p));
+  if (!hasAllowedPrefix) return null;
+
+  const rawRewards: { rewardType: string; amount: number; expiresInDays?: number }[] =
+    Array.isArray(raw.rewards) && raw.rewards.length > 0
+      ? raw.rewards
+      : raw.rewardType
+      ? [{ rewardType: String(raw.rewardType), amount: Number(raw.amount || 1) }]
+      : [];
+  if (rawRewards.length === 0 || rawRewards.length > 5) return null;
+
+  const sanitizedRewards: { rewardType: string; amount: number; expiresInDays?: number }[] = [];
+  for (const r of rawRewards) {
+    if (!r || typeof r.rewardType !== 'string' || !VALID_INVENTORY_ITEMS.has(r.rewardType)) {
+      return null;
+    }
+    const amt = Math.floor(Number(r.amount || 1));
+    if (!Number.isFinite(amt) || amt < 1 || amt > 25) return null;
+    sanitizedRewards.push({
+      rewardType: r.rewardType,
+      amount: amt,
+      ...(typeof r.expiresInDays === 'number' && r.expiresInDays > 0 ? { expiresInDays: r.expiresInDays } : {}),
+    });
+  }
+
+  const recovered: ServerPresentItem = {
+    id: raw.id,
+    weekId: typeof raw.weekId === 'string' ? raw.weekId : undefined,
+    userId,
+    title: typeof raw.title === 'string' && raw.title.trim() ? raw.title.slice(0, 140) : 'プレゼント',
+    description: typeof raw.description === 'string' ? raw.description.slice(0, 400) : '',
+    rewardType: sanitizedRewards[0].rewardType,
+    amount: sanitizedRewards[0].amount,
+    ...(sanitizedRewards.length > 1 ? { rewards: sanitizedRewards } : {}),
+    isClaimed: false,
+    createdAt: typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now(),
+    ...(typeof raw.expiresAt === 'number' && Number.isFinite(raw.expiresAt) ? { expiresAt: raw.expiresAt } : {}),
+    ...(typeof raw.rank === 'number' ? { rank: raw.rank } : {}),
+  };
+
+  distributedRewardKeys.add(recovered.id);
+  serverPresentsDatabase.set(recovered.id, recovered);
+  return recovered;
 }
 
 function getServerJstDateKey(timestampMs: number = Date.now()): string {
@@ -938,7 +1011,7 @@ function mergePlayerStateSnapshots(
 
 async function hydrateUserProgressFromSupabase(userId: string): Promise<ServerUserProgress> {
   const local = getOrCreateUserProgress(userId);
-  if (hydratedProgressUsers.has(userId)) {
+  if (hydratedProgressUsers.has(userId) || isSupabaseCooldownActive()) {
     return local;
   }
   hydratedProgressUsers.add(userId);
@@ -951,9 +1024,12 @@ async function hydrateUserProgressFromSupabase(userId: string): Promise<ServerUs
         Authorization: `Bearer ${SUPABASE_LEADERBOARD_KEY}`,
         'Content-Type': 'application/json',
       },
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(2500),
     });
-    if (!resp.ok) return local;
+    if (!resp.ok) {
+      markSupabaseQuotaBlockedIfNeeded(resp.status);
+      return local;
+    }
     const rows: any[] = await resp.json();
     if (!Array.isArray(rows) || rows.length === 0) return local;
     const rawName = String(rows[0]?.player_name || '');
@@ -1016,13 +1092,14 @@ async function hydrateUserProgressFromSupabase(userId: string): Promise<ServerUs
 }
 
 async function pushUserProgressToSupabase(progress: ServerUserProgress): Promise<void> {
+  if (isSupabaseCooldownActive()) return;
   try {
     const compact: ServerUserProgress = {
       ...progress,
       usageLogs: (progress.usageLogs || []).slice(0, 30),
     };
     const safeScore = Math.min(2147483647, Math.max(0, Math.floor((progress.updatedAt || Date.now()) / 1000)));
-    await fetch(`${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard`, {
+    const resp = await fetch(`${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard`, {
       method: 'POST',
       headers: {
         apikey: SUPABASE_LEADERBOARD_KEY,
@@ -1034,8 +1111,11 @@ async function pushUserProgressToSupabase(progress: ServerUserProgress): Promise
         player_name: `USER_PROGRESS:${progress.userId}:${JSON.stringify(compact)}`,
         score: safeScore,
       }),
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(2500),
     });
+    if (!resp.ok) {
+      markSupabaseQuotaBlockedIfNeeded(resp.status);
+    }
   } catch (e) {
     console.warn('Supabase progress push note:', (e as any)?.message || e);
   }
@@ -1043,7 +1123,7 @@ async function pushUserProgressToSupabase(progress: ServerUserProgress): Promise
 
 async function hydrateUserPresentsFromSupabase(userId: string): Promise<boolean> {
   let changed = false;
-  if (!hydratedPresentsUsers.has(userId)) {
+  if (!hydratedPresentsUsers.has(userId) && !isSupabaseCooldownActive()) {
     hydratedPresentsUsers.add(userId);
     try {
       const prefix = `USER_PRESENTS:${userId}:`;
@@ -1054,9 +1134,11 @@ async function hydrateUserPresentsFromSupabase(userId: string): Promise<boolean>
           Authorization: `Bearer ${SUPABASE_LEADERBOARD_KEY}`,
           'Content-Type': 'application/json',
         },
-        signal: AbortSignal.timeout(3500),
+        signal: AbortSignal.timeout(2500),
       });
-      if (resp.ok) {
+      if (!resp.ok) {
+        markSupabaseQuotaBlockedIfNeeded(resp.status);
+      } else {
         const rows: any[] = await resp.json();
         if (Array.isArray(rows) && rows.length > 0) {
           const rawName = String(rows[0]?.player_name || '');
@@ -1095,10 +1177,11 @@ async function hydrateUserPresentsFromSupabase(userId: string): Promise<boolean>
 }
 
 async function pushUserPresentsToSupabase(userId: string): Promise<void> {
+  if (isSupabaseCooldownActive()) return;
   try {
     const presents = getSortedPresentsForUser(userId);
     const safeScore = Math.min(2147483647, Math.max(0, Math.floor(Date.now() / 1000)));
-    await fetch(`${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard`, {
+    const resp = await fetch(`${SUPABASE_LEADERBOARD_URL}/rest/v1/leaderboard`, {
       method: 'POST',
       headers: {
         apikey: SUPABASE_LEADERBOARD_KEY,
@@ -1110,8 +1193,11 @@ async function pushUserPresentsToSupabase(userId: string): Promise<void> {
         player_name: `USER_PRESENTS:${userId}:${JSON.stringify(presents)}`,
         score: safeScore,
       }),
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(2500),
     });
+    if (!resp.ok) {
+      markSupabaseQuotaBlockedIfNeeded(resp.status);
+    }
   } catch (e) {
     console.warn('Supabase presents push note:', (e as any)?.message || e);
   }
@@ -1313,163 +1399,192 @@ async function startServer() {
 
   // 4. Present Box API: Fetch presents for user (including all Ver.1.3-1.6.1 system gifts, Supabase synced)
   app.get('/api/presents/user/:userId', async (req, res) => {
-    const { userId } = req.params;
-    if (!isValidUserId(userId)) return res.status(400).json({ error: 'Valid userId is required' });
+    try {
+      const userId = String(req.params.userId || '').trim();
+      if (!isValidUserId(userId)) return res.status(400).json({ error: 'Valid userId is required' });
 
-    const presents = await withUserLock(userId, async () => {
-      await hydrateUserPresentsFromSupabase(userId);
-      return getSortedPresentsForUser(userId);
-    });
+      const presents = await withUserLock(userId, async () => {
+        await hydrateUserPresentsFromSupabase(userId);
+        return getSortedPresentsForUser(userId);
+      });
 
-    res.json({ success: true, presents });
+      res.json({ success: true, presents });
+    } catch (e: any) {
+      console.error('Error fetching presents:', e);
+      res.status(500).json({ error: e?.message || 'Failed to fetch presents' });
+    }
   });
 
   // 5. Present Box API: Claim reward (supports multi-reward presents & non-scout items, independent from login bonus)
   app.post('/api/presents/claim', async (req, res) => {
-    const { userId, presentId } = req.body;
-    if (!isValidUserId(userId) || !presentId || typeof presentId !== 'string') {
-      return res.status(400).json({ error: 'Invalid userId or presentId' });
-    }
-
-    const result = await withUserLock(userId, async () => {
-      await hydrateUserPresentsFromSupabase(userId);
-      const progress = await hydrateUserProgressFromSupabase(userId);
-
-      const item = serverPresentsDatabase.get(presentId);
-      if (!item) {
-        return { status: 404, body: { error: 'Present not found', updatedPresents: getSortedPresentsForUser(userId) } };
+    try {
+      const rawUserId = typeof req.body?.userId === 'string' ? req.body.userId.trim() : '';
+      const { presentId, presentSnapshot } = req.body || {};
+      if (!isValidUserId(rawUserId) || !presentId || typeof presentId !== 'string') {
+        return res.status(400).json({ error: 'Invalid userId or presentId' });
       }
-      if (item.userId !== userId) {
-        return { status: 403, body: { error: 'Forbidden' } };
-      }
-      if (item.isClaimed) {
-        return {
-          status: 400,
-          body: { error: 'Already claimed', updatedPresents: getSortedPresentsForUser(userId), progress },
-        };
-      }
-      const now = Date.now();
-      if (item.expiresAt && now > item.expiresAt) {
-        return {
-          status: 400,
-          body: { error: 'Present expired', updatedPresents: getSortedPresentsForUser(userId), progress },
-        };
-      }
+      const userId = rawUserId;
 
-      item.isClaimed = true;
-      item.claimedAt = now;
+      const result = await withUserLock(userId, async () => {
+        await hydrateUserPresentsFromSupabase(userId);
+        const progress = await hydrateUserProgressFromSupabase(userId);
 
-      pruneExpiredLotsForUser(progress, now);
-
-      const rewardsList =
-        Array.isArray(item.rewards) && item.rewards.length > 0
-          ? item.rewards
-          : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
-
-      for (const r of rewardsList) {
-        const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
-        grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
-        appendUsageLog(progress, {
-          itemType: r.rewardType,
-          action: 'claim_present',
-          amount: r.amount || 1,
-          detailJa: `プレゼント「${item.title}」から獲得`,
-          detailEn: `Claimed from present: ${item.title}`,
-          timestamp: now,
-        });
-      }
-
-      const userTickets = extractScoutTicketsFromInventory(progress.inventory);
-      userTicketsDatabase.set(userId, userTickets);
-
-      savePresentsToDisk();
-      saveUserTicketsToDisk();
-      saveUserProgressToDisk();
-
-      await Promise.all([
-        pushUserPresentsToSupabase(userId),
-        pushUserProgressToSupabase(progress),
-      ]);
-
-      return {
-        status: 200,
-        body: {
-          success: true,
-          claimedItem: item,
-          updatedPresents: getSortedPresentsForUser(userId),
-          userTickets,
-          progress,
-        },
-      };
-    });
-
-    res.status(result.status).json(result.body);
-  });
-
-  // 5.5 Present Box API: Claim all unclaimed non-expired presents atomically
-  app.post('/api/presents/claim-all', async (req, res) => {
-    const { userId } = req.body;
-    if (!isValidUserId(userId)) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const result = await withUserLock(userId, async () => {
-      await hydrateUserPresentsFromSupabase(userId);
-      const progress = await hydrateUserProgressFromSupabase(userId);
-      const now = Date.now();
-      pruneExpiredLotsForUser(progress, now);
-
-      let claimedCount = 0;
-
-      serverPresentsDatabase.forEach((item) => {
-        if (item.userId !== userId) return;
-        if (!item.isClaimed && (!item.expiresAt || now <= item.expiresAt)) {
-          item.isClaimed = true;
-          item.claimedAt = now;
-          const rewardsList =
-            Array.isArray(item.rewards) && item.rewards.length > 0
-              ? item.rewards
-              : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
-          for (const r of rewardsList) {
-            const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
-            grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
-            appendUsageLog(progress, {
-              itemType: r.rewardType,
-              action: 'claim_present',
-              amount: r.amount || 1,
-              detailJa: `プレゼント「${item.title}」から獲得`,
-              detailEn: `Claimed from present: ${item.title}`,
-              timestamp: now,
-            });
+        let item = serverPresentsDatabase.get(presentId);
+        if (!item && presentSnapshot) {
+          const recovered = tryRecoverClientPresent(userId, presentSnapshot);
+          if (recovered && recovered.id === presentId) {
+            item = recovered;
           }
-          claimedCount += 1;
         }
-      });
+        if (!item) {
+          return { status: 404, body: { error: 'Present not found', updatedPresents: getSortedPresentsForUser(userId), progress } };
+        }
+        if (item.userId !== userId) {
+          return { status: 403, body: { error: 'Forbidden' } };
+        }
+        if (item.isClaimed) {
+          return {
+            status: 400,
+            body: { error: 'Already claimed', updatedPresents: getSortedPresentsForUser(userId), progress },
+          };
+        }
+        const now = Date.now();
+        if (item.expiresAt && now > item.expiresAt) {
+          return {
+            status: 400,
+            body: { error: 'Present expired', updatedPresents: getSortedPresentsForUser(userId), progress },
+          };
+        }
 
-      const presentsForUser = getSortedPresentsForUser(userId);
-      const userTickets = extractScoutTicketsFromInventory(progress.inventory);
-      userTicketsDatabase.set(userId, userTickets);
+        item.isClaimed = true;
+        item.claimedAt = now;
 
-      if (claimedCount > 0) {
+        pruneExpiredLotsForUser(progress, now);
+
+        const rewardsList =
+          Array.isArray(item.rewards) && item.rewards.length > 0
+            ? item.rewards
+            : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+
+        for (const r of rewardsList) {
+          const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+          grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
+          appendUsageLog(progress, {
+            itemType: r.rewardType,
+            action: 'claim_present',
+            amount: r.amount || 1,
+            detailJa: `プレゼント「${item.title}」から獲得`,
+            detailEn: `Claimed from present: ${item.title}`,
+            timestamp: now,
+          });
+        }
+
+        const userTickets = extractScoutTicketsFromInventory(progress.inventory);
+        userTicketsDatabase.set(userId, userTickets);
+
         savePresentsToDisk();
         saveUserTicketsToDisk();
         saveUserProgressToDisk();
+
         await Promise.all([
           pushUserPresentsToSupabase(userId),
           pushUserProgressToSupabase(progress),
         ]);
+
+        return {
+          status: 200,
+          body: {
+            success: true,
+            claimedItem: item,
+            updatedPresents: getSortedPresentsForUser(userId),
+            userTickets,
+            progress,
+          },
+        };
+      });
+
+      res.status(result.status).json(result.body);
+    } catch (e: any) {
+      console.error('Error claiming present:', e);
+      res.status(500).json({ error: e?.message || 'Failed to claim present' });
+    }
+  });
+
+  // 5.5 Present Box API: Claim all unclaimed non-expired presents atomically
+  app.post('/api/presents/claim-all', async (req, res) => {
+    try {
+      const rawUserId = typeof req.body?.userId === 'string' ? req.body.userId.trim() : '';
+      const clientPresents = Array.isArray(req.body?.knownPresents) ? req.body.knownPresents : [];
+      if (!isValidUserId(rawUserId)) {
+        return res.status(400).json({ error: 'Invalid userId' });
       }
+      const userId = rawUserId;
 
-      return {
-        success: true,
-        claimedCount,
-        updatedPresents: presentsForUser,
-        userTickets,
-        progress,
-      };
-    });
+      const result = await withUserLock(userId, async () => {
+        await hydrateUserPresentsFromSupabase(userId);
+        const progress = await hydrateUserProgressFromSupabase(userId);
+        const now = Date.now();
+        pruneExpiredLotsForUser(progress, now);
 
-    res.json(result);
+        for (const candidate of clientPresents) {
+          tryRecoverClientPresent(userId, candidate);
+        }
+
+        let claimedCount = 0;
+
+        serverPresentsDatabase.forEach((item) => {
+          if (item.userId !== userId) return;
+          if (!item.isClaimed && (!item.expiresAt || now <= item.expiresAt)) {
+            item.isClaimed = true;
+            item.claimedAt = now;
+            const rewardsList =
+              Array.isArray(item.rewards) && item.rewards.length > 0
+                ? item.rewards
+                : [{ rewardType: item.rewardType, amount: item.amount || 1 }];
+            for (const r of rewardsList) {
+              const expiresAt = r.expiresInDays ? now + r.expiresInDays * 24 * 60 * 60 * 1000 : undefined;
+              grantItemToProgress(progress, r.rewardType, r.amount || 1, `present:${item.id}`, expiresAt, now);
+              appendUsageLog(progress, {
+                itemType: r.rewardType,
+                action: 'claim_present',
+                amount: r.amount || 1,
+                detailJa: `プレゼント「${item.title}」から獲得`,
+                detailEn: `Claimed from present: ${item.title}`,
+                timestamp: now,
+              });
+            }
+            claimedCount += 1;
+          }
+        });
+
+        const presentsForUser = getSortedPresentsForUser(userId);
+        const userTickets = extractScoutTicketsFromInventory(progress.inventory);
+        userTicketsDatabase.set(userId, userTickets);
+
+        if (claimedCount > 0) {
+          savePresentsToDisk();
+          saveUserTicketsToDisk();
+          saveUserProgressToDisk();
+          await Promise.all([
+            pushUserPresentsToSupabase(userId),
+            pushUserProgressToSupabase(progress),
+          ]);
+        }
+
+        return {
+          success: true,
+          claimedCount,
+          updatedPresents: presentsForUser,
+          userTickets,
+          progress,
+        };
+      });
+
+      res.json(result);
+    } catch (e: any) {
+      console.error('Error claiming all presents:', e);
+      res.status(500).json({ error: e?.message || 'Failed to claim all presents' });
+    }
   });
 
   // 6. Reward Scout API: Verify, prune expired lots, and consume ticket

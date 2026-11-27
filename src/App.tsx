@@ -493,22 +493,25 @@ export default function App() {
     [userProgress.loginBonus]
   );
 
+  const presentsMutationEpochRef = useRef<number>(0);
+
   // Initial mount: v1.3.2 ranking reset, Ver.1.6.0 server presents & inventory/training sync
   useEffect(() => {
     let cancelled = false;
+    const mountEpoch = presentsMutationEpochRef.current;
     checkAndPerformV132RankingReset();
 
     const cachedProgress = getCachedUserProgress(effectiveUserId);
     applyServerProgress(cachedProgress);
-    ensureApologyGiftDistributed(effectiveUserId);
-    setPresents(getStoredPresents(effectiveUserId));
+    const initialLocalPresents = ensureApologyGiftDistributed(effectiveUserId);
+    setPresents(initialLocalPresents);
 
     Promise.all([
       fetchUserPresents(effectiveUserId),
       fetchUserProgress(effectiveUserId),
     ])
       .then(([serverPresents, progressRes]) => {
-        if (cancelled) return;
+        if (cancelled || presentsMutationEpochRef.current !== mountEpoch) return;
         setPresents(serverPresents);
         applyServerProgress(progressRes.progress);
       })
@@ -528,20 +531,23 @@ export default function App() {
   }, []);
 
   const refreshPresentsFromServer = useCallback(async () => {
+    const epochBefore = presentsMutationEpochRef.current;
     const serverPresents = await fetchUserPresents(effectiveUserId);
-    setPresents(serverPresents);
+    if (presentsMutationEpochRef.current === epochBefore) {
+      setPresents(serverPresents);
+    }
   }, [effectiveUserId]);
 
   const handleClaimGift = async (giftId: string) => {
-    const res = await claimPresent(effectiveUserId, giftId);
+    presentsMutationEpochRef.current += 1;
+    const res = await claimPresent(effectiveUserId, giftId, presents);
     if (Array.isArray(res.updatedPresents)) {
       setPresents(res.updatedPresents);
     }
     if (res.progress) {
       applyServerProgress(res.progress);
-    } else if (res.success) {
-      const refreshed = await fetchUserProgress(effectiveUserId);
-      applyServerProgress(refreshed.progress);
+    } else if (res.success && res.updatedTickets) {
+      setRewardTickets((prev) => ({ ...prev, ...res.updatedTickets }));
     }
     if (!res.success) {
       return {
@@ -556,15 +562,15 @@ export default function App() {
   };
 
   const handleClaimAllGifts = async () => {
-    const res = await claimAllPresents(effectiveUserId);
+    presentsMutationEpochRef.current += 1;
+    const res = await claimAllPresents(effectiveUserId, presents);
     if (Array.isArray(res.updatedPresents)) {
       setPresents(res.updatedPresents);
     }
     if (res.progress) {
       applyServerProgress(res.progress);
-    } else if (res.success) {
-      const refreshed = await fetchUserProgress(effectiveUserId);
-      applyServerProgress(refreshed.progress);
+    } else if (res.success && res.updatedTickets) {
+      setRewardTickets((prev) => ({ ...prev, ...res.updatedTickets }));
     }
     if (!res.success) {
       return {
@@ -573,13 +579,17 @@ export default function App() {
         message: res.error || '一括受取に失敗しました。',
       };
     }
+    if (res.claimedCount <= 0) {
+      return {
+        ok: false,
+        claimedCount: 0,
+        message: '受取可能なプレゼントはありません。',
+      };
+    }
     return {
       ok: true,
       claimedCount: res.claimedCount,
-      message:
-        res.claimedCount > 0
-          ? `${res.claimedCount}件のプレゼントを一括で受け取りました！`
-          : '受取可能なプレゼントはありません。',
+      message: `${res.claimedCount}件のプレゼントを一括で受け取りました！`,
     };
   };
 
